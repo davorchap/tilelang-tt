@@ -38,34 +38,29 @@ The Tenstorrent backend CI is defined in `.github/workflows/tenstorrent-ci.yml` 
 **Steps:**
 1. Checkout repository with submodules
 2. Set up Python with pip caching (caches `requirements-test.txt` dependencies)
-3. Cache apt packages (caches downloaded .deb files from `/var/cache/apt/archives`)
-4. Install system dependencies: build-essential, cmake, ninja, llvm, libedit-dev, libxml2-dev, zlib1g-dev
-5. Verify package integrity with `dpkg --verify`
-6. Install Python dependencies from requirements-test.txt
-7. **TVM Build Caching:**
+3. Install system dependencies: build-essential, cmake, ninja, llvm, libedit-dev, libxml2-dev, zlib1g-dev
+4. Install Python dependencies from requirements-test.txt
+5. **TVM Build Caching:**
    - Generate cache key based on TVM submodule commit hash
    - Restore cached TVM build artifacts if available
    - Caches: `build/libtvm*.so` and `build/3rdparty/`
    - Only rebuilds TVM when the submodule is updated
-8. Build TileLang with LLVM backend
+6. Build TileLang with LLVM backend
    - Uses Ninja build system
    - Limited to 2 parallel jobs to avoid OOM on GitHub runners
    - LLVM backend is sufficient for CPU-only testing
-9. Install TileLang in development mode
-10. Run Tenstorrent target registration tests
-11. Run all Tenstorrent Python tests (CPU-only)
+7. Install TileLang in development mode
+8. Run Tenstorrent target registration tests
+9. Run all Tenstorrent Python tests (CPU-only)
 
 **Caching Strategy:**
 - **TVM build artifacts:** Keyed by TVM submodule commit + OS
   - Dramatically reduces build time (TVM build is expensive)
   - Only invalidates when TVM submodule is updated
-- **Apt packages:** Keyed by package list + OS + version
-  - Caches downloaded .deb files (llvm, cmake, etc.) from `/var/cache/apt/archives`
-  - Key includes package names to only invalidate when packages change
-  - Package integrity verified with `dpkg --verify` after installation
-  - Speeds up system dependency installation
 - **Pip packages:** Keyed by requirements-test.txt hash
   - Reuses cached pytest and other test dependencies
+
+**Note on apt caching:** Apt package caching is not used because the cache action runs as an unprivileged user and cannot access `/var/cache/apt/archives` on the Ubuntu runner. System packages are fast to download (~1-2 minutes), so the complexity of reconfiguring apt to use a workspace directory isn't worth it. The primary performance gain comes from TVM build caching.
 
 ### 3. Static Analysis (`static-analysis`)
 
@@ -91,7 +86,6 @@ The CI uses multiple layers of caching for efficiency:
 |-----|---------------|-----------|---------|
 | lint-and-format | Pip packages | requirements-lint.txt hash | Fast linter installation |
 | build-and-test | TVM build | TVM submodule commit + OS | Avoid rebuilding TVM (~30+ min) |
-| build-and-test | Apt packages | package list + OS + version | Fast system deps install |
 | build-and-test | Pip packages | requirements-test.txt hash | Fast pytest install |
 | static-analysis | Pip packages | requirements-mypy.txt hash | Fast mypy installation |
 
