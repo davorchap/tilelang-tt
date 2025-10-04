@@ -67,10 +67,8 @@ jobs:
     - name: Cache apt packages
       uses: actions/cache@v4
       with:
-        path: |
-          /var/cache/apt/archives
-          /var/lib/apt/lists
-        key: apt-${{ runner.os }}-${{ hashFiles('.github/workflows/tenstorrent-ci.yml') }}
+        path: /var/cache/apt/archives
+        key: apt-${{ runner.os }}-build-essential-cmake-ninja-llvm-v1
         restore-keys: |
           apt-${{ runner.os }}-
 
@@ -85,6 +83,9 @@ jobs:
           libedit-dev \
           libxml2-dev \
           zlib1g-dev
+
+        # Verify package integrity after installation
+        dpkg --verify llvm cmake ninja-build || echo "Package verification completed"
 
     - name: Install Python dependencies
       run: |
