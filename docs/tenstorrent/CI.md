@@ -38,25 +38,29 @@ The Tenstorrent backend CI is defined in `.github/workflows/tenstorrent-ci.yml` 
 **Steps:**
 1. Checkout repository with submodules
 2. Set up Python with pip caching (caches `requirements-test.txt` dependencies)
-3. Install system dependencies: cmake, ninja, llvm-dev, libpolly-dev
-4. Install Python dependencies from requirements-test.txt
-5. **TVM Build Caching:**
+3. Cache apt packages (caches downloaded .deb files)
+4. Install system dependencies: build-essential, cmake, ninja, llvm, libedit-dev, libxml2-dev, zlib1g-dev
+5. Install Python dependencies from requirements-test.txt
+6. **TVM Build Caching:**
    - Generate cache key based on TVM submodule commit hash
    - Restore cached TVM build artifacts if available
    - Caches: `build/libtvm*.so` and `build/3rdparty/`
    - Only rebuilds TVM when the submodule is updated
-6. Build TileLang with LLVM backend
+7. Build TileLang with LLVM backend
    - Uses Ninja build system
    - Limited to 2 parallel jobs to avoid OOM on GitHub runners
    - LLVM backend is sufficient for CPU-only testing
-7. Install TileLang in development mode
-8. Run Tenstorrent target registration tests
-9. Run all Tenstorrent Python tests (CPU-only)
+8. Install TileLang in development mode
+9. Run Tenstorrent target registration tests
+10. Run all Tenstorrent Python tests (CPU-only)
 
 **Caching Strategy:**
 - **TVM build artifacts:** Keyed by TVM submodule commit + OS
   - Dramatically reduces build time (TVM build is expensive)
   - Only invalidates when TVM submodule is updated
+- **Apt packages:** Keyed by workflow file hash + OS
+  - Caches downloaded .deb files (llvm, cmake, etc.)
+  - Speeds up system dependency installation
 - **Pip packages:** Keyed by requirements-test.txt hash
   - Reuses cached pytest and other test dependencies
 
@@ -84,6 +88,7 @@ The CI uses multiple layers of caching for efficiency:
 |-----|---------------|-----------|---------|
 | lint-and-format | Pip packages | requirements-lint.txt hash | Fast linter installation |
 | build-and-test | TVM build | TVM submodule commit + OS | Avoid rebuilding TVM (~30+ min) |
+| build-and-test | Apt packages | workflow file hash + OS | Fast system deps install |
 | build-and-test | Pip packages | requirements-test.txt hash | Fast pytest install |
 | static-analysis | Pip packages | requirements-mypy.txt hash | Fast mypy installation |
 
