@@ -114,9 +114,9 @@ jobs:
           echo "tvm_commit=$TVM_COMMIT" >> $GITHUB_OUTPUT
           echo "TVM submodule at commit: $TVM_COMMIT"
 
-      - name: Cache TVM build
-        id: cache-tvm
-        uses: actions/cache@v4
+      - name: Restore TVM build cache
+        id: cache-tvm-restore
+        uses: actions/cache/restore@v4
         with:
           path: |
             build/libtvm*.so
@@ -144,13 +144,6 @@ jobs:
           # Build (use fewer jobs to avoid OOM on GitHub runners)
           cmake --build . --config Release -j 2
 
-      - name: Cache full build directory
-        uses: actions/cache@v4
-        with:
-          path: build/
-          key: tilelang-build-full-${{ steps.tvm-cache-key.outputs.tvm_commit }}-${{ runner.os }}
-          restore-keys: tilelang-build-full-${{ steps.tvm-cache-key.outputs.tvm_commit }}-
-
       - name: Install TileLang
         run: |
           # Copy built libraries to tilelang/lib
@@ -174,6 +167,15 @@ jobs:
           cd testing/python
           pytest tt/ -v --tb=short -k "not gpu" || echo "Some tests skipped (no GPU)"
         continue-on-error: true
+
+      - name: Save TVM build cache
+        uses: actions/cache/save@v4
+        if: always() && steps.cache-tvm-restore.outputs.cache-hit != 'true'
+        with:
+          path: |
+            build/libtvm*.so
+            build/3rdparty/
+          key: tvm-build-llvm-${{ steps.tvm-cache-key.outputs.tvm_commit }}-${{ runner.os }}
 
   static-analysis:
     runs-on: ubuntu-latest
