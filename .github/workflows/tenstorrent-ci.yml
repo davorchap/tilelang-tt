@@ -154,7 +154,12 @@ jobs:
 
       - name: Print ccache stats
         if: always()
-        run: ccache -s || true
+        run: |
+          if command -v ccache >/dev/null 2>&1; then
+            ccache -s
+          else
+            echo "ccache not found; skipping stats."
+          fi
 
       - name: Run Tenstorrent target registration tests
         run: |
@@ -170,7 +175,7 @@ jobs:
 
       - name: Save TVM build cache
         uses: actions/cache/save@v4
-        if: always() && steps.cache-tvm-restore.outputs.cache-hit != 'true'
+        if: always() && steps.cache-tvm-restore.outputs.cache-hit != true
         with:
           path: |
             build/libtvm*.so
