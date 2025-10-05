@@ -69,7 +69,8 @@ if USE_ROCM and not ROCM_HOME:
 if not USE_LLVM:
     if not USE_ROCM and not CUDA_HOME:
         raise ValueError(
-            "CUDA support is enabled by default (USE_ROCM=False) but CUDA_HOME is not set or detected.")
+            "CUDA support is enabled by default (USE_ROCM=False) but CUDA_HOME is not set or detected."
+        )
 
     # Ensure one of CUDA or ROCM is available
     if not (CUDA_HOME or ROCM_HOME):
