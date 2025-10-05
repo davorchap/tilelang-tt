@@ -150,6 +150,11 @@ jobs:
           # Copy built libraries to tilelang/lib
           mkdir -p tilelang/lib
           cp build/*.so tilelang/lib/ || true
+          # Install TVM Python package
+          cd 3rdparty/tvm/python
+          pip install -e .
+          cd ../../..
+          # Install TileLang
           export USE_LLVM=true
           pip install -e .
 
