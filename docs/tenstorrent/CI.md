@@ -156,7 +156,7 @@ CI runs automatically on:
 
 4. **Cache Split (Restore/Save):** Using separate `actions/cache/restore` and `actions/cache/save` with `if: always()` ensures TVM cache is saved even when the job fails, preventing redundant rebuilds on retry.
 
-5. **Continue-on-error for Tests:** Tests are marked with `continue-on-error: true` since the Tenstorrent backend is not fully implemented yet (target not registered in TVM).
+5. **Continue-on-error for Tests:** Tests are marked with `continue-on-error: true` because the Tenstorrent target registration in TVM is incomplete. As a result, tests are expected to fail until the backend implementation and target registration are finished.
 
 ## Future Improvements
 
