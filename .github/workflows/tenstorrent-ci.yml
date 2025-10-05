@@ -101,8 +101,8 @@ jobs:
       - name: Enable ccache
         uses: hendrikmuhs/ccache-action@v1.2.19
         with:
-          # Separate cache per OS and a coarse input set (tune as needed)
-          key: ${{ runner.os }}-ccache-${{ hashFiles('CMakeLists.txt', '3rdparty/tvm/**', 'tilelang/**') }}
+          # Key on OS and build config; ccache handles file-level caching internally
+          key: ${{ runner.os }}-ccache-llvm-${{ hashFiles('CMakeLists.txt') }}-v1
           max-size: 2G
           create-symlink: true
 
