@@ -363,8 +363,19 @@ def update_submodules():
 
 
 def setup_llvm_for_tvm():
-    """Downloads and extracts LLVM, then configures TVM to use it."""
-    # Assume the download_and_extract_llvm function and its dependencies are defined elsewhere in this script
+    """Downloads and extracts LLVM, then configures TVM to use it.
+
+    If system llvm-config is available, uses that instead of downloading LLVM.
+    """
+    # Check if system llvm-config is available
+    system_llvm_config = shutil.which("llvm-config")
+    if system_llvm_config:
+        logger.info(f"Using system llvm-config at {system_llvm_config}")
+        extract_path = os.path.dirname(os.path.dirname(system_llvm_config))  # Go up to LLVM root
+        return extract_path, system_llvm_config
+
+    # Otherwise download LLVM
+    logger.info(f"System llvm-config not found, downloading LLVM {LLVM_VERSION}")
     extract_path = download_and_extract_llvm(LLVM_VERSION, IS_AARCH64, EXTRACT_PATH)
     llvm_config_path = os.path.join(extract_path, "bin", "llvm-config")
     return extract_path, llvm_config_path
