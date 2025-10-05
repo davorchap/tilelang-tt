@@ -150,6 +150,8 @@ jobs:
           mkdir -p tilelang/lib
           cp build/*.so tilelang/lib/ || true
           export USE_LLVM=true
+          export PYPI_BUILD=true
+          export CUDA_HOME=/usr
           pip install -e .
 
       - name: Print ccache stats
