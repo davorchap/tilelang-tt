@@ -148,7 +148,7 @@ CI runs automatically on:
 
 ## Key Design Decisions
 
-1. **System LLVM vs Downloaded LLVM:** Uses system LLVM packages (installed via apt) instead of downloading LLVM 10.0.1. This avoids compatibility issues with newer Ubuntu versions (libtinfo.so.5 requirement).
+1. **System LLVM vs Downloaded LLVM:** Uses system LLVM packages (installed via apt) instead of downloading LLVM 10.0.1. This avoids compatibility issues with newer Ubuntu versions, which do not include `libtinfo.so.5` by default—causing runtime linking errors when using the downloaded LLVM 10.0.1 binaries.
 
 2. **Separate TVM Python Installation:** TVM Python package is installed separately before TileLang to ensure proper library path configuration.
 
