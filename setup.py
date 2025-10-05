@@ -158,9 +158,11 @@ def get_tilelang_version(with_cuda=True, with_system_info=True, with_commit_id=F
                 local_version_parts.append(f"rocm{rocm_version_str}")
         else:
             if CUDA_HOME:
-                cuda_version = str(get_nvcc_cuda_version())
-                cuda_version_str = cuda_version.replace(".", "")[:3]
-                local_version_parts.append(f"cu{cuda_version_str}")
+                nvcc_path = os.path.join(CUDA_HOME, "bin", "nvcc")
+                if os.path.exists(nvcc_path):
+                    cuda_version = str(get_nvcc_cuda_version())
+                    cuda_version_str = cuda_version.replace(".", "")[:3]
+                    local_version_parts.append(f"cu{cuda_version_str}")
 
     if local_version_parts:
         version += f"+{'.'.join(local_version_parts)}"
