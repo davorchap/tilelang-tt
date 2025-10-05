@@ -65,15 +65,17 @@ if USE_ROCM and not ROCM_HOME:
     raise ValueError(
         "ROCM support is enabled (USE_ROCM=True) but ROCM_HOME is not set or detected.")
 
-if not USE_ROCM and not CUDA_HOME:
-    raise ValueError(
-        "CUDA support is enabled by default (USE_ROCM=False) but CUDA_HOME is not set or detected.")
+# For LLVM-only builds, skip CUDA/ROCM validation
+if not USE_LLVM:
+    if not USE_ROCM and not CUDA_HOME:
+        raise ValueError(
+            "CUDA support is enabled by default (USE_ROCM=False) but CUDA_HOME is not set or detected.")
 
-# Ensure one of CUDA or ROCM is available
-if not (CUDA_HOME or ROCM_HOME):
-    raise ValueError(
-        "Failed to automatically detect CUDA or ROCM installation. Please set the CUDA_HOME or ROCM_HOME environment variable manually (e.g., export CUDA_HOME=/usr/local/cuda or export ROCM_HOME=/opt/rocm)."
-    )
+    # Ensure one of CUDA or ROCM is available
+    if not (CUDA_HOME or ROCM_HOME):
+        raise ValueError(
+            "Failed to automatically detect CUDA or ROCM installation. Please set the CUDA_HOME or ROCM_HOME environment variable manually (e.g., export CUDA_HOME=/usr/local/cuda or export ROCM_HOME=/opt/rocm)."
+        )
 
 # TileLang only supports Linux platform
 assert sys.platform.startswith("linux"), "TileLang only supports Linux platform (including WSL)."
