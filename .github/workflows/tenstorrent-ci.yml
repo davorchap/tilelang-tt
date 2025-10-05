@@ -151,6 +151,8 @@ jobs:
           mkdir -p tilelang/lib
           cp build/*.so tilelang/lib/ || true
           # Install TVM Python package
+          # Set TVM_LIBRARY_PATH so TVM can find the built libraries
+          export TVM_LIBRARY_PATH=$(pwd)/build/tvm
           cd 3rdparty/tvm/python
           pip install -e .
           cd ../../..
