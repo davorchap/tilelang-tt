@@ -52,6 +52,9 @@ The Tenstorrent backend CI is defined in `.github/workflows/tenstorrent-ci.yml` 
    - Limited to 2 parallel jobs to avoid OOM on GitHub runners
    - LLVM backend is sufficient for CPU-only testing
 7. Install TileLang in development mode
+   - Sets `USE_LLVM=true` to enable LLVM backend
+   - setup.py checks for nvcc availability before trying to use it
+   - Gracefully skips CUDA version detection if nvcc is not found
 8. Run Tenstorrent target registration tests
 9. Run all Tenstorrent Python tests (CPU-only)
 
