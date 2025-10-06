@@ -55,6 +55,7 @@ When creating a PR on GitHub's web UI, verify:
 **Protected branches:**
 - Changes to `main` require pull requests (direct pushes not allowed)
 - All PRs must pass CI checks before merging
+
 ## Build System
 
 ### Environment Variables
