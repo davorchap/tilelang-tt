@@ -84,6 +84,17 @@ cd "$ROOT_DIR"
 echo -e "${YELLOW}Working directory: $ROOT_DIR${NC}"
 echo ""
 
+# Check and initialize git submodules if needed
+echo -e "${GREEN}Checking git submodules...${NC}"
+if git submodule status | grep -q '^-'; then
+    echo -e "${YELLOW}Initializing git submodules...${NC}"
+    git submodule update --init --recursive
+    echo -e "${GREEN}Submodules initialized successfully${NC}"
+else
+    echo -e "${YELLOW}Submodules already initialized${NC}"
+fi
+echo ""
+
 # Step 1: Install system dependencies
 if [ "$SKIP_DEPS" = false ]; then
     echo -e "${GREEN}[1/5] Installing system dependencies...${NC}"
