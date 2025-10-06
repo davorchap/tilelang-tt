@@ -8,6 +8,35 @@ TileLang is a domain-specific language for developing high-performance GPU/CPU k
 
 This repository (`tilelang-tt`) is a **public fork** focused on adding first-class **Tenstorrent TT-Metalium backend** support alongside existing NVIDIA CUDA, AMD ROCm, and Huawei Ascend targets.
 
+## Repository Information
+
+**Repository:** `davorchap/tilelang-tt` (public fork)
+**Upstream:** `tile-ai/tilelang` (original repository)
+
+### Pull Request Workflow
+
+**IMPORTANT:** All pull requests must be made against **`davorchap/tilelang-tt`**, NOT the upstream `tile-ai/tilelang` repository.
+
+- **Base repository:** `davorchap/tilelang-tt`
+- **Base branch:** `main`
+- **Protected branches:** Changes to `main` require pull requests (direct pushes not allowed)
+
+When creating PRs:
+```bash
+# Create feature branch
+git checkout -b feature-name
+
+# Make changes and commit
+git add .
+git commit -m "Your commit message"
+
+# Push to origin (davorchap/tilelang-tt)
+git push -u origin feature-name
+
+# Create PR via GitHub UI or gh CLI
+gh pr create --base main --head feature-name
+```
+
 ## Build System
 
 ### Environment Variables
