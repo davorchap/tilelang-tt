@@ -111,7 +111,8 @@ if [ "$SKIP_DEPS" = false ]; then
         libedit-dev \
         libxml2-dev \
         zlib1g-dev \
-        ccache
+        ccache \
+        python3-venv
 
     echo -e "${GREEN}System dependencies installed successfully${NC}"
 else
@@ -119,10 +120,28 @@ else
 fi
 echo ""
 
-# Step 2: Install Python dependencies
-echo -e "${GREEN}[2/5] Installing Python dependencies...${NC}"
-python3 -m pip install --upgrade pip
+# Step 2: Create virtual environment and install Python dependencies
+echo -e "${GREEN}[2/5] Setting up Python virtual environment...${NC}"
+
+VENV_DIR=".venv"
+if [ ! -d "$VENV_DIR" ]; then
+    echo -e "${YELLOW}Creating virtual environment at $VENV_DIR...${NC}"
+    python3 -m venv "$VENV_DIR"
+else
+    echo -e "${YELLOW}Virtual environment already exists at $VENV_DIR${NC}"
+fi
+
+# Activate virtual environment
+source "$VENV_DIR/bin/activate"
+
+# Upgrade pip in venv
+echo -e "${YELLOW}Upgrading pip...${NC}"
+pip install --upgrade pip
+
+# Install dependencies
+echo -e "${YELLOW}Installing Python dependencies...${NC}"
 pip install -r requirements-test.txt
+
 echo -e "${GREEN}Python dependencies installed successfully${NC}"
 echo ""
 
@@ -241,6 +260,7 @@ echo -e "${GREEN}========================================${NC}"
 echo ""
 echo -e "Next steps:"
 echo -e "  - Review test results above"
+echo -e "  - To reactivate the virtual environment: ${YELLOW}source .venv/bin/activate${NC}"
 echo -e "  - Run ${YELLOW}bash format.sh${NC} to check code formatting"
 echo -e "  - Commit your changes and push to remote"
 echo ""
