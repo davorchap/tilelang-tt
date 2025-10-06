@@ -179,7 +179,20 @@ cp build/**/*.so tilelang/lib/ 2>/dev/null || true
 
 # Install TVM Python package
 echo -e "${YELLOW}Installing TVM Python package...${NC}"
-export TVM_LIBRARY_PATH=$(pwd)/build/tvm
+# Set TVM_LIBRARY_PATH, verifying the directory exists
+TVM_LIB_DIR="$(pwd)/build/tvm"
+if [ ! -d "$TVM_LIB_DIR" ]; then
+    # Try to find an alternative TVM library directory in build
+    TVM_LIB_DIR_FOUND=$(find "$(pwd)/build" -type d -name "tvm" | head -n 1)
+    if [ -n "$TVM_LIB_DIR_FOUND" ]; then
+        TVM_LIB_DIR="$TVM_LIB_DIR_FOUND"
+        echo -e "${YELLOW}Warning: Using detected TVM library directory: $TVM_LIB_DIR${NC}"
+    else
+        echo -e "${RED}Error: TVM library directory not found in build. Please check your build configuration.${NC}"
+        exit 1
+    fi
+fi
+export TVM_LIBRARY_PATH="$TVM_LIB_DIR"
 cd 3rdparty/tvm/python
 pip install -e .
 cd ../../..
