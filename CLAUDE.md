@@ -21,6 +21,20 @@ This repository (`tilelang-tt`) is a **public fork** focused on adding first-cla
 
 ### Building TileLang
 
+**Quick start - Automated local build (recommended for Tenstorrent development):**
+```bash
+# Builds with LLVM backend, runs tests, ~1 minute with ccache
+bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4
+```
+
+The automated script:
+- Automatically initializes git submodules if needed
+- Sets up Python virtual environment (`.venv`)
+- Builds with LLVM backend (required for Tenstorrent)
+- Installs TVM and TileLang in editable mode
+- Runs Tenstorrent backend tests with proper environment
+- See `docs/tenstorrent/local_build_guide.md` for full documentation
+
 **Standard CUDA build:**
 ```bash
 python setup.py build_ext --inplace
@@ -51,10 +65,25 @@ The build system:
 pytest testing/python/ -v
 ```
 
-**Run Tenstorrent tests:**
+**Run Tenstorrent tests (automated via build script):**
 ```bash
-LD_LIBRARY_PATH=build/tvm pytest testing/python/tt/test_target_registration.py -v
+bash maint/scripts/local_build_and_test_tt.sh --skip-deps --skip-build
 ```
+
+**Run Tenstorrent tests manually:**
+```bash
+# Quick one-liner
+source .venv/bin/activate && export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH && cd testing/python/tt && pytest test_target_registration.py -v
+
+# Or step by step
+source .venv/bin/activate
+export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
+pytest testing/python/tt/test_target_registration.py -v
+```
+
+**Expected test results:**
+- 4 tests pass
+- 1 test marked as `xfail` (target registration not yet implemented in TVM)
 
 **Run specific test category:**
 ```bash

@@ -26,20 +26,20 @@ The `maint/scripts/local_build_and_test_tt.sh` script automates the entire build
 git clone https://github.com/davorchap/tilelang-tt.git
 cd tilelang-tt
 
-# Initialize submodules
-git submodule update --init --recursive
-
-# Run the build script
+# Run the build script (automatically initializes submodules)
 bash maint/scripts/local_build_and_test_tt.sh
 ```
 
 The script will:
-1. Install system dependencies (requires sudo)
-2. Create a Python virtual environment (`.venv`)
-3. Build TileLang with LLVM backend
-4. Run Tenstorrent tests
+1. Check and initialize git submodules (if needed)
+2. Install system dependencies (requires sudo)
+3. Create a Python virtual environment (`.venv`)
+4. Build TileLang with LLVM backend
+5. Run Tenstorrent tests
 
-**Total time:** ~5-10 minutes on first run (depending on system specs)
+**Total time:** ~5-10 minutes on first run, ~1 minute on subsequent runs (with ccache)
+
+**Note:** The script automatically checks and initializes submodules if they haven't been set up yet. No manual initialization is required.
 
 ## What Gets Installed
 
@@ -219,6 +219,35 @@ The script runs Tenstorrent backend tests:
 **Test environment:**
 - `LD_LIBRARY_PATH` set to `build/tvm` for TVM library discovery
 - Tests run with `continue-on-error` behavior (backend incomplete)
+
+**Expected test results:**
+- 4 tests pass
+- 1 test marked as `xfail` (expected failure: target registration not yet implemented)
+
+### Running Individual Tests Manually
+
+To run individual tests outside the build script:
+
+```bash
+# Activate virtual environment and set library path
+source .venv/bin/activate
+export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
+
+# Run a specific test file
+cd testing/python/tt
+pytest test_target_registration.py -v
+
+# Run a single test function
+pytest test_target_registration.py::test_available_targets_contains_tt -v
+
+# Run with more verbose output
+pytest test_target_registration.py -vv --tb=long
+```
+
+**Quick one-liner for running tests:**
+```bash
+source .venv/bin/activate && export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH && cd testing/python/tt && pytest test_target_registration.py -v
+```
 
 ## Troubleshooting
 
