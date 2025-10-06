@@ -60,7 +60,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --help)
-            head -n 25 "$0" | tail -n 24
+            head -n 23 "$0"
             exit 0
             ;;
         *)
