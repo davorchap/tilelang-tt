@@ -10,32 +10,51 @@ This repository (`tilelang-tt`) is a **public fork** focused on adding first-cla
 
 ## Repository Information
 
-**Repository:** `davorchap/tilelang-tt` (public fork)
-**Upstream:** `tile-ai/tilelang` (original repository)
+**⚠️ CRITICAL: This is a fork. Always target the correct repository for PRs! ⚠️**
+
+- **This repository:** `davorchap/tilelang-tt` (public fork)
+- **Upstream (DO NOT PR HERE):** `tile-ai/tilelang` (original repository)
 
 ### Pull Request Workflow
 
-**IMPORTANT:** All pull requests must be made against **`davorchap/tilelang-tt`**, NOT the upstream `tile-ai/tilelang` repository.
+**🚨 IMPORTANT: ALL PULL REQUESTS MUST TARGET `davorchap/tilelang-tt` 🚨**
 
-- **Base repository:** `davorchap/tilelang-tt`
-- **Base branch:** `main`
-- **Protected branches:** Changes to `main` require pull requests (direct pushes not allowed)
+**DO NOT** create pull requests against `tile-ai/tilelang`. This is a fork and all work stays in the fork.
 
-When creating PRs:
+**Correct PR settings:**
+- ✅ **Base repository:** `davorchap/tilelang-tt`
+- ✅ **Base branch:** `main`
+- ✅ **Head branch:** your feature branch
+- ❌ **NEVER use:** `tile-ai/tilelang` as base
+
+**Creating PRs:**
 ```bash
-# Create feature branch
+# 1. Create feature branch
 git checkout -b feature-name
 
-# Make changes and commit
+# 2. Make changes and commit
 git add .
 git commit -m "Your commit message"
 
-# Push to origin (davorchap/tilelang-tt)
+# 3. Push to origin (this pushes to davorchap/tilelang-tt)
 git push -u origin feature-name
 
-# Create PR via GitHub UI or gh CLI
-gh pr create --base main --head feature-name
+# 4. Create PR - use the correct URL format:
+# https://github.com/davorchap/tilelang-tt/compare/main...feature-name
+#
+# OR if you have gh CLI with auth:
+gh pr create --repo davorchap/tilelang-tt --base main --head feature-name
 ```
+
+**Verifying PR target:**
+When creating a PR on GitHub's web UI, verify:
+- Base repository shows: `davorchap/tilelang-tt`
+- Base branch shows: `main`
+- If you see `tile-ai/tilelang`, you're targeting the WRONG repository!
+
+**Protected branches:**
+- Changes to `main` require pull requests (direct pushes not allowed)
+- All PRs must pass CI checks before merging
 
 ## Build System
 
