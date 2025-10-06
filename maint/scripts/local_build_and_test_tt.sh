@@ -174,7 +174,8 @@ echo -e "${GREEN}[4/5] Installing TileLang Python packages...${NC}"
 
 # Copy built libraries to tilelang/lib
 mkdir -p tilelang/lib
-cp build/*.so tilelang/lib/ 2>/dev/null || true
+shopt -s globstar
+cp build/**/*.so tilelang/lib/ 2>/dev/null || true
 
 # Install TVM Python package
 echo -e "${YELLOW}Installing TVM Python package...${NC}"
