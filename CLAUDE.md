@@ -8,6 +8,54 @@ TileLang is a domain-specific language for developing high-performance GPU/CPU k
 
 This repository (`tilelang-tt`) is a **public fork** focused on adding first-class **Tenstorrent TT-Metalium backend** support alongside existing NVIDIA CUDA, AMD ROCm, and Huawei Ascend targets.
 
+## Repository Information
+
+**⚠️ CRITICAL: This is a fork. Always target the correct repository for PRs! ⚠️**
+
+- **This repository:** `davorchap/tilelang-tt` (public fork)
+- **Upstream (DO NOT PR HERE):** `tile-ai/tilelang` (original repository)
+
+### Pull Request Workflow
+
+**🚨 IMPORTANT: ALL PULL REQUESTS MUST TARGET `davorchap/tilelang-tt` 🚨**
+
+**DO NOT** create pull requests against `tile-ai/tilelang`. This is a fork and all work stays in the fork.
+
+**Correct PR settings:**
+- ✅ **Base repository:** `davorchap/tilelang-tt`
+- ✅ **Base branch:** `main`
+- ✅ **Head branch:** your feature branch
+- ❌ **NEVER use:** `tile-ai/tilelang` as base
+
+**Creating PRs:**
+```bash
+# 1. Create feature branch
+git checkout -b feature-name
+
+# 2. Make changes and commit
+git add .
+git commit -m "Your commit message"
+
+# 3. Push to origin (this pushes to davorchap/tilelang-tt)
+git push -u origin feature-name
+
+# 4. Create PR - use the correct URL format:
+# https://github.com/davorchap/tilelang-tt/compare/main...feature-name
+#
+# OR if you have gh CLI with auth:
+gh pr create --repo davorchap/tilelang-tt --base main --head feature-name
+```
+
+**Verifying PR target:**
+When creating a PR on GitHub's web UI, verify:
+- Base repository shows: `davorchap/tilelang-tt`
+- Base branch shows: `main`
+- If you see `tile-ai/tilelang`, you're targeting the WRONG repository!
+
+**Protected branches:**
+- Changes to `main` require pull requests (direct pushes not allowed)
+- All PRs must pass CI checks before merging
+
 ## Build System
 
 ### Environment Variables
@@ -20,6 +68,20 @@ This repository (`tilelang-tt`) is a **public fork** focused on adding first-cla
 - `PYPI_BUILD=true` - Build for PyPI distribution (clean version strings)
 
 ### Building TileLang
+
+**Quick start - Automated local build (recommended for Tenstorrent development):**
+```bash
+# Builds with LLVM backend, runs tests, ~1 minute with ccache
+bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4
+```
+
+The automated script:
+- Automatically initializes git submodules if needed
+- Sets up Python virtual environment (`.venv`)
+- Builds with LLVM backend (required for Tenstorrent)
+- Installs TVM and TileLang in editable mode
+- Runs Tenstorrent backend tests with proper environment
+- See `docs/tenstorrent/local_build_guide.md` for full documentation
 
 **Standard CUDA build:**
 ```bash
@@ -51,10 +113,25 @@ The build system:
 pytest testing/python/ -v
 ```
 
-**Run Tenstorrent tests:**
+**Run Tenstorrent tests (automated via build script):**
 ```bash
-LD_LIBRARY_PATH=build/tvm pytest testing/python/tt/test_target_registration.py -v
+bash maint/scripts/local_build_and_test_tt.sh --skip-deps --skip-build
 ```
+
+**Run Tenstorrent tests manually:**
+```bash
+# Quick one-liner
+source .venv/bin/activate && export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH && cd testing/python/tt && pytest test_target_registration.py -v
+
+# Or step by step
+source .venv/bin/activate
+export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
+pytest testing/python/tt/test_target_registration.py -v
+```
+
+**Expected test results:**
+- 4 tests pass
+- 1 test marked as `xfail` (target registration not yet implemented in TVM)
 
 **Run specific test category:**
 ```bash

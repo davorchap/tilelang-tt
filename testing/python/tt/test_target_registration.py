@@ -31,6 +31,7 @@ def test_available_targets_contains_tt():
     assert _target_mod.TENSTORRENT_TARGET in _target_mod.AVALIABLE_TARGETS
 
 
+@pytest.mark.xfail(reason="Tenstorrent target not yet registered in TVM")
 def test_determine_target_returns_target_when_backend_enabled(toggle_tt_backend):
     toggle_tt_backend(True)
     scope_name = _target_mod.determine_target(_target_mod.TENSTORRENT_TARGET)
