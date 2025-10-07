@@ -12,6 +12,7 @@
       "Bash(grep *)",
       "Bash(ls *)",
       "Bash(sleep *)",
+      "Bash(cd *)",
       "Read(**/*)",
       "Edit(**/*)",
       "Write(**/*)"
