@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'tilelang/engine/tt/**'
+      - 'tilelang/tt/**'
       - 'testing/python/tt/**'
       - 'tilelang/utils/target.py'
       - '.github/workflows/tenstorrent-ci.yml'
@@ -214,5 +215,7 @@ jobs:
         run: pip install -r requirements-mypy.txt
 
       - name: Type check Tenstorrent backend
-        run: mypy tilelang/engine/tt/ --ignore-missing-imports || true
+        run: |
+          mypy tilelang/engine/tt/ --ignore-missing-imports || true
+          mypy tilelang/tt/ --ignore-missing-imports || true
         continue-on-error: true
