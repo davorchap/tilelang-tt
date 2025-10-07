@@ -8,11 +8,37 @@ TileLang is a domain-specific language for developing high-performance GPU/CPU k
 
 This repository (`tilelang-tt`) is a **public fork** focused on adding first-class **Tenstorrent TT-Metalium backend** support alongside existing NVIDIA CUDA, AMD ROCm, and Huawei Ascend targets.
 
-### Unified MVP Plan
+### Unified MVP Plan (Updated 2025-10-07)
 
-**⚠️ IMPORTANT:** The authoritative plan for Tenstorrent backend development is **[docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md)**.
+**⭐ AUTHORITATIVE PLAN:** **[docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md)** (Version 2.0 FINAL)
 
-The unified plan consolidates all MVP work into a single source of truth.
+The unified plan clearly separates:
+- **MVP Phase 1** (Current): Template-based dry-run matmul - **23 tests passing**
+- **MVP Phase 2** (Future): IR-driven production backend - Target 50+ tests
+
+**Key Documents:**
+- 📋 **Main Plan**: `UNIFIED_MATMUL_MVP_PLAN.md` - Complete MVP specification
+- 🔍 **TIR Specs**: `TIR_SPECIFICATIONS.md` - Detailed IR transformations
+- 💡 **POC Example**: `examples/tenstorrent/example_matmul_tt_poc.py` - Complete workflow demo
+
+**Current Status (2025-10-07):**
+- ✅ WS1: Target registration (8 tests)
+- ✅ WS2: Metadata inference (7 tests)
+- ✅ WS3: GridToPersistentTT foundation (3 tests)
+- ⚠️ WS4-6: Template-based codegen (5 tests) - **Matmul-only, mock APIs**
+- **Total: 23 tests passing**
+
+**Phase 1 Limitations (By Design):**
+- ⚠️ Template-based codegen (not IR-driven)
+- ⚠️ Matmul-only (hardcoded patterns)
+- ⚠️ Mock Metalium APIs (dry-run only)
+- ⚠️ No hardware execution
+
+**Phase 2 Will Address:**
+- IR-walking codegen for arbitrary kernels
+- Real Metalium API integration
+- Hardware execution
+- 5 deferred WS3 transforms
 
 ## Repository Information
 
