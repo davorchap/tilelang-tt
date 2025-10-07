@@ -82,8 +82,8 @@ def test_emit_reader_kernel_basic():
     assert "cb_push_back(CB_B, 1)" in reader_cpp, "cb_push_back missing for CB_B"
     assert "get_write_ptr(CB_B)" in reader_cpp, "get_write_ptr missing for CB_B"
 
-    # Verify NOC operations
-    assert "noc_async_read(" in reader_cpp, "noc_async_read missing"
+    # Verify NOC operations (WS7: uses noc_async_read_tile)
+    assert "noc_async_read_tile(" in reader_cpp, "noc_async_read_tile missing"
     assert "noc_async_read_barrier()" in reader_cpp, "noc_async_read_barrier missing"
 
     # Verify CB indices
@@ -118,8 +118,8 @@ def test_emit_writer_kernel_basic():
     assert "cb_pop_front(CB_C, 1)" in writer_cpp, "cb_pop_front missing for CB_C"
     assert "get_read_ptr(CB_C)" in writer_cpp, "get_read_ptr missing for CB_C"
 
-    # Verify NOC operations
-    assert "noc_async_write(" in writer_cpp, "noc_async_write missing"
+    # Verify NOC operations (WS7: uses noc_async_write_tile)
+    assert "noc_async_write_tile(" in writer_cpp, "noc_async_write_tile missing"
     assert "noc_async_write_barrier()" in writer_cpp, "noc_async_write_barrier missing"
 
     # Verify CB index
@@ -248,19 +248,20 @@ def test_cb_synchronization_pattern():
     push_pos = reader_kernel_section.find("cb_push_back")
     assert reserve_pos < push_pos, "Reader should reserve before push"
 
-    # Compute pattern: wait (inputs) → reserve (output) → pop (inputs) → push (output)
+    # Compute pattern: wait (inputs) → matmul → pop (inputs) → push (output)
+    # WS7: No explicit reserve for CB_C - output implicitly allocated by matmul_tiles_init
     compute_lines = compute_cpp.split('\n')
     main_start = next(i for i, line in enumerate(compute_lines) if "void MAIN()" in line)
     main_section = '\n'.join(compute_lines[main_start:main_start + 40])
 
     assert "cb_wait_front(CB_A" in main_section, "Compute missing wait for CB_A"
-    assert "cb_reserve_back(CB_C" in main_section, "Compute missing reserve for CB_C"
     assert "cb_pop_front(CB_A" in main_section, "Compute missing pop for CB_A"
     assert "cb_push_back(CB_C" in main_section, "Compute missing push for CB_C"
+    assert "matmul_tiles" in main_section, "Compute missing matmul operation"
 
-    # Writer pattern: wait → read → pop
+    # Writer pattern: wait → read → pop (WS7: kernel_main)
     writer_lines = writer_cpp.split('\n')
-    writer_kernel_start = next(i for i, line in enumerate(writer_lines) if "void writer_kernel_C(" in line)
+    writer_kernel_start = next(i for i, line in enumerate(writer_lines) if "void kernel_main()" in line)
     writer_kernel_section = '\n'.join(writer_lines[writer_kernel_start:writer_kernel_start + 20])
 
     assert "cb_wait_front" in writer_kernel_section, "Writer missing wait"

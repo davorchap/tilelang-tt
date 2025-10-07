@@ -275,15 +275,15 @@ def test_full_host_program_structure():
         assert pos != -1, f"Section '{section_name}' not found (searching for '{search_str}')"
         positions[section_name] = pos
 
-    # Verify order
+    # Verify order (WS7: runtime_args (dimensions) now come before dram_alloc)
     assert positions["includes"] < positions["device_apis"], "Includes should come before device APIs"
     assert positions["device_apis"] < positions["main_func"], "Device APIs should come before main()"
     assert positions["main_func"] < positions["device_setup"], "main() should come before device setup"
     assert positions["device_setup"] < positions["cb_config"], "Device setup should come before CB config"
     assert positions["cb_config"] < positions["program_create"], "CB config should come before program create"
-    assert positions["program_create"] < positions["dram_alloc"], "Program create should come before DRAM alloc"
-    assert positions["dram_alloc"] < positions["runtime_args"], "DRAM alloc should come before runtime args"
-    assert positions["runtime_args"] < positions["launch"], "Runtime args should come before launch"
+    assert positions["program_create"] < positions["runtime_args"], "Program create should come before runtime args (dimensions)"
+    assert positions["runtime_args"] < positions["dram_alloc"], "Runtime args (dimensions) should come before DRAM alloc"
+    assert positions["dram_alloc"] < positions["launch"], "DRAM alloc should come before launch"
     assert positions["launch"] < positions["return"], "Launch should come before return"
 
     print("✓ Test 8 passed: Full host program structure verification")
