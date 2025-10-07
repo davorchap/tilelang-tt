@@ -94,5 +94,6 @@ tilelang/jit/adapter/cython/.cycache
 # cache directory for clangd
 .cache/
 
-# claude
-**/.claude
+# claude - ignore local settings but allow default template
+**/.claude/*
+!**/.claude/settings.json

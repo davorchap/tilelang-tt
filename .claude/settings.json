@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source *)",
+      "Bash(pytest *)",
+      "Bash(npm *)",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(curl *)",
+      "Bash(bash *)",
+      "Bash(mkdir *)",
+      "Bash(grep *)",
+      "Bash(ls *)",
+      "Bash(sleep *)",
+      "Read(**/*)",
+      "Edit(**/*)",
+      "Write(**/*)"
+    ],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(sudo rm *)"
+    ]
+  }
+}
