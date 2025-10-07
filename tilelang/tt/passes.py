@@ -240,6 +240,37 @@ def tile_pad_tt(mod: tvm.IRModule) -> tvm.IRModule:
     return pass_func()(mod)
 
 
+def tensorize_tt(mod: tvm.IRModule) -> tvm.IRModule:
+    """Lower high-level matmul operations to TT intrinsics.
+
+    This pass identifies high-level GEMM/matmul operations (T.gemm, pragma_gemm)
+    and annotates them with Tenstorrent-specific intrinsic metadata for codegen. It:
+
+    - Identifies AttrStmt nodes with matmul markers
+    - Annotates with TT intrinsic type (matmul_tiles, matmul_init)
+    - Stamps matmul_id and accumulation flags
+    - Attaches tt_num_matmuls and tt_has_tensorize metadata
+
+    For Phase 2, actual intrinsic code generation happens in WS4-6 codegen.
+
+    Args:
+        mod: The TVM IRModule to process (should have matmul operations)
+
+    Returns:
+        A new IRModule with matmul intrinsic annotations
+
+    Example:
+        >>> from tilelang.tt import apply_ws3_passes, tensorize_tt
+        >>>
+        >>> mod = create_tilelang_kernel()
+        >>> mod = apply_tt_defaults(mod)  # WS1
+        >>> mod = apply_ws2_passes(mod)  # WS2
+        >>> mod = apply_ws3_passes(mod)  # WS3 (includes tensorize_tt)
+    """
+    pass_func = tvm.ffi.get_global_func("tl.transform.TensorizeTT")
+    return pass_func()(mod)
+
+
 def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Apply all Workstream 3 TIR transform passes.
 
@@ -265,9 +296,9 @@ def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
     mod = tt_shard_to_core_map(mod)
     mod = memory_space_lower_tt(mod)
     mod = tile_pad_tt(mod)
+    mod = tensorize_tt(mod)
 
     # TODO(WS3): Add remaining transforms when implemented
-    # mod = tensorize_tt(mod)
     # mod = verify_tt_ir(mod)
 
     return mod

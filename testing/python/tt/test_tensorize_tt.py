@@ -1,0 +1,187 @@
+"""Test TensorizeTT pass (WS3 Phase 2).
+
+This pass lowers high-level matmul operations to TT intrinsics.
+"""
+
+import pytest
+import tvm
+from tvm import tir
+
+
+def create_func_with_gemm():
+    """Create a mock PrimFunc with gemm operations."""
+    A = tir.decl_buffer((32, 32), "float16", name="A")
+    B = tir.decl_buffer((32, 32), "float16", name="B")
+    C = tir.decl_buffer((32, 32), "float16", name="C")
+
+    # Create body with gemm pragma (simulating T.gemm)
+    gemm_body = tir.Evaluate(0)
+    body = tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm_body)
+
+    func = tir.PrimFunc([A, B, C], body)
+
+    # Add TT defaults
+    func = func.with_attr("tt_schedule_policy", "contiguous")
+
+    return func
+
+
+def create_func_with_multiple_gemms():
+    """Create a mock PrimFunc with multiple gemm operations."""
+    A = tir.decl_buffer((32, 32), "float16", name="A")
+    B = tir.decl_buffer((32, 32), "float16", name="B")
+    C = tir.decl_buffer((32, 32), "float16", name="C")
+
+    # Create multiple gemm operations (simulating K-loop)
+    gemm1 = tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), tir.Evaluate(0))
+    gemm2 = tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), tir.Evaluate(1))
+    body = tir.SeqStmt([gemm1, gemm2])
+
+    func = tir.PrimFunc([A, B, C], body)
+    func = func.with_attr("tt_schedule_policy", "contiguous")
+
+    return func
+
+
+def test_tensorize_tt_basic():
+    """Test TensorizeTT annotates matmul operations."""
+    from tilelang.tt.passes import tensorize_tt
+
+    func = create_func_with_gemm()
+    mod = tvm.IRModule({"main": func})
+
+    # Apply TensorizeTT
+    mod = tensorize_tt(mod)
+    func = mod["main"]
+
+    # Verify tensorize metadata attached
+    assert func.attrs is not None, "Function should have attributes"
+    assert "tt_num_matmuls" in func.attrs, "Should have tt_num_matmuls attribute"
+    assert "tt_has_tensorize" in func.attrs, "Should have tt_has_tensorize attribute"
+
+
+def test_tensorize_tt_matmul_count():
+    """Test TensorizeTT counts matmul operations correctly."""
+    from tilelang.tt.passes import tensorize_tt
+
+    func = create_func_with_gemm()
+    mod = tvm.IRModule({"main": func})
+
+    mod = tensorize_tt(mod)
+    func = mod["main"]
+
+    num_matmuls = int(func.attrs["tt_num_matmuls"])
+    assert num_matmuls == 1, f"Expected 1 matmul, got {num_matmuls}"
+
+
+def test_tensorize_tt_multiple_matmuls():
+    """Test TensorizeTT handles multiple matmul operations."""
+    from tilelang.tt.passes import tensorize_tt
+
+    func = create_func_with_multiple_gemms()
+    mod = tvm.IRModule({"main": func})
+
+    mod = tensorize_tt(mod)
+    func = mod["main"]
+
+    num_matmuls = int(func.attrs["tt_num_matmuls"])
+    assert num_matmuls == 2, f"Expected 2 matmuls, got {num_matmuls}"
+
+
+def test_tensorize_tt_has_tensorize_flag():
+    """Test TensorizeTT sets has_tensorize flag."""
+    from tilelang.tt.passes import tensorize_tt
+
+    func = create_func_with_gemm()
+    mod = tvm.IRModule({"main": func})
+
+    mod = tensorize_tt(mod)
+    func = mod["main"]
+
+    has_tensorize = bool(func.attrs["tt_has_tensorize"])
+    assert has_tensorize, "tt_has_tensorize should be True"
+
+
+def test_tensorize_tt_skip_non_gemm_functions():
+    """Test TensorizeTT skips functions without gemm operations."""
+    from tilelang.tt.passes import tensorize_tt
+
+    # Create function without gemm
+    A = tir.decl_buffer((32, 32), "float16", name="A")
+    body = tir.Evaluate(0)  # No gemm pragma
+    func = tir.PrimFunc([A], body)
+    func = func.with_attr("tt_schedule_policy", "contiguous")
+
+    mod = tvm.IRModule({"main": func})
+
+    mod = tensorize_tt(mod)
+    func = mod["main"]
+
+    # Should not add tensorize metadata
+    assert "tt_num_matmuls" not in func.attrs, "Should not add matmul count without gemm ops"
+
+
+def test_tensorize_tt_skip_non_tt_functions():
+    """Test TensorizeTT skips functions without TT attributes."""
+    from tilelang.tt.passes import tensorize_tt
+
+    # Create function WITHOUT TT attributes
+    A = tir.decl_buffer((32, 32), "float16", name="A")
+    gemm_body = tir.Evaluate(0)
+    body = tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm_body)
+    func = tir.PrimFunc([A], body)
+
+    mod = tvm.IRModule({"main": func})
+
+    # Apply pass
+    mod = tensorize_tt(mod)
+    func = mod["main"]
+
+    # Should NOT add tensorize metadata
+    assert func.attrs is None or "tt_num_matmuls" not in func.attrs, "Should not tensorize without TT attributes"
+
+
+def test_tensorize_tt_integration_with_ws1_ws2():
+    """Test TensorizeTT integrates with full WS1→WS2→TensorizeTT pipeline."""
+    from tilelang.tt.passes import apply_ws2_passes, tensorize_tt
+    from tilelang.tt.target import apply_tt_defaults
+
+    # Create function with gemm
+    A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
+    B = tir.decl_buffer((256, 256), "float16", name="B", scope="global")
+    C = tir.decl_buffer((256, 256), "float16", name="C", scope="global")
+
+    gemm_body = tir.Evaluate(0)
+    body = tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm_body)
+    func = tir.PrimFunc([A, B, C], body)
+
+    # Add grid metadata (normally from TileLang frontend)
+    func = func.with_attr("tl.grid_x", tvm.tir.IntImm("int32", 8))
+    func = func.with_attr("tl.grid_y", tvm.tir.IntImm("int32", 8))
+
+    mod = tvm.IRModule({"main": func})
+
+    # Apply WS1 → WS2 → TensorizeTT
+    mod = apply_tt_defaults(mod)
+    mod = apply_ws2_passes(mod)
+    mod = tensorize_tt(mod)
+
+    func = mod["main"]
+
+    # Verify all metadata exists
+    assert "tt_schedule_policy" in func.attrs, "Should have WS1 defaults"
+    assert "tt_tiles_per_core" in func.attrs, "Should have WS2 schedule metadata"
+    assert "tt_num_matmuls" in func.attrs, "Should have TensorizeTT output"
+    assert "tt_has_tensorize" in func.attrs, "Should have tensorize flag"
+
+
+if __name__ == "__main__":
+    # Run tests
+    test_tensorize_tt_basic()
+    test_tensorize_tt_matmul_count()
+    test_tensorize_tt_multiple_matmuls()
+    test_tensorize_tt_has_tensorize_flag()
+    test_tensorize_tt_skip_non_gemm_functions()
+    test_tensorize_tt_skip_non_tt_functions()
+    test_tensorize_tt_integration_with_ws1_ws2()
+    print("All TensorizeTT tests passed!")
