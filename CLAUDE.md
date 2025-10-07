@@ -130,8 +130,9 @@ pytest testing/python/tt/test_target_registration.py -v
 ```
 
 **Expected test results:**
-- 4 tests pass
-- 1 test marked as `xfail` (target registration not yet implemented in TVM)
+- 8 tests pass (Workstream 1 complete)
+  - 5 target registration and engine adapter tests
+  - 3 default annotation helper tests
 
 **Run specific test category:**
 ```bash
@@ -166,25 +167,33 @@ The format script will show diffs; manually apply changes or use auto-formatting
 
 **Key concept:** Users write grid-style kernels with `T.Kernel(grid_x, grid_y)` using block indices `(bx, by)`. The backend generates a **persistent outer loop** for each core that iterates over assigned tiles, recovering `(bx, by)` from a static schedule.
 
-**Components (from README):**
+**Components:**
 
-1. **Annotations API** (`python/tilelang_tt/annotations.py`):
+1. **Default Annotation Helper** (`tilelang/tt/target.py`):
+   - ✅ **Implemented (WS1)** - `apply_tt_defaults()` function
+   - Stamps default TT attributes on PrimFuncs when user doesn't specify them
+   - Default schedule: `contiguous` policy with `row_major` order
+   - Default layout: 32×32 DRAM interleaved tilization
+   - Ensures backward compatibility for GPU-style kernels
+
+2. **Annotations API** (`python/tilelang_tt/annotations.py`):
    - `T.annotate_tt_schedule()` - Control static scheduling (contiguous/strided/rect)
    - `T.annotate_tt_sharding()` - Specify tensor sharding/layout on TT cores
 
-2. **Compiler Passes** (`src/tt/passes/`):
+3. **Compiler Passes** (`src/tt/passes/`):
    - `GridToPersistentTT` - Wraps grid kernel body in per-core scheduler loop
    - `TTShardToCoreMap` - Translates sharding annotations to CoreRangeSet
    - `TilePadTT` - Handles non-tile-multiple shapes (32×32 tiles)
    - `MemorySpaceLowerTT` - Lower DRAM↔L1 moves, circular buffers
    - `TensorizeTT` - Map tile operations to TT micro-kernels
 
-3. **Codegen** (`src/tt/codegen/`):
+4. **Codegen** (`src/tt/codegen/`):
    - `EmitTTKernels` - Generate compute/reader/writer C++ kernels and host stubs
 
-4. **Target Registration** (`tilelang/engine/tt/`):
-   - Target registration hooks for TVM integration
-   - Engine adapter for Tenstorrent runtime
+5. **Target Registration & Engine** (`tilelang/engine/tt/`):
+   - ✅ **Implemented (WS1)** - Target registration hooks for TVM integration
+   - ✅ **Implemented (WS1)** - Engine adapter with lowering entry point
+   - Integrates default annotation helper into lowering pipeline
 
 ### Directory Structure
 
@@ -208,7 +217,9 @@ tilelang-tt/
 │   └── transform/              # IR transformation passes
 ├── tilelang/
 │   ├── engine/                 # Backend engines
-│   │   └── tt/                 # Tenstorrent engine (in development)
+│   │   └── tt/                 # Tenstorrent engine adapter (WS1 complete)
+│   ├── tt/                     # Tenstorrent utilities (WS1 complete)
+│   │   └── target.py           # Default annotation helper
 │   ├── language/               # TileLang DSL (Python API)
 │   ├── autotuner/              # Auto-tuning framework
 │   ├── jit/                    # JIT compilation
