@@ -74,6 +74,7 @@ def lower(
     # 2. Generate TT kernels (reader/compute/writer)
     # 3. Generate host code
     # 4. Return CompiledArtifact
-    raise NotImplementedError("Tenstorrent backend lowering is not yet implemented. "
-                              "Default annotations have been applied to the module, but the full "
-                              "lowering pipeline (passes, codegen, runtime) will be added in future workstreams.")
+    raise NotImplementedError(
+        "Tenstorrent backend lowering is not yet implemented. "
+        "Default annotations have been applied to the module, but the full "
+        "lowering pipeline (passes, codegen, runtime) will be added in future workstreams.")
