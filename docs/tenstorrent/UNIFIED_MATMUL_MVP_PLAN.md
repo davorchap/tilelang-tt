@@ -10,6 +10,25 @@
 
 This document consolidates all previous planning documents into a single authoritative plan with **clear Phase 1 vs Phase 2 separation**.
 
+### 🎉 Phase 2 WS3-Extended COMPLETE (2025-10-07)
+
+**Major Milestone**: All 5 deferred Phase 2 transforms have been successfully implemented!
+
+- ✅ TTShardToCoreMap: Physical core topology mapping (PR #33)
+- ✅ MemorySpaceLowerTT: Circular buffer allocation (PR #34)
+- ✅ TilePadTT: Padding metadata computation (PR #35)
+- ✅ TensorizeTT: Matmul intrinsic annotation (PR #36)
+- ✅ VerifyTTIR: IR validation (PR #37)
+- ✅ MVP test fixes (PR #38)
+
+**Result**: Complete TIR transformation pipeline with 77 tests (74 verified passing + 3 MVP fixed)
+
+**Status**: Phase 2 WS3-Extended component is **COMPLETE**. Remaining work (IR-driven codegen, real Metalium APIs, hardware execution) deferred to future phases.
+
+**See**: `docs/tenstorrent/PHASE2_COMPLETION_PLAN.md` for detailed completion report.
+
+---
+
 ### Key Clarifications
 
 **Phase Separation:**
@@ -111,13 +130,14 @@ All deferred work is **MVP Phase 2**, not Phase 1:
 🧪 **APIs**: Mock Metalium APIs (dry-run compilation)
 ✅ **Success**: 23+ tests passing, artifacts compile, POC works
 
-### Current Status
+### Current Status (Updated 2025-10-07)
 
 - ✅ **WS1**: Target registration (8 tests passing)
 - ✅ **WS2**: Metadata inference (7 tests passing)
-- ✅ **WS3**: GridToPersistentTT foundation (3 tests passing)
-- ⚠️ **WS4-6**: Template codegen (5 tests passing)
-- **Total: 23 tests passing**
+- ✅ **WS3**: Complete pipeline (3 foundation + 39 Phase 2 = 42 tests passing)
+- ✅ **WS4-6**: Template codegen with K-loop matmul (18 tests + 3 MVP = 21 tests)
+- ✅ **Phase 2 WS3-Extended**: All 5 transforms COMPLETE (see below)
+- **Total: 77 tests (74 verified passing, 3 MVP fixed)**
 
 ### Phase 1 Limitations (By Design)
 
@@ -148,28 +168,32 @@ See [Detailed Workstream Specifications](#detailed-workstream-specifications) be
 🧪 **APIs**: Real Metalium runtime
 ✅ **Success**: 50+ tests, hardware execution, 80%+ peak performance
 
-### Phase 2 Enhancements
+### Phase 2 Status (Updated 2025-10-07)
 
-**WS3-Extended** (10-13 weeks):
-- TTShardToCoreMap: CoreRangeSet topology
-- MemorySpaceLowerTT: Circular buffer lowering
-- TilePadTT: Non-aligned buffer padding
-- TensorizeTT: Matmul intrinsic lowering
-- VerifyTTIR: IR validation pass
+**WS3-Extended** ✅ **COMPLETE** (Originally estimated 10-13 weeks):
+- ✅ TTShardToCoreMap: CoreRangeSet topology (PR #33, 7 tests)
+- ✅ MemorySpaceLowerTT: Circular buffer lowering (PR #34, 8 tests)
+- ✅ TilePadTT: Non-aligned buffer padding (PR #35, 8 tests)
+- ✅ TensorizeTT: Matmul intrinsic lowering (PR #36, 7 tests)
+- ✅ VerifyTTIR: IR validation pass (PR #37, 9 tests)
+- ✅ MVP test fixes (PR #38)
+- **All 5 transforms implemented, tested, and merged!**
 
-**WS4-6-Extended** (10-13 weeks):
+**WS4-6-Extended** ❌ **DEFERRED** (10-13 weeks estimated):
 - IR-driven codegen using `StmtExprVisitor` pattern
 - Walks `func->body` to generate code
 - Supports arbitrary kernel patterns
 - Extensible to new operations
+- **Note**: Template codegen is working with K-loop matmul
 
-**WS7** (3-4 weeks):
+**WS7** ❌ **DEFERRED** (3-4 weeks estimated):
 - Real Metalium API integration
 - Hardware execution
 - Performance validation
 - Multi-device support
 
-**Total Estimated Effort**: 20-26 weeks
+**Completed Effort**: WS3-Extended (Phase 2, Component 1)
+**Remaining Effort**: 13-17 weeks (WS4-6-Extended + WS7)
 
 ---
 
@@ -688,14 +712,21 @@ int main() {
 - [ ] 23+ total tests passing
 - [ ] All documentation complete
 
-### Phase 2 Success Criteria
+### Phase 2 Success Criteria (Updated 2025-10-07)
 
-- [ ] WS3-Extended: 5 transforms implemented (15+ tests)
+**WS3-Extended Component** ✅ **COMPLETE**:
+- [x] WS3-Extended: 5 transforms implemented (39 tests, all passing)
+- [x] Complete TIR transformation pipeline
+- [x] All transforms tested and integrated
+- [x] MVP test fixes applied
+- [x] 77 total tests (74 verified + 3 MVP fixed)
+
+**Remaining Components** (Deferred):
 - [ ] WS4-6-Extended: IR-driven codegen (10+ tests)
 - [ ] Real Metalium APIs integrated
 - [ ] Hardware execution working (10+ tests)
 - [ ] Performance 80%+ of hand-written kernels
-- [ ] 50+ total tests passing
+- [ ] 100+ total tests passing
 - [ ] Production-ready backend
 
 ---
@@ -728,7 +759,8 @@ int main() {
 ## Related Documentation
 
 ### Primary Documents
-- **This document** - Authoritative plan (v2.0 FINAL)
+- **This document** - Authoritative plan (v2.0 FINAL, updated 2025-10-07)
+- `PHASE2_COMPLETION_PLAN.md` - Phase 2 WS3-Extended completion report ⭐ NEW
 - `TIR_SPECIFICATIONS.md` - Detailed TIR specifications for each workstream
 
 ### POC Example
@@ -802,10 +834,15 @@ int main() {
 
 ---
 
-**Document Version**: 2.0 FINAL
+**Document Version**: 2.1 (Phase 2 WS3-Extended COMPLETE)
 **Author**: Claude Code
-**Date**: 2025-10-07
+**Last Updated**: 2025-10-07
 **Status**: ⭐ AUTHORITATIVE - Single Source of Truth
+
+**Change Log**:
+- v2.1 (2025-10-07): Phase 2 WS3-Extended completion update
+- v2.0 (2025-10-07): FINAL unified plan with Phase 1/2 separation
+- v1.x: Previous planning iterations (deprecated)
 
 ---
 
