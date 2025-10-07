@@ -177,6 +177,37 @@ def tt_shard_to_core_map(mod: tvm.IRModule) -> tvm.IRModule:
     return pass_func()(mod)
 
 
+def memory_space_lower_tt(mod: tvm.IRModule) -> tvm.IRModule:
+    """Lower abstract buffer allocations to TT circular buffers.
+
+    This pass transforms TileLang's alloc_fragment buffer allocations into
+    Tenstorrent circular buffer (CB) configurations in L1 memory. It:
+
+    - Identifies tile-sized buffers (typically 32×32)
+    - Assigns circular buffer IDs (CB0, CB1, CB2, ...)
+    - Configures num_pages (1 for accumulator, 2 for inputs/outputs)
+    - Stamps storage_scope = "tt.l1"
+    - Attaches tt_circular_buffers metadata for codegen
+
+    Args:
+        mod: The TVM IRModule to process (should have WS1 TT defaults)
+
+    Returns:
+        A new IRModule with circular buffer annotations
+
+    Example:
+        >>> from tilelang.tt import apply_ws3_passes, memory_space_lower_tt
+        >>>
+        >>> mod = create_tilelang_kernel()
+        >>> mod = apply_tt_defaults(mod)  # WS1
+        >>> mod = apply_ws2_passes(mod)  # WS2
+        >>> mod = grid_to_persistent_tt(mod)  # WS3
+        >>> mod = memory_space_lower_tt(mod)  # WS3 Phase 2
+    """
+    pass_func = tvm.ffi.get_global_func("tl.transform.MemorySpaceLowerTT")
+    return pass_func()(mod)
+
+
 def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Apply all Workstream 3 TIR transform passes.
 
@@ -200,9 +231,9 @@ def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
     # WS3 Transform Pipeline
     mod = grid_to_persistent_tt(mod)
     mod = tt_shard_to_core_map(mod)
+    mod = memory_space_lower_tt(mod)
 
     # TODO(WS3): Add remaining transforms when implemented
-    # mod = memory_space_lower_tt(mod)
     # mod = tile_pad_tt(mod)
     # mod = tensorize_tt(mod)
     # mod = verify_tt_ir(mod)
