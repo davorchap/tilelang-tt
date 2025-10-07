@@ -33,10 +33,67 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include <tuple>
+#include <utility>
+#include <vector>
+
 namespace tvm {
 namespace tl {
 
 using namespace tir;
+
+// Helper function to extract grid dimensions from function body
+// Returns (grid_x, grid_y, grid_z) by analyzing blockIdx launch threads
+std::tuple<int, int, int> ExtractGridDimensions(const PrimFunc& f) {
+  int grid_x = 1, grid_y = 1, grid_z = 1;
+
+  // Visitor to find blockIdx thread extents
+  class GridExtractor : public StmtVisitor {
+   public:
+    int grid_x = 1, grid_y = 1, grid_z = 1;
+
+    void VisitStmt_(const AttrStmtNode* op) final {
+      if (op->attr_key == tir::attr::thread_extent) {
+        IterVar iv = Downcast<IterVar>(op->node);
+        if (iv->thread_tag == "blockIdx.x") {
+          if (auto imm = op->value.as<IntImmNode>()) {
+            grid_x = static_cast<int>(imm->value);
+          }
+        } else if (iv->thread_tag == "blockIdx.y") {
+          if (auto imm = op->value.as<IntImmNode>()) {
+            grid_y = static_cast<int>(imm->value);
+          }
+        } else if (iv->thread_tag == "blockIdx.z") {
+          if (auto imm = op->value.as<IntImmNode>()) {
+            grid_z = static_cast<int>(imm->value);
+          }
+        }
+      }
+      StmtVisitor::VisitStmt_(op);
+    }
+  };
+
+  GridExtractor extractor;
+  extractor(f->body);
+  return {extractor.grid_x, extractor.grid_y, extractor.grid_z};
+}
+
+// Compute contiguous per-core tile ranges
+std::vector<std::pair<int, int>> PartitionTilesContiguous(int num_tiles, int num_cores) {
+  std::vector<std::pair<int, int>> ranges;
+
+  int tiles_per_core_base = num_tiles / num_cores;
+  int remainder = num_tiles % num_cores;
+
+  int current_start = 0;
+  for (int core_id = 0; core_id < num_cores; ++core_id) {
+    int count = tiles_per_core_base + (core_id < remainder ? 1 : 0);
+    ranges.push_back({current_start, count});
+    current_start += count;
+  }
+
+  return ranges;
+}
 
 /*!
  * \brief Infer default Tenstorrent schedule metadata
@@ -49,25 +106,37 @@ using namespace tir;
  * \return Enhanced PrimFunc with schedule metadata
  */
 PrimFunc InferDefaultTTScheduleImpl(PrimFunc f) {
-  // TODO(WS2): Implement schedule inference logic
-  //
-  // Steps:
-  // 1. Read grid_x and grid_y from func->attrs (from T.Kernel)
-  // 2. Compute num_tiles = grid_x * grid_y
-  // 3. Query or hardcode num_cores (MVP: 64 cores)
-  // 4. Partition tiles contiguously across cores
-  // 5. Build per-core (start_id, count) array
-  // 6. Attach schedule metadata to func->attrs
-  //
-  // Example metadata to attach:
-  // - tt_num_tiles: total tile count
-  // - tt_grid_x, tt_grid_y: grid dimensions
-  // - tt_num_cores: number of active cores
-  // - tt_tiles_per_core: Array of (start_id, count) per core
-  // - tt_runtime_args_schema: Schema for kernel invocation
+  // MVP: Hardcode 64 Tensix cores for Tenstorrent Grayskull/Wormhole
+  const int TT_NUM_CORES = 64;
 
-  // For now, just return the function unchanged (stub)
-  return f;
+  // Step 1: Extract grid dimensions from T.Kernel (blockIdx extents)
+  auto [grid_x, grid_y, grid_z] = ExtractGridDimensions(f);
+
+  // Step 2: Compute total tiles (row-major: tile_id = by * grid_x + bx)
+  int num_tiles = grid_x * grid_y * grid_z;
+
+  // Step 3: Partition tiles contiguously across cores
+  auto tile_ranges = PartitionTilesContiguous(num_tiles, TT_NUM_CORES);
+
+  // Step 4: Build per-core (start_id, count) array as TVM Array
+  Array<Array<Integer>> tiles_per_core;
+  for (const auto& [start, count] : tile_ranges) {
+    tiles_per_core.push_back({Integer(start), Integer(count)});
+  }
+
+  // Step 5: Attach metadata to function
+  PrimFunc new_func = f;
+  new_func = WithAttr(new_func, "tt_num_tiles", Integer(num_tiles));
+  new_func = WithAttr(new_func, "tt_grid_x", Integer(grid_x));
+  new_func = WithAttr(new_func, "tt_grid_y", Integer(grid_y));
+  new_func = WithAttr(new_func, "tt_grid_z", Integer(grid_z));
+  new_func = WithAttr(new_func, "tt_num_cores", Integer(TT_NUM_CORES));
+  new_func = WithAttr(new_func, "tt_tiles_per_core", tiles_per_core);
+
+  // TODO(WS2): Add tt_runtime_args_schema for kernel invocation
+  // Format: {start_id, count, grid_x, grid_y, kt_tiles}
+
+  return new_func;
 }
 
 using namespace tir::transform;
