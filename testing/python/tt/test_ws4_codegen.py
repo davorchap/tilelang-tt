@@ -4,7 +4,6 @@ WS4: Code Generation Integration Tests
 Tests for TT kernel codegen and artifact generation.
 """
 
-import pytest
 import tvm
 from tvm import tir
 import tilelang.tt as tt
@@ -162,7 +161,7 @@ def test_emit_tt_artifacts_various_grid_sizes():
     Verifies codegen works correctly for various grid dimensions.
     """
     test_cases = [
-        (4, 4),    # 4x4 grid = 16 tiles
+        (4, 4),  # 4x4 grid = 16 tiles
         (16, 16),  # 16x16 grid = 256 tiles
     ]
 
