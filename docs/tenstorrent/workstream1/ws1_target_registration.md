@@ -4,7 +4,7 @@
 Enable explicit opt-in for the Tenstorrent backend by adding `"tenstorrent"` to TileLang's target resolution so downstream lowering can select the TT pass pipeline.
 
 ## Context
-- Driven by Workstream 1 of `project_1.md`.
+- Driven by Workstream 1 of the [Unified MVP Plan](../UNIFIED_MATMUL_MVP_PLAN.md).
 - Must avoid impacting existing auto-detection logic for CUDA/HIP backends.
 
 ## Key Tasks

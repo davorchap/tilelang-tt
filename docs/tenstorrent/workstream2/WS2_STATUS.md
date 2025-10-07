@@ -407,7 +407,7 @@ Once WS2 is complete, **Workstream 3: TIR Transform Pipeline** will:
 ## Related Documentation
 
 - [WS1 Status](../workstream1/WS1_STATUS.md) - Prerequisite frontend integration
-- [Project Plan](../project_1.md) - Overall TT backend MVP plan
+- [Unified MVP Plan](../UNIFIED_MATMUL_MVP_PLAN.md) - Overall TT backend MVP plan
 - [Local Build Guide](../local_build_guide.md) - Build and test instructions
 
 ---
@@ -501,5 +501,5 @@ test_ws2_passes.py::TestWS2Integration::test_ws2_convenience_function PASSED
 ## Questions or Issues?
 
 - Check [CLAUDE.md](../../CLAUDE.md) for development workflow
-- Review [project_1.md](../project_1.md) for overall architecture
+- Review [Unified MVP Plan](../UNIFIED_MATMUL_MVP_PLAN.md) for overall architecture
 - WS2 task breakdown documents in this directory

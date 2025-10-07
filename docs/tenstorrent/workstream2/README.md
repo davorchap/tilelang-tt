@@ -128,7 +128,7 @@ assert "tt_tiles_per_core" in func.attrs
 ## Related Documentation
 
 - [WS1 Status](../workstream1/WS1_STATUS.md) - Prerequisite frontend integration
-- [Project Plan](../project_1.md) - Overall TT backend MVP architecture
+- [Unified MVP Plan](../UNIFIED_MATMUL_MVP_PLAN.md) - Overall TT backend MVP architecture
 - [CLAUDE.md](../../CLAUDE.md) - Development workflow and build instructions
 
 ## Questions?

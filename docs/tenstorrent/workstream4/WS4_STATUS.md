@@ -627,7 +627,6 @@ Once WS4 is complete, **Workstream 5: Testing & Validation** will:
 - [WS1 Status](../workstream1/WS1_STATUS.md)
 - [WS2 Status](../workstream2/WS2_STATUS.md)
 - [WS3 Status](../workstream3/WS3_STATUS.md)
-- [Project Plan](../project_1.md)
-- [MVP Progress Summary](../MVP_PROGRESS_SUMMARY.md)
+- [Unified MVP Plan](../UNIFIED_MATMUL_MVP_PLAN.md)
 
 ---
