@@ -11,6 +11,34 @@ from tvm import tir
 import tilelang.tt as tt
 
 
+def create_test_module(M, N, K):
+    """
+    Create a TileLang IRModule for testing.
+
+    For MVP, we create a minimal module with buffer declarations matching
+    the requested dimensions. The grid size is inferred from the dimensions.
+    """
+    # Create buffers with specified dimensions
+    A = tir.decl_buffer((M, K), "float16", name="A", scope="global")
+    B = tir.decl_buffer((K, N), "float16", name="B", scope="global")
+    C = tir.decl_buffer((M, N), "float16", name="C", scope="global")
+
+    # Create minimal body
+    body = tir.Evaluate(0)
+    func = tir.PrimFunc(params=[A, B, C], body=body)
+
+    # Compute grid dimensions (one tile = 32x32)
+    grid_x = N // 32
+    grid_y = M // 32
+
+    # Add grid metadata (normally from T.Kernel)
+    func = func.with_attr("tl.grid_x", tvm.tir.IntImm("int32", grid_x))
+    func = func.with_attr("tl.grid_y", tvm.tir.IntImm("int32", grid_y))
+    func = func.with_attr("global_symbol", "main")
+
+    return tvm.IRModule({"main": func})
+
+
 def create_fully_annotated_module(grid_x, grid_y, num_cores=64):
     """
     Create IRModule with complete WS1-3 metadata for codegen validation.
@@ -117,15 +145,16 @@ def test_mvp_gemm_256x256_full_pipeline():
     assert "compute.cpp" in artifacts, "WS4: Missing compute.cpp"
     assert "tt.plan.json" in artifacts, "WS4: Missing tt.plan.json"
 
-    # Validate compute kernel content
+    # Validate compute kernel content (WS7: matmul with K-loop)
     compute_cpp = artifacts["compute.cpp"]
     assert "void MAIN()" in compute_cpp, "WS4: Missing MAIN function"
-    assert "tt_start_id" in compute_cpp, "WS4: Missing runtime args"
-    assert "tt_count" in compute_cpp, "WS4: Missing tile count"
-    assert "for (uint32_t i = 0; i < tt_count; ++i)" in compute_cpp, "WS4: Missing persistent loop"
-    assert "uint32_t tile_id = tt_start_id + i" in compute_cpp, "WS4: Missing tile_id calculation"
-    assert "uint32_t bx = tile_id % grid_x" in compute_cpp, "WS4: Missing bx recovery"
-    assert "uint32_t by = tile_id / grid_x" in compute_cpp, "WS4: Missing by recovery"
+    assert "out_tile_start_id" in compute_cpp, "WS4: Missing runtime args (out_tile_start_id)"
+    assert "num_output_tiles" in compute_cpp, "WS4: Missing output tile count"
+    assert "Kt" in compute_cpp, "WS4: Missing K-dimension tile count"
+    assert "for (uint32_t out_tile = 0; out_tile < num_output_tiles; ++out_tile)" in compute_cpp, "WS4: Missing output tile loop"
+    assert "for (uint32_t kt = 0; kt < Kt; ++kt)" in compute_cpp, "WS4: Missing K-loop"
+    assert "matmul_tiles_init" in compute_cpp, "WS4: Missing matmul init"
+    assert "matmul_tiles" in compute_cpp, "WS4: Missing matmul operation"
     assert "// Grid: 8x8" in compute_cpp, "WS4: Missing grid comment"
     assert "// Cores: 64" in compute_cpp, "WS4: Missing cores comment"
 

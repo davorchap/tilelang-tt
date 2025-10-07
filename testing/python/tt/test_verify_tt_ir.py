@@ -29,7 +29,9 @@ def create_func_with_complete_metadata():
     func = func.with_attr("tt_grid_y", tvm.tir.IntImm("int32", 8))
     func = func.with_attr("tt_num_tiles", tvm.tir.IntImm("int32", 64))
     func = func.with_attr("tt_num_cores", tvm.tir.IntImm("int32", 64))
-    func = func.with_attr("tt_tiles_per_core", [[tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 1)]])
+    func = func.with_attr(
+        "tt_tiles_per_core",
+        [[tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 1)]])
 
     # WS3 metadata
     func = func.with_attr("tt_persistent_loop", tvm.tir.IntImm("int32", 1))
@@ -88,7 +90,9 @@ def create_func_with_large_grid():
     func = func.with_attr("tt_grid_y", tvm.tir.IntImm("int32", 100))  # > 64
     func = func.with_attr("tt_num_tiles", tvm.tir.IntImm("int32", 10000))
     func = func.with_attr("tt_num_cores", tvm.tir.IntImm("int32", 64))
-    func = func.with_attr("tt_tiles_per_core", [[tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 1)]])
+    func = func.with_attr(
+        "tt_tiles_per_core",
+        [[tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 1)]])
 
     return func
 
@@ -236,9 +240,10 @@ def test_verify_tt_ir_core_range_validation():
     func = create_func_with_complete_metadata()
 
     # Add malformed core_ranges (wrong size)
-    func = func.with_attr("tt_core_ranges", [
-        [tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 0)]  # Only 2 elements, should be 6
-    ])
+    func = func.with_attr(
+        "tt_core_ranges",
+        [[tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 0)]  # Only 2 elements, should be 6
+        ])
 
     mod = tvm.IRModule({"main": func})
 
@@ -259,9 +264,15 @@ def test_verify_tt_ir_circular_buffer_count_mismatch():
     # Add tt_num_cbs that doesn't match actual CB count
     func = func.with_attr("tt_num_cbs", tvm.tir.IntImm("int32", 5))
     func = func.with_attr("tt_circular_buffers", [
-        {"cb_id": tvm.tir.IntImm("int32", 0)},
-        {"cb_id": tvm.tir.IntImm("int32", 1)},
-        {"cb_id": tvm.tir.IntImm("int32", 2)},
+        {
+            "cb_id": tvm.tir.IntImm("int32", 0)
+        },
+        {
+            "cb_id": tvm.tir.IntImm("int32", 1)
+        },
+        {
+            "cb_id": tvm.tir.IntImm("int32", 2)
+        },
     ])  # Only 3 CBs, but tt_num_cbs says 5
 
     mod = tvm.IRModule({"main": func})

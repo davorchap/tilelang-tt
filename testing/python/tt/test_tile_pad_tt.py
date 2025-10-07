@@ -26,14 +26,21 @@ def create_func_with_padding_metadata(needs_padding=True):
     func = func.with_attr("tt_schedule_policy", "contiguous")
 
     # Add WS2 padding metadata
-    func = func.with_attr("tt_buffer_A_needs_padding", tvm.tir.IntImm("int32", 1 if needs_padding else 0))
-    func = func.with_attr("tt_buffer_A_tile_shape", [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
+    func = func.with_attr("tt_buffer_A_needs_padding",
+                          tvm.tir.IntImm("int32", 1 if needs_padding else 0))
+    func = func.with_attr(
+        "tt_buffer_A_tile_shape",
+        [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
 
     func = func.with_attr("tt_buffer_B_needs_padding", tvm.tir.IntImm("int32", 0))
-    func = func.with_attr("tt_buffer_B_tile_shape", [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
+    func = func.with_attr(
+        "tt_buffer_B_tile_shape",
+        [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
 
     func = func.with_attr("tt_buffer_C_needs_padding", tvm.tir.IntImm("int32", 0))
-    func = func.with_attr("tt_buffer_C_tile_shape", [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
+    func = func.with_attr(
+        "tt_buffer_C_tile_shape",
+        [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
 
     return func
 
@@ -98,8 +105,10 @@ def test_tile_pad_tt_padding_amount():
 
     # For 250×250 → 256×256, padding is 6 per dimension
     assert len(padding_amount) == 2, "Padding amount should be 2D"
-    assert int(padding_amount[0]) == 6, f"Expected padding 6 for height, got {int(padding_amount[0])}"
-    assert int(padding_amount[1]) == 6, f"Expected padding 6 for width, got {int(padding_amount[1])}"
+    assert int(
+        padding_amount[0]) == 6, f"Expected padding 6 for height, got {int(padding_amount[0])}"
+    assert int(
+        padding_amount[1]) == 6, f"Expected padding 6 for width, got {int(padding_amount[1])}"
 
 
 def test_tile_pad_tt_original_shape():
@@ -119,8 +128,10 @@ def test_tile_pad_tt_original_shape():
     original_shape = a_info["original_shape"]
 
     assert len(original_shape) == 2, "Original shape should be 2D"
-    assert int(original_shape[0]) == 250, f"Expected original height 250, got {int(original_shape[0])}"
-    assert int(original_shape[1]) == 250, f"Expected original width 250, got {int(original_shape[1])}"
+    assert int(
+        original_shape[0]) == 250, f"Expected original height 250, got {int(original_shape[0])}"
+    assert int(
+        original_shape[1]) == 250, f"Expected original width 250, got {int(original_shape[1])}"
 
 
 def test_tile_pad_tt_skip_aligned_buffers():
@@ -176,13 +187,19 @@ def test_tile_pad_tt_multiple_buffers():
 
     # Add WS2 metadata
     func = func.with_attr("tt_buffer_A_needs_padding", tvm.tir.IntImm("int32", 1))
-    func = func.with_attr("tt_buffer_A_tile_shape", [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
+    func = func.with_attr(
+        "tt_buffer_A_tile_shape",
+        [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
 
     func = func.with_attr("tt_buffer_B_needs_padding", tvm.tir.IntImm("int32", 1))
-    func = func.with_attr("tt_buffer_B_tile_shape", [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
+    func = func.with_attr(
+        "tt_buffer_B_tile_shape",
+        [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
 
     func = func.with_attr("tt_buffer_C_needs_padding", tvm.tir.IntImm("int32", 0))
-    func = func.with_attr("tt_buffer_C_tile_shape", [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
+    func = func.with_attr(
+        "tt_buffer_C_tile_shape",
+        [tvm.tir.IntImm("int32", 32), tvm.tir.IntImm("int32", 32)])
 
     mod = tvm.IRModule({"main": func})
 

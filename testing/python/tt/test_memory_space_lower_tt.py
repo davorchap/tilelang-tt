@@ -21,16 +21,7 @@ def create_func_with_tile_buffers():
     C_tile = tir.decl_buffer((32, 32), "float16", name="C_tile")
 
     # Simple body with DeclBuffer statements
-    body = tir.DeclBuffer(
-        A_tile,
-        tir.DeclBuffer(
-            B_tile,
-            tir.DeclBuffer(
-                C_tile,
-                tir.Evaluate(0)
-            )
-        )
-    )
+    body = tir.DeclBuffer(A_tile, tir.DeclBuffer(B_tile, tir.DeclBuffer(C_tile, tir.Evaluate(0))))
 
     func = tir.PrimFunc([A, B, C], body)
 
@@ -165,16 +156,8 @@ def test_memory_space_lower_tt_skip_non_tile_buffers():
     # Scalar buffer (should be skipped)
     scalar_buf = tir.decl_buffer((1,), "float16", name="scalar")
 
-    body = tir.DeclBuffer(
-        A_tile,
-        tir.DeclBuffer(
-            large_buf,
-            tir.DeclBuffer(
-                scalar_buf,
-                tir.Evaluate(0)
-            )
-        )
-    )
+    body = tir.DeclBuffer(A_tile,
+                          tir.DeclBuffer(large_buf, tir.DeclBuffer(scalar_buf, tir.Evaluate(0))))
 
     func = tir.PrimFunc([A], body)
     func = func.with_attr("tt_schedule_policy", "contiguous")
@@ -203,16 +186,7 @@ def test_memory_space_lower_tt_integration_with_ws1_ws2():
     B_tile = tir.decl_buffer((32, 32), "float16", name="B_tile")
     C_tile = tir.decl_buffer((32, 32), "float16", name="C_tile")
 
-    body = tir.DeclBuffer(
-        A_tile,
-        tir.DeclBuffer(
-            B_tile,
-            tir.DeclBuffer(
-                C_tile,
-                tir.Evaluate(0)
-            )
-        )
-    )
+    body = tir.DeclBuffer(A_tile, tir.DeclBuffer(B_tile, tir.DeclBuffer(C_tile, tir.Evaluate(0))))
 
     func = tir.PrimFunc([A, B, C], body)
 
@@ -248,16 +222,8 @@ def test_memory_space_lower_tt_different_tile_sizes():
     tile_32x32 = tir.decl_buffer((32, 32), "float32", name="tile_32x32")
     tile_64x64 = tir.decl_buffer((64, 64), "float32", name="tile_64x64")
 
-    body = tir.DeclBuffer(
-        tile_16x16,
-        tir.DeclBuffer(
-            tile_32x32,
-            tir.DeclBuffer(
-                tile_64x64,
-                tir.Evaluate(0)
-            )
-        )
-    )
+    body = tir.DeclBuffer(tile_16x16,
+                          tir.DeclBuffer(tile_32x32, tir.DeclBuffer(tile_64x64, tir.Evaluate(0))))
 
     func = tir.PrimFunc([A], body)
     func = func.with_attr("tt_schedule_policy", "contiguous")
@@ -282,7 +248,8 @@ def test_memory_space_lower_tt_different_tile_sizes():
     for config in cb_configs:
         name = str(config["name"])
         tile_size = int(config["tile_size"])
-        assert tile_size == expected_sizes[name], f"{name}: expected {expected_sizes[name]}, got {tile_size}"
+        assert tile_size == expected_sizes[
+            name], f"{name}: expected {expected_sizes[name]}, got {tile_size}"
 
 
 if __name__ == "__main__":
