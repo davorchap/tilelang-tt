@@ -179,12 +179,17 @@ See [Detailed Workstream Specifications](#detailed-workstream-specifications) be
 - ✅ MVP test fixes (PR #38)
 - **All 5 transforms implemented, tested, and merged!**
 
-**WS4-6-Extended** ❌ **DEFERRED** (10-13 weeks estimated):
-- IR-driven codegen using `StmtExprVisitor` pattern
-- Walks `func->body` to generate code
-- Supports arbitrary kernel patterns
-- Extensible to new operations
-- **Note**: Template codegen is working with K-loop matmul
+**WS4-6-Extended** ⚠️ **TEMPLATE-BASED (NOT IR-DRIVEN)** → IR-driven migration planned:
+- **Current**: Template-based codegen (reads `func->attrs`, emits fixed matmul pattern)
+  - Works correctly for matmul with K-loop
+  - Does NOT walk `func->body` - ignores actual IR structure
+  - Hardcoded patterns specific to matmul
+  - Limited to single kernel type
+- **Future**: IR-driven codegen using `StmtExprVisitor` pattern
+  - Walks `func->body` to analyze actual IR statements
+  - Supports arbitrary kernel patterns (not just matmul)
+  - Extensible to new operations
+  - Estimated effort: 10-13 weeks
 
 **WS7** ❌ **DEFERRED** (3-4 weeks estimated):
 - Real Metalium API integration

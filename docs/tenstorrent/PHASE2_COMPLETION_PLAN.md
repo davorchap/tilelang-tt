@@ -77,14 +77,67 @@ The original Phase 2 plan included three major components. We've completed **Com
 **Estimated**: 10-13 weeks
 **Scope**: Migrate from template-based to IR-walking visitor pattern
 
-**What this means:**
-- Current: Reads `func->attrs`, emits fixed code patterns
-- Future: Walks `func->body` using `StmtExprVisitor`, supports arbitrary kernels
+**Current: Template-Based Codegen** ⚠️
+```cpp
+std::string EmitTTComputeKernel(const PrimFunc& func) {
+  // 1. Read metadata from func->attrs ONLY
+  auto grid_x = func->attrs.GetAttr<Integer>("tt_grid_x");
+
+  // 2. Emit FIXED hardcoded pattern
+  code << "void MAIN() {\n";
+  code << "    for (uint32_t out_tile = 0; out_tile < num_output_tiles; ++out_tile) {\n";
+  code << "        for (uint32_t kt = 0; kt < Kt; ++kt) {\n";
+  // ... hardcoded matmul structure
+
+  // 3. NEVER walks func->body - ignores actual IR!
+  return code.str();
+}
+```
+
+**Limitations:**
+- ❌ Only works for matmul (hardcoded pattern)
+- ❌ Ignores actual IR body structure
+- ❌ Cannot support arbitrary kernels
+- ❌ Not extensible to new operations
+
+**Future: IR-Driven Codegen** ✨
+```cpp
+class TTCodegenVisitor : public StmtExprVisitor {
+  void VisitStmt_(const ForNode* op) override {
+    // Analyze actual loops in IR
+    code << "for (" << op->loop_var << "...) {\n";
+    VisitStmt(op->body);
+    code << "}\n";
+  }
+
+  void VisitStmt_(const AttrStmtNode* op) override {
+    if (op->attr_key == "tt.matmul_intrinsic") {
+      // Found matmul annotation from TensorizeTT
+      code << "matmul_tiles(...);\n";
+    }
+    VisitStmt(op->body);
+  }
+};
+
+std::string EmitTTComputeKernel(const PrimFunc& func) {
+  TTCodegenVisitor visitor;
+  visitor(func->body);  // <-- WALK THE ACTUAL IR
+  return visitor.GetCode();
+}
+```
+
+**Benefits:**
+- ✅ Supports arbitrary kernel patterns
+- ✅ Walks actual IR structure
+- ✅ Finds TensorizeTT annotations in IR body
+- ✅ Extensible to new operations
+- ✅ Works with any TileLang kernel
 
 **Why it's deferred:**
 - Template codegen is working correctly for matmul
 - IR-driven migration is a major architectural change
-- Requires supporting arbitrary kernel patterns beyond matmul
+- Requires comprehensive visitor implementation
+- Phase 2 WS3 transforms prepare IR for this migration
 
 ### ❌ Component 3: Real Metalium Integration (Future)
 **Estimated**: 6-8 weeks
