@@ -65,7 +65,8 @@ def test_tt_shard_to_core_map_basic():
 
     # Should have 64 core ranges (one per core with assigned tiles)
     assert len(core_ranges) == 64, f"Expected 64 core ranges, got {len(core_ranges)}"
-    assert len(core_runtime_args) == 64, f"Expected 64 runtime arg sets, got {len(core_runtime_args)}"
+    assert len(
+        core_runtime_args) == 64, f"Expected 64 runtime arg sets, got {len(core_runtime_args)}"
 
 
 def test_tt_shard_to_core_map_coordinates():
@@ -82,7 +83,9 @@ def test_tt_shard_to_core_map_coordinates():
 
     # Check first core (core_id=0 -> x=0, y=0)
     first_range = core_ranges[0]
-    assert len(first_range) == 6, "Core range should have 6 elements: [start_x, start_y, end_x, end_y, start_tile, count]"
+    assert len(
+        first_range
+    ) == 6, "Core range should have 6 elements: [start_x, start_y, end_x, end_y, start_tile, count]"
     assert int(first_range[0]) == 0, "Core 0 should have x=0"
     assert int(first_range[1]) == 0, "Core 0 should have y=0"
     assert int(first_range[2]) == 0, "Core 0 should have end_x=0 (single core range)"
