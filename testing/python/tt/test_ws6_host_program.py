@@ -213,8 +213,8 @@ def test_different_grid_sizes():
     Verifies that host program generation works for various grid dimensions.
     """
     test_cases = [
-        (4, 4),   # 16 tiles, 4x4 grid
-        (16, 16), # 256 tiles, 16x16 grid
+        (4, 4),  # 16 tiles, 4x4 grid
+        (16, 16),  # 256 tiles, 16x16 grid
     ]
 
     for grid_x, grid_y in test_cases:
@@ -241,7 +241,9 @@ def test_different_grid_sizes():
         assert f"constexpr uint32_t N = {expected_n}" in main_cpp, \
             f"N dimension {expected_n} not found"
 
-        print(f"✓ Test 7 passed for grid {grid_x}x{grid_y} ({expected_tiles} tiles, {expected_m}x{expected_n} buffers)")
+        print(
+            f"✓ Test 7 passed for grid {grid_x}x{grid_y} ({expected_tiles} tiles, {expected_m}x{expected_n} buffers)"
+        )
 
 
 def test_full_host_program_structure():
@@ -276,13 +278,20 @@ def test_full_host_program_structure():
         positions[section_name] = pos
 
     # Verify order (WS7: runtime_args (dimensions) now come before dram_alloc)
-    assert positions["includes"] < positions["device_apis"], "Includes should come before device APIs"
-    assert positions["device_apis"] < positions["main_func"], "Device APIs should come before main()"
-    assert positions["main_func"] < positions["device_setup"], "main() should come before device setup"
-    assert positions["device_setup"] < positions["cb_config"], "Device setup should come before CB config"
-    assert positions["cb_config"] < positions["program_create"], "CB config should come before program create"
-    assert positions["program_create"] < positions["runtime_args"], "Program create should come before runtime args (dimensions)"
-    assert positions["runtime_args"] < positions["dram_alloc"], "Runtime args (dimensions) should come before DRAM alloc"
+    assert positions["includes"] < positions[
+        "device_apis"], "Includes should come before device APIs"
+    assert positions["device_apis"] < positions[
+        "main_func"], "Device APIs should come before main()"
+    assert positions["main_func"] < positions[
+        "device_setup"], "main() should come before device setup"
+    assert positions["device_setup"] < positions[
+        "cb_config"], "Device setup should come before CB config"
+    assert positions["cb_config"] < positions[
+        "program_create"], "CB config should come before program create"
+    assert positions["program_create"] < positions[
+        "runtime_args"], "Program create should come before runtime args (dimensions)"
+    assert positions["runtime_args"] < positions[
+        "dram_alloc"], "Runtime args (dimensions) should come before DRAM alloc"
     assert positions["dram_alloc"] < positions["launch"], "DRAM alloc should come before launch"
     assert positions["launch"] < positions["return"], "Launch should come before return"
 

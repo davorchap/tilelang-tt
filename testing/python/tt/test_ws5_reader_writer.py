@@ -187,9 +187,9 @@ def test_reader_writer_tile_counts():
     in generated reader/writer kernels.
     """
     test_cases = [
-        (4, 4),   # 16 tiles
-        (8, 8),   # 64 tiles
-        (16, 16), # 256 tiles
+        (4, 4),  # 16 tiles
+        (8, 8),  # 64 tiles
+        (16, 16),  # 256 tiles
     ]
 
     for grid_x, grid_y in test_cases:
@@ -236,7 +236,8 @@ def test_cb_synchronization_pattern():
     # Reader pattern: reserve → write → push (WS7: unified kernel_main)
     # Check order by finding positions
     reader_lines = reader_cpp.split('\n')
-    reader_kernel_start = next(i for i, line in enumerate(reader_lines) if "void kernel_main()" in line)
+    reader_kernel_start = next(
+        i for i, line in enumerate(reader_lines) if "void kernel_main()" in line)
     reader_kernel_section = '\n'.join(reader_lines[reader_kernel_start:reader_kernel_start + 30])
 
     assert "cb_reserve_back" in reader_kernel_section, "Reader missing reserve"
@@ -261,7 +262,8 @@ def test_cb_synchronization_pattern():
 
     # Writer pattern: wait → read → pop (WS7: kernel_main)
     writer_lines = writer_cpp.split('\n')
-    writer_kernel_start = next(i for i, line in enumerate(writer_lines) if "void kernel_main()" in line)
+    writer_kernel_start = next(
+        i for i, line in enumerate(writer_lines) if "void kernel_main()" in line)
     writer_kernel_section = '\n'.join(writer_lines[writer_kernel_start:writer_kernel_start + 20])
 
     assert "cb_wait_front" in writer_kernel_section, "Writer missing wait"
