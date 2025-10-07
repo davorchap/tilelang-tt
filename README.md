@@ -14,13 +14,31 @@ Tile Language (**tile-lang**) is a concise domain-specific language designed to 
 
 # TileLang → Tenstorrent (TT-Metalium) Backend
 
-**Status:** Draft proposal for community discussion  
+**Status:** ✅ **Phase 0 MVP Complete** - Artifact generation working (2025-10-07)
 **Goal:** Add a first‑class **Tenstorrent TT‑Metalium** backend to TileLang, alongside the existing NVIDIA (CUDA), AMD (HIP), and Ascend targets.
 
-This README doubles as a **technical plan** and a **call for contributions**. The intended path is to begin in a **public fork** and upstream in stages once CI and core features stabilize.
+**MVP Capabilities:**
+- ✅ Target registration (`target="tenstorrent"`)
+- ✅ Default schedule & sharding inference (contiguous, row-major, DRAM interleaved)
+- ✅ Grid-to-persistent transformation (block index recovery)
+- ✅ Code generation (compute kernel + tt.plan.json metadata)
+- ✅ 23 integration tests passing
+
+**Quick Start:**
+```python
+import tilelang.tt as tt
+# Apply defaults, infer metadata, generate artifacts
+mod = create_your_gemm_module()
+mod = tt.apply_tt_defaults(mod)
+mod = tt.apply_ws2_passes(mod)
+mod = tt.apply_ws3_passes(mod)
+artifacts = tt.emit_tt_artifacts(mod)
+tt.write_artifacts_to_disk(artifacts, "./build/tt_kernels")
+```
 
 **Related docs**
 
+- **MVP Progress:** [MVP Status & Roadmap](docs/tenstorrent/MVP_PROGRESS_SUMMARY.md)
 - **Architecture comparison:** [GPU vs. Tenstorrent (TT‑Metalium)](docs/tenstorrent/GPU_vs_Tenstorrent.md)
 - **Kernel authoring patterns:** [GPU vs. Tenstorrent — Kernel Authoring](docs/tenstorrent/kernel_authoring_comparison.md)
 
