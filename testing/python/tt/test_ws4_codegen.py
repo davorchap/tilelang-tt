@@ -68,15 +68,16 @@ def test_emit_tt_artifacts_basic():
     assert "compute.cpp" in artifacts, "compute.cpp artifact missing"
     assert "tt.plan.json" in artifacts, "tt.plan.json artifact missing"
 
-    # Verify compute kernel contains expected elements
+    # Verify compute kernel contains expected elements (WS7: matmul with K-loop)
     compute_cpp = artifacts["compute.cpp"]
     assert "void MAIN()" in compute_cpp, "MAIN function missing"
-    assert "tt_start_id" in compute_cpp, "runtime args missing"
-    assert "tt_count" in compute_cpp, "persistent loop count missing"
-    assert "for (uint32_t i = 0; i < tt_count; ++i)" in compute_cpp, "persistent loop missing"
-    assert "uint32_t tile_id = tt_start_id + i" in compute_cpp, "tile_id calculation missing"
-    assert "uint32_t bx = tile_id % grid_x" in compute_cpp, "bx recovery missing"
-    assert "uint32_t by = tile_id / grid_x" in compute_cpp, "by recovery missing"
+    assert "out_tile_start_id" in compute_cpp, "runtime args missing"
+    assert "num_output_tiles" in compute_cpp, "output tile count missing"
+    assert "Kt" in compute_cpp, "K-dimension tile count missing"
+    assert "for (uint32_t out_tile = 0; out_tile < num_output_tiles; ++out_tile)" in compute_cpp, "output tile loop missing"
+    assert "for (uint32_t kt = 0; kt < Kt; ++kt)" in compute_cpp, "K-loop missing"
+    assert "matmul_tiles_init" in compute_cpp, "matmul init missing"
+    assert "matmul_tiles" in compute_cpp, "matmul operation missing"
 
     # Verify plan JSON contains expected elements
     plan_json = artifacts["tt.plan.json"]

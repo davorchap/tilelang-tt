@@ -68,11 +68,10 @@ def test_emit_reader_kernel_basic():
     # Verify reader.cpp exists
     assert "reader.cpp" in artifacts, "reader.cpp artifact missing"
 
-    # Verify reader kernel contains expected elements
+    # Verify reader kernel contains expected elements (WS7: unified kernel_main)
     reader_cpp = artifacts["reader.cpp"]
     assert "// Generated TT Reader Kernel (DRAM → L1)" in reader_cpp, "Reader kernel header missing"
-    assert "void reader_kernel_A(" in reader_cpp, "reader_kernel_A function missing"
-    assert "void reader_kernel_B(" in reader_cpp, "reader_kernel_B function missing"
+    assert "void kernel_main()" in reader_cpp, "kernel_main function missing"
 
     # Verify CB API calls
     assert "cb_reserve_back(CB_A, 1)" in reader_cpp, "cb_reserve_back missing for CB_A"
@@ -83,8 +82,8 @@ def test_emit_reader_kernel_basic():
     assert "cb_push_back(CB_B, 1)" in reader_cpp, "cb_push_back missing for CB_B"
     assert "get_write_ptr(CB_B)" in reader_cpp, "get_write_ptr missing for CB_B"
 
-    # Verify NOC operations
-    assert "noc_async_read(" in reader_cpp, "noc_async_read missing"
+    # Verify NOC operations (WS7: uses noc_async_read_tile)
+    assert "noc_async_read_tile(" in reader_cpp, "noc_async_read_tile missing"
     assert "noc_async_read_barrier()" in reader_cpp, "noc_async_read_barrier missing"
 
     # Verify CB indices
@@ -109,18 +108,18 @@ def test_emit_writer_kernel_basic():
     # Verify writer.cpp exists
     assert "writer.cpp" in artifacts, "writer.cpp artifact missing"
 
-    # Verify writer kernel contains expected elements
+    # Verify writer kernel contains expected elements (WS7: unified kernel_main)
     writer_cpp = artifacts["writer.cpp"]
     assert "// Generated TT Writer Kernel (L1 → DRAM)" in writer_cpp, "Writer kernel header missing"
-    assert "void writer_kernel_C(" in writer_cpp, "writer_kernel_C function missing"
+    assert "void kernel_main()" in writer_cpp, "kernel_main function missing"
 
     # Verify CB API calls
     assert "cb_wait_front(CB_C, 1)" in writer_cpp, "cb_wait_front missing for CB_C"
     assert "cb_pop_front(CB_C, 1)" in writer_cpp, "cb_pop_front missing for CB_C"
     assert "get_read_ptr(CB_C)" in writer_cpp, "get_read_ptr missing for CB_C"
 
-    # Verify NOC operations
-    assert "noc_async_write(" in writer_cpp, "noc_async_write missing"
+    # Verify NOC operations (WS7: uses noc_async_write_tile)
+    assert "noc_async_write_tile(" in writer_cpp, "noc_async_write_tile missing"
     assert "noc_async_write_barrier()" in writer_cpp, "noc_async_write_barrier missing"
 
     # Verify CB index
@@ -162,20 +161,20 @@ def test_3_kernel_coordination():
     assert "CB_C = 2" in compute_cpp, "CB_C not defined in compute"
     assert "CB_C = 2" in writer_cpp, "CB_C not defined in writer"
 
-    # Verify synchronization pattern in compute kernel
-    # Compute should wait for reader's output
+    # Verify synchronization pattern in compute kernel (WS7: matmul with K-loop)
+    # Compute should wait for reader's output (inside K-loop)
     assert "cb_wait_front(CB_A, 1)" in compute_cpp, "Compute doesn't wait for CB_A from reader"
     assert "cb_wait_front(CB_B, 1)" in compute_cpp, "Compute doesn't wait for CB_B from reader"
 
-    # Compute should push to writer's input
+    # Compute should push to writer's input (after K-loop completes)
     assert "cb_push_back(CB_C, 1)" in compute_cpp, "Compute doesn't push to CB_C for writer"
 
-    # Compute should release reader's buffers
+    # Compute should release reader's buffers (inside K-loop)
     assert "cb_pop_front(CB_A, 1)" in compute_cpp, "Compute doesn't release CB_A"
     assert "cb_pop_front(CB_B, 1)" in compute_cpp, "Compute doesn't release CB_B"
 
-    # Compute should reserve writer's buffer
-    assert "cb_reserve_back(CB_C, 1)" in compute_cpp, "Compute doesn't reserve CB_C"
+    # Note: WS7 removed cb_reserve_back(CB_C) - output tile is implicitly
+    # allocated by matmul_tiles_init() and accumulated during K-loop
 
     print("✓ Test 3 passed: 3-kernel coordination")
 
@@ -188,9 +187,9 @@ def test_reader_writer_tile_counts():
     in generated reader/writer kernels.
     """
     test_cases = [
-        (4, 4),   # 16 tiles
-        (8, 8),   # 64 tiles
-        (16, 16), # 256 tiles
+        (4, 4),  # 16 tiles
+        (8, 8),  # 64 tiles
+        (16, 16),  # 256 tiles
     ]
 
     for grid_x, grid_y in test_cases:
@@ -200,15 +199,19 @@ def test_reader_writer_tile_counts():
 
         expected_tiles = grid_x * grid_y
 
-        # Verify reader kernel header mentions correct tile count
+        # WS7: Reader/writer kernels now have matmul-specific structure
+        # Verify they contain runtime args and loop structures
         reader_cpp = artifacts["reader.cpp"]
-        assert f"// Tiles to load: {expected_tiles}" in reader_cpp, \
-            f"Reader kernel doesn't mention {expected_tiles} tiles for {grid_x}x{grid_y} grid"
+        assert "num_out_tiles" in reader_cpp, \
+            f"Reader kernel missing num_out_tiles for {grid_x}x{grid_y} grid"
+        assert "for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile)" in reader_cpp, \
+            f"Reader kernel missing output tile loop for {grid_x}x{grid_y} grid"
 
-        # Verify writer kernel header mentions correct tile count
         writer_cpp = artifacts["writer.cpp"]
-        assert f"// Tiles to write: {expected_tiles}" in writer_cpp, \
-            f"Writer kernel doesn't mention {expected_tiles} tiles for {grid_x}x{grid_y} grid"
+        assert "num_out_tiles" in writer_cpp, \
+            f"Writer kernel missing num_out_tiles for {grid_x}x{grid_y} grid"
+        assert "for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile)" in writer_cpp, \
+            f"Writer kernel missing output tile loop for {grid_x}x{grid_y} grid"
 
         print(f"✓ Test 4 passed for grid {grid_x}x{grid_y} ({expected_tiles} tiles)")
 
@@ -230,34 +233,37 @@ def test_cb_synchronization_pattern():
     compute_cpp = artifacts["compute.cpp"]
     writer_cpp = artifacts["writer.cpp"]
 
-    # Reader pattern: reserve → write → push
+    # Reader pattern: reserve → write → push (WS7: unified kernel_main)
     # Check order by finding positions
     reader_lines = reader_cpp.split('\n')
-    reader_kernel_a_start = next(i for i, line in enumerate(reader_lines) if "void reader_kernel_A(" in line)
-    reader_kernel_a_section = '\n'.join(reader_lines[reader_kernel_a_start:reader_kernel_a_start + 20])
+    reader_kernel_start = next(
+        i for i, line in enumerate(reader_lines) if "void kernel_main()" in line)
+    reader_kernel_section = '\n'.join(reader_lines[reader_kernel_start:reader_kernel_start + 30])
 
-    assert "cb_reserve_back" in reader_kernel_a_section, "Reader missing reserve"
-    assert "noc_async_read" in reader_kernel_a_section, "Reader missing async read"
-    assert "cb_push_back" in reader_kernel_a_section, "Reader missing push"
+    assert "cb_reserve_back" in reader_kernel_section, "Reader missing reserve"
+    assert "noc_async_read" in reader_kernel_section, "Reader missing async read"
+    assert "cb_push_back" in reader_kernel_section, "Reader missing push"
 
     # Verify order: reserve before push
-    reserve_pos = reader_kernel_a_section.find("cb_reserve_back")
-    push_pos = reader_kernel_a_section.find("cb_push_back")
+    reserve_pos = reader_kernel_section.find("cb_reserve_back")
+    push_pos = reader_kernel_section.find("cb_push_back")
     assert reserve_pos < push_pos, "Reader should reserve before push"
 
-    # Compute pattern: wait (inputs) → reserve (output) → pop (inputs) → push (output)
+    # Compute pattern: wait (inputs) → matmul → pop (inputs) → push (output)
+    # WS7: No explicit reserve for CB_C - output implicitly allocated by matmul_tiles_init
     compute_lines = compute_cpp.split('\n')
     main_start = next(i for i, line in enumerate(compute_lines) if "void MAIN()" in line)
     main_section = '\n'.join(compute_lines[main_start:main_start + 40])
 
     assert "cb_wait_front(CB_A" in main_section, "Compute missing wait for CB_A"
-    assert "cb_reserve_back(CB_C" in main_section, "Compute missing reserve for CB_C"
     assert "cb_pop_front(CB_A" in main_section, "Compute missing pop for CB_A"
     assert "cb_push_back(CB_C" in main_section, "Compute missing push for CB_C"
+    assert "matmul_tiles" in main_section, "Compute missing matmul operation"
 
-    # Writer pattern: wait → read → pop
+    # Writer pattern: wait → read → pop (WS7: kernel_main)
     writer_lines = writer_cpp.split('\n')
-    writer_kernel_start = next(i for i, line in enumerate(writer_lines) if "void writer_kernel_C(" in line)
+    writer_kernel_start = next(
+        i for i, line in enumerate(writer_lines) if "void kernel_main()" in line)
     writer_kernel_section = '\n'.join(writer_lines[writer_kernel_start:writer_kernel_start + 20])
 
     assert "cb_wait_front" in writer_kernel_section, "Writer missing wait"

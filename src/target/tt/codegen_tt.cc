@@ -47,6 +47,43 @@ using tvm::Map;
 using tvm::String;
 
 /*!
+ * \brief Extract buffer dimensions from PrimFunc for matmul
+ * Returns Mt, Kt, Nt (tile counts)
+ */
+struct MatmulDims {
+  int Mt;  // M dimension in tiles
+  int Kt;  // K dimension in tiles
+  int Nt;  // N dimension in tiles
+  int M;   // M dimension in elements
+  int K;   // K dimension in elements
+  int N;   // N dimension in elements
+};
+
+MatmulDims ExtractMatmulDims(const PrimFunc& func) {
+  MatmulDims dims;
+
+  // Try to get dimensions from grid metadata first
+  auto grid_x = func->attrs.GetAttr<Integer>("tt_grid_x");
+  auto grid_y = func->attrs.GetAttr<Integer>("tt_grid_y");
+
+  if (grid_x.defined() && grid_y.defined()) {
+    dims.Nt = grid_x.value()->value;
+    dims.Mt = grid_y.value()->value;
+    dims.Kt = dims.Mt;  // Assume square for MVP
+
+    dims.N = dims.Nt * 32;
+    dims.M = dims.Mt * 32;
+    dims.K = dims.Kt * 32;
+  } else {
+    // Fallback to default
+    dims.Mt = dims.Kt = dims.Nt = 8;
+    dims.M = dims.K = dims.N = 256;
+  }
+
+  return dims;
+}
+
+/*!
  * \brief Generate TT compute kernel C++ source
  */
 std::string EmitTTComputeKernel(const PrimFunc& func) {
@@ -79,6 +116,10 @@ std::string EmitTTComputeKernel(const PrimFunc& func) {
   code << "inline void cb_pop_front(uint32_t cb_id, uint32_t n_tiles) {}\n";
   code << "inline void cb_push_back(uint32_t cb_id, uint32_t n_tiles) {}\n\n";
 
+  code << "// Mock TT matmul compute APIs for dry-run\n";
+  code << "inline void matmul_tiles_init(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c) {}\n";
+  code << "inline void matmul_tiles(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c, bool accumulate) {}\n\n";
+
   code << "// Circular Buffer Indices\n";
   code << "constexpr uint32_t CB_A = 0;\n";
   code << "constexpr uint32_t CB_B = 1;\n";
@@ -87,36 +128,30 @@ std::string EmitTTComputeKernel(const PrimFunc& func) {
   // Generate MAIN function
   code << "void MAIN() {\n";
   code << "    // Runtime arguments\n";
-  code << "    uint32_t tt_start_id = get_arg_val<uint32_t>(0);\n";
-  code << "    uint32_t tt_count = get_arg_val<uint32_t>(1);\n";
-  code << "    uint32_t grid_x = get_arg_val<uint32_t>(2);\n";
-  code << "    uint32_t grid_y = get_arg_val<uint32_t>(3);\n\n";
+  code << "    uint32_t out_tile_start_id = get_arg_val<uint32_t>(0);\n";
+  code << "    uint32_t num_output_tiles = get_arg_val<uint32_t>(1);\n";
+  code << "    uint32_t Kt = get_arg_val<uint32_t>(2);\n\n";
 
-  code << "    // Persistent loop\n";
-  code << "    for (uint32_t i = 0; i < tt_count; ++i) {\n";
-  code << "        uint32_t tile_id = tt_start_id + i;\n";
-  code << "        uint32_t bx = tile_id % grid_x;\n";
-  code << "        uint32_t by = tile_id / grid_x;\n\n";
+  code << "    // Initialize matmul\n";
+  code << "    matmul_tiles_init(CB_A, CB_B, CB_C);\n\n";
 
-  code << "        // Compute indices\n";
-  code << "        uint32_t tile_m = by;\n";
-  code << "        uint32_t tile_n = bx;\n\n";
+  code << "    // Process output tiles\n";
+  code << "    for (uint32_t out_tile = 0; out_tile < num_output_tiles; ++out_tile) {\n";
+  code << "        // K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)\n";
+  code << "        for (uint32_t kt = 0; kt < Kt; ++kt) {\n";
+  code << "            // Wait for input tiles from reader\n";
+  code << "            cb_wait_front(CB_A, 1);\n";
+  code << "            cb_wait_front(CB_B, 1);\n\n";
 
-  code << "        // Wait for input tiles from reader kernels\n";
-  code << "        cb_wait_front(CB_A, 1);\n";
-  code << "        cb_wait_front(CB_B, 1);\n\n";
+  code << "            // Matmul: accumulate if not first K iteration\n";
+  code << "            matmul_tiles(CB_A, CB_B, CB_C, /* accumulate */ kt > 0);\n\n";
 
-  code << "        // Reserve output tile in circular buffer\n";
-  code << "        cb_reserve_back(CB_C, 1);\n\n";
+  code << "            // Release input tiles\n";
+  code << "            cb_pop_front(CB_A, 1);\n";
+  code << "            cb_pop_front(CB_B, 1);\n";
+  code << "        }\n\n";
 
-  code << "        // TODO: Add matmul tile operations here\n";
-  code << "        // matmul_tiles(CB_A, CB_B, CB_C, tile_m, tile_n);\n\n";
-
-  code << "        // Release input tiles\n";
-  code << "        cb_pop_front(CB_A, 1);\n";
-  code << "        cb_pop_front(CB_B, 1);\n\n";
-
-  code << "        // Push output tile to writer kernel\n";
+  code << "        // Push computed output tile to writer\n";
   code << "        cb_push_back(CB_C, 1);\n";
   code << "    }\n";
   code << "}\n";
@@ -130,26 +165,26 @@ std::string EmitTTComputeKernel(const PrimFunc& func) {
 std::string EmitTTReaderKernel(const PrimFunc& func) {
   std::ostringstream code;
 
-  // Read metadata
-  auto grid_x = func->attrs.GetAttr<Integer>("tt_grid_x");
-  auto grid_y = func->attrs.GetAttr<Integer>("tt_grid_y");
-
-  if (!grid_x.defined() || !grid_y.defined()) {
-    LOG(FATAL) << "Missing TT grid metadata for reader kernel codegen";
-  }
-
-  int num_tiles = grid_x.value()->value * grid_y.value()->value;
+  // Extract matmul dimensions
+  MatmulDims dims = ExtractMatmulDims(func);
+  int Mt = dims.Mt;
+  int Kt = dims.Kt;
+  int Nt = dims.Nt;
 
   // Generate reader kernel header
   code << "// Generated TT Reader Kernel (DRAM → L1)\n";
-  code << "// Tiles to load: " << num_tiles << "\n\n";
+  code << "// Matmul Reader: Loads A[m,k] and B[k,n] tiles\n\n";
 
   code << "#include <cstdint>\n\n";
+
+  code << "// Mock TT intrinsics for dry-run\n";
+  code << "template<typename T>\n";
+  code << "inline T get_arg_val(uint32_t idx) { return T(); }\n\n";
 
   code << "// Mock TT circular buffer APIs for dry-run\n";
   code << "inline void cb_reserve_back(uint32_t cb_id, uint32_t n_tiles) {}\n";
   code << "inline uint32_t get_write_ptr(uint32_t cb_id) { return 0; }\n";
-  code << "inline void noc_async_read(volatile uint32_t* src, uint32_t dst, uint32_t size) {}\n";
+  code << "inline void noc_async_read_tile(uint32_t tile_idx, uint32_t base_addr, uint32_t l1_addr) {}\n";
   code << "inline void noc_async_read_barrier() {}\n";
   code << "inline void cb_push_back(uint32_t cb_id, uint32_t n_tiles) {}\n\n";
 
@@ -158,35 +193,43 @@ std::string EmitTTReaderKernel(const PrimFunc& func) {
   code << "constexpr uint32_t CB_A = 0;\n";
   code << "constexpr uint32_t CB_B = 1;\n\n";
 
-  // Reader kernel for buffer A
-  code << "void reader_kernel_A(\n";
-  code << "    volatile uint32_t* dram_addr_a,\n";
-  code << "    uint32_t tile_bytes,\n";
-  code << "    uint32_t num_tiles\n";
-  code << ") {\n";
-  code << "    for (uint32_t i = 0; i < num_tiles; ++i) {\n";
-  code << "        cb_reserve_back(CB_A, 1);\n";
-  code << "        uint32_t l1_write_addr = get_write_ptr(CB_A);\n\n";
-  code << "        noc_async_read(dram_addr_a, l1_write_addr, tile_bytes);\n";
-  code << "        noc_async_read_barrier();\n\n";
-  code << "        cb_push_back(CB_A, 1);\n";
-  code << "        dram_addr_a += tile_bytes / sizeof(uint32_t);\n";
-  code << "    }\n";
-  code << "}\n\n";
+  code << "constexpr uint32_t TILE_SIZE_BYTES = 32 * 32 * sizeof(uint16_t);  // fp16\n\n";
 
-  // Reader kernel for buffer B
-  code << "void reader_kernel_B(\n";
-  code << "    volatile uint32_t* dram_addr_b,\n";
-  code << "    uint32_t tile_bytes,\n";
-  code << "    uint32_t num_tiles\n";
-  code << ") {\n";
-  code << "    for (uint32_t i = 0; i < num_tiles; ++i) {\n";
-  code << "        cb_reserve_back(CB_B, 1);\n";
-  code << "        uint32_t l1_write_addr = get_write_ptr(CB_B);\n\n";
-  code << "        noc_async_read(dram_addr_b, l1_write_addr, tile_bytes);\n";
-  code << "        noc_async_read_barrier();\n\n";
-  code << "        cb_push_back(CB_B, 1);\n";
-  code << "        dram_addr_b += tile_bytes / sizeof(uint32_t);\n";
+  // Main reader kernel
+  code << "void kernel_main() {\n";
+  code << "    // Runtime arguments\n";
+  code << "    uint32_t dram_addr_a = get_arg_val<uint32_t>(0);\n";
+  code << "    uint32_t dram_addr_b = get_arg_val<uint32_t>(1);\n";
+  code << "    uint32_t Mt = get_arg_val<uint32_t>(2);\n";
+  code << "    uint32_t Kt = get_arg_val<uint32_t>(3);\n";
+  code << "    uint32_t Nt = get_arg_val<uint32_t>(4);\n";
+  code << "    uint32_t out_tile_start_id = get_arg_val<uint32_t>(5);\n";
+  code << "    uint32_t num_out_tiles = get_arg_val<uint32_t>(6);\n\n";
+
+  code << "    // Process output tiles\n";
+  code << "    for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile) {\n";
+  code << "        uint32_t current_tile_id = out_tile_start_id + out_tile;\n";
+  code << "        uint32_t out_m = current_tile_id / Nt;\n";
+  code << "        uint32_t out_n = current_tile_id % Nt;\n\n";
+
+  code << "        // Load tiles for this output: A[out_m,:] and B[:,out_n]\n";
+  code << "        for (uint32_t kt = 0; kt < Kt; ++kt) {\n";
+  code << "            // Read A[out_m, kt]\n";
+  code << "            uint32_t tile_a_idx = out_m * Kt + kt;\n";
+  code << "            cb_reserve_back(CB_A, 1);\n";
+  code << "            uint32_t l1_write_addr_a = get_write_ptr(CB_A);\n";
+  code << "            noc_async_read_tile(tile_a_idx, dram_addr_a, l1_write_addr_a);\n";
+  code << "            noc_async_read_barrier();\n";
+  code << "            cb_push_back(CB_A, 1);\n\n";
+
+  code << "            // Read B[kt, out_n]\n";
+  code << "            uint32_t tile_b_idx = kt * Nt + out_n;\n";
+  code << "            cb_reserve_back(CB_B, 1);\n";
+  code << "            uint32_t l1_write_addr_b = get_write_ptr(CB_B);\n";
+  code << "            noc_async_read_tile(tile_b_idx, dram_addr_b, l1_write_addr_b);\n";
+  code << "            noc_async_read_barrier();\n";
+  code << "            cb_push_back(CB_B, 1);\n";
+  code << "        }\n";
   code << "    }\n";
   code << "}\n";
 
@@ -199,26 +242,24 @@ std::string EmitTTReaderKernel(const PrimFunc& func) {
 std::string EmitTTWriterKernel(const PrimFunc& func) {
   std::ostringstream code;
 
-  // Read metadata
-  auto grid_x = func->attrs.GetAttr<Integer>("tt_grid_x");
-  auto grid_y = func->attrs.GetAttr<Integer>("tt_grid_y");
-
-  if (!grid_x.defined() || !grid_y.defined()) {
-    LOG(FATAL) << "Missing TT grid metadata for writer kernel codegen";
-  }
-
-  int num_tiles = grid_x.value()->value * grid_y.value()->value;
+  // Extract matmul dimensions
+  MatmulDims dims = ExtractMatmulDims(func);
+  int Nt = dims.Nt;
 
   // Generate writer kernel header
   code << "// Generated TT Writer Kernel (L1 → DRAM)\n";
-  code << "// Tiles to write: " << num_tiles << "\n\n";
+  code << "// Matmul Writer: Writes C[m,n] output tiles\n\n";
 
   code << "#include <cstdint>\n\n";
+
+  code << "// Mock TT intrinsics for dry-run\n";
+  code << "template<typename T>\n";
+  code << "inline T get_arg_val(uint32_t idx) { return T(); }\n\n";
 
   code << "// Mock TT circular buffer APIs for dry-run\n";
   code << "inline void cb_wait_front(uint32_t cb_id, uint32_t n_tiles) {}\n";
   code << "inline uint32_t get_read_ptr(uint32_t cb_id) { return 0; }\n";
-  code << "inline void noc_async_write(uint32_t src, volatile uint32_t* dst, uint32_t size) {}\n";
+  code << "inline void noc_async_write_tile(uint32_t tile_idx, uint32_t l1_addr, uint32_t base_addr) {}\n";
   code << "inline void noc_async_write_barrier() {}\n";
   code << "inline void cb_pop_front(uint32_t cb_id, uint32_t n_tiles) {}\n\n";
 
@@ -226,19 +267,25 @@ std::string EmitTTWriterKernel(const PrimFunc& func) {
   code << "// Circular Buffer Index\n";
   code << "constexpr uint32_t CB_C = 2;\n\n";
 
-  // Writer kernel for buffer C
-  code << "void writer_kernel_C(\n";
-  code << "    volatile uint32_t* dram_addr_c,\n";
-  code << "    uint32_t tile_bytes,\n";
-  code << "    uint32_t num_tiles\n";
-  code << ") {\n";
-  code << "    for (uint32_t i = 0; i < num_tiles; ++i) {\n";
+  code << "constexpr uint32_t TILE_SIZE_BYTES = 32 * 32 * sizeof(uint16_t);  // fp16\n\n";
+
+  // Main writer kernel
+  code << "void kernel_main() {\n";
+  code << "    // Runtime arguments\n";
+  code << "    uint32_t dram_addr_c = get_arg_val<uint32_t>(0);\n";
+  code << "    uint32_t out_tile_start_id = get_arg_val<uint32_t>(1);\n";
+  code << "    uint32_t num_out_tiles = get_arg_val<uint32_t>(2);\n";
+  code << "    uint32_t Nt = get_arg_val<uint32_t>(3);\n\n";
+
+  code << "    // Write output tiles\n";
+  code << "    for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile) {\n";
+  code << "        uint32_t tile_idx = out_tile_start_id + out_tile;\n\n";
+
   code << "        cb_wait_front(CB_C, 1);\n";
-  code << "        uint32_t l1_read_addr = get_read_ptr(CB_C);\n\n";
-  code << "        noc_async_write(l1_read_addr, dram_addr_c, tile_bytes);\n";
-  code << "        noc_async_write_barrier();\n\n";
+  code << "        uint32_t l1_read_addr = get_read_ptr(CB_C);\n";
+  code << "        noc_async_write_tile(tile_idx, l1_read_addr, dram_addr_c);\n";
+  code << "        noc_async_write_barrier();\n";
   code << "        cb_pop_front(CB_C, 1);\n";
-  code << "        dram_addr_c += tile_bytes / sizeof(uint32_t);\n";
   code << "    }\n";
   code << "}\n";
 
@@ -251,23 +298,22 @@ std::string EmitTTWriterKernel(const PrimFunc& func) {
 std::string EmitTTHostProgram(const PrimFunc& func) {
   std::ostringstream code;
 
-  // Read metadata
-  auto grid_x = func->attrs.GetAttr<Integer>("tt_grid_x");
-  auto grid_y = func->attrs.GetAttr<Integer>("tt_grid_y");
-  auto num_tiles = func->attrs.GetAttr<Integer>("tt_num_tiles");
+  // Extract matmul dimensions
+  MatmulDims dims = ExtractMatmulDims(func);
+  int Mt = dims.Mt;
+  int Kt = dims.Kt;
+  int Nt = dims.Nt;
+  int M = dims.M;
+  int K = dims.K;
+  int N = dims.N;
+
   auto num_cores = func->attrs.GetAttr<Integer>("tt_num_cores");
-
-  if (!grid_x.defined() || !grid_y.defined()) {
-    LOG(FATAL) << "Missing TT grid metadata for host program generation";
-  }
-
-  int gx = grid_x.value()->value;
-  int gy = grid_y.value()->value;
-  int total_tiles = num_tiles.defined() ? num_tiles.value()->value : (gx * gy);
+  int total_tiles = Mt * Nt;
 
   // Generate host program header
   code << "// Generated TT Host Program\n";
-  code << "// Grid: " << gx << "x" << gy << " (" << total_tiles << " tiles)\n\n";
+  code << "// Matmul: M=" << M << ", K=" << K << ", N=" << N << "\n";
+  code << "// Grid: " << Nt << "x" << Mt << " (" << total_tiles << " output tiles)\n\n";
 
   code << "#include <cstdint>\n";
   code << "#include <vector>\n";
@@ -334,9 +380,12 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
 
   // 5. Allocate DRAM buffers
   code << "    // 5. Allocate DRAM buffers\\n\";\n";
-  code << "    constexpr uint32_t M = " << (gy * 32) << ";\n";
-  code << "    constexpr uint32_t N = " << (gx * 32) << ";\n";
-  code << "    constexpr uint32_t K = " << (gy * 32) << ";\n\n";
+  code << "    constexpr uint32_t M = " << M << ";\n";
+  code << "    constexpr uint32_t N = " << N << ";\n";
+  code << "    constexpr uint32_t K = " << K << ";\n";
+  code << "    constexpr uint32_t Mt = " << Mt << ";\n";
+  code << "    constexpr uint32_t Kt = " << Kt << ";\n";
+  code << "    constexpr uint32_t Nt = " << Nt << ";\n\n";
 
   code << "    std::vector<uint16_t> dram_a(M * K);\n";
   code << "    std::vector<uint16_t> dram_b(K * N);\n";
@@ -352,14 +401,19 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   code << "    std::cout << \"DRAM buffers allocated and initialized\" << std::endl;\n\n";
 
   // 6. Runtime arguments
-  code << "    // 6. Runtime arguments\\n\";\n";
-  code << "    constexpr uint32_t GRID_X = " << gx << ";\n";
-  code << "    constexpr uint32_t GRID_Y = " << gy << ";\n";
-  code << "    constexpr uint32_t NUM_TILES = " << total_tiles << ";\n";
-  code << "    constexpr uint32_t NUM_CORES = " << (num_cores.defined() ? num_cores.value()->value : 64) << ";\n\n";
+  code << "    // 6. SetRuntimeArgs for kernels (Metalium API)\\n\";\n";
+  code << "    constexpr uint32_t NUM_OUTPUT_TILES = " << total_tiles << ";\n";
+  code << "    constexpr uint32_t NUM_CORES = " << (num_cores.defined() ? num_cores.value()->value : 1) << ";\n\n";
 
-  code << "    // Runtime args: start_id=0, count=NUM_TILES, grid_x, grid_y\n";
-  code << "    std::cout << \"Runtime args configured: \" << NUM_TILES << \" tiles on \" << NUM_CORES << \" cores\" << std::endl;\n\n";
+  code << "    // For single-core MVP: core 0 processes all tiles\n";
+  code << "    uint32_t out_tile_start_id = 0;\n";
+  code << "    uint32_t num_out_tiles_per_core = NUM_OUTPUT_TILES;\n\n";
+
+  code << "    // SetRuntimeArgs pattern (mock for dry-run):\n";
+  code << "    // Reader: {dram_a, dram_b, Mt, Kt, Nt, start_tile_id, num_tiles}\n";
+  code << "    // Compute: {start_tile_id, num_output_tiles, Kt}\n";
+  code << "    // Writer: {dram_c, start_tile_id, num_tiles, Nt}\n";
+  code << "    std::cout << \"Runtime args: \" << NUM_OUTPUT_TILES << \" tiles, Kt=\" << Kt << std::endl;\n\n";
 
   // 7. Launch program
   code << "    // 7. Launch program\\n\";\n";

@@ -196,11 +196,12 @@ def test_runtime_args_configuration():
     artifacts = tt.emit_tt_artifacts(mod)
     main_cpp = artifacts["main.cpp"]
 
-    # Verify runtime args
-    assert "constexpr uint32_t GRID_X = 8" in main_cpp, "GRID_X constant missing"
-    assert "constexpr uint32_t GRID_Y = 8" in main_cpp, "GRID_Y constant missing"
-    assert "constexpr uint32_t NUM_TILES = 64" in main_cpp, "NUM_TILES constant missing (8*8=64)"
-    assert "constexpr uint32_t NUM_CORES = 64" in main_cpp, "NUM_CORES constant missing"
+    # WS7: Runtime args now use matmul dimensions (Mt, Kt, Nt)
+    assert "constexpr uint32_t Mt = 8" in main_cpp, "Mt constant missing"
+    assert "constexpr uint32_t Nt = 8" in main_cpp, "Nt constant missing"
+    assert "constexpr uint32_t Kt = 8" in main_cpp, "Kt constant missing"
+    assert "constexpr uint32_t NUM_OUTPUT_TILES = 64" in main_cpp, "NUM_OUTPUT_TILES constant missing (8*8=64)"
+    assert "constexpr uint32_t NUM_CORES = " in main_cpp, "NUM_CORES constant missing"
 
     print("✓ Test 6 passed: Runtime args configuration")
 
@@ -212,8 +213,8 @@ def test_different_grid_sizes():
     Verifies that host program generation works for various grid dimensions.
     """
     test_cases = [
-        (4, 4),   # 16 tiles, 4x4 grid
-        (16, 16), # 256 tiles, 16x16 grid
+        (4, 4),  # 16 tiles, 4x4 grid
+        (16, 16),  # 256 tiles, 16x16 grid
     ]
 
     for grid_x, grid_y in test_cases:
@@ -222,17 +223,17 @@ def test_different_grid_sizes():
         artifacts = tt.emit_tt_artifacts(mod)
         main_cpp = artifacts["main.cpp"]
 
-        # Verify grid dimensions
+        # WS7: Verify matmul dimensions (Mt, Kt, Nt)
         expected_tiles = grid_x * grid_y
         expected_m = grid_y * 32
         expected_n = grid_x * 32
 
-        assert f"constexpr uint32_t GRID_X = {grid_x}" in main_cpp, \
-            f"GRID_X {grid_x} not found"
-        assert f"constexpr uint32_t GRID_Y = {grid_y}" in main_cpp, \
-            f"GRID_Y {grid_y} not found"
-        assert f"constexpr uint32_t NUM_TILES = {expected_tiles}" in main_cpp, \
-            f"NUM_TILES {expected_tiles} not found"
+        assert f"constexpr uint32_t Mt = {grid_y}" in main_cpp, \
+            f"Mt {grid_y} not found"
+        assert f"constexpr uint32_t Nt = {grid_x}" in main_cpp, \
+            f"Nt {grid_x} not found"
+        assert f"constexpr uint32_t NUM_OUTPUT_TILES = {expected_tiles}" in main_cpp, \
+            f"NUM_OUTPUT_TILES {expected_tiles} not found"
 
         # Verify buffer dimensions
         assert f"constexpr uint32_t M = {expected_m}" in main_cpp, \
@@ -240,7 +241,9 @@ def test_different_grid_sizes():
         assert f"constexpr uint32_t N = {expected_n}" in main_cpp, \
             f"N dimension {expected_n} not found"
 
-        print(f"✓ Test 7 passed for grid {grid_x}x{grid_y} ({expected_tiles} tiles, {expected_m}x{expected_n} buffers)")
+        print(
+            f"✓ Test 7 passed for grid {grid_x}x{grid_y} ({expected_tiles} tiles, {expected_m}x{expected_n} buffers)"
+        )
 
 
 def test_full_host_program_structure():
@@ -254,7 +257,7 @@ def test_full_host_program_structure():
     artifacts = tt.emit_tt_artifacts(mod)
     main_cpp = artifacts["main.cpp"]
 
-    # Verify section order by finding positions
+    # Verify section order by finding positions (WS7: updated for matmul dimensions)
     sections = [
         ("includes", "#include <cstdint>"),
         ("device_apis", "class Device"),
@@ -263,7 +266,7 @@ def test_full_host_program_structure():
         ("cb_config", "CircularBufferConfig cb_a"),
         ("program_create", "Program program"),
         ("dram_alloc", "std::vector<uint16_t> dram_a"),
-        ("runtime_args", "constexpr uint32_t GRID_X"),
+        ("runtime_args", "constexpr uint32_t Mt"),
         ("launch", "CommandQueue cq"),
         ("return", "return 0;"),
     ]
@@ -274,15 +277,22 @@ def test_full_host_program_structure():
         assert pos != -1, f"Section '{section_name}' not found (searching for '{search_str}')"
         positions[section_name] = pos
 
-    # Verify order
-    assert positions["includes"] < positions["device_apis"], "Includes should come before device APIs"
-    assert positions["device_apis"] < positions["main_func"], "Device APIs should come before main()"
-    assert positions["main_func"] < positions["device_setup"], "main() should come before device setup"
-    assert positions["device_setup"] < positions["cb_config"], "Device setup should come before CB config"
-    assert positions["cb_config"] < positions["program_create"], "CB config should come before program create"
-    assert positions["program_create"] < positions["dram_alloc"], "Program create should come before DRAM alloc"
-    assert positions["dram_alloc"] < positions["runtime_args"], "DRAM alloc should come before runtime args"
-    assert positions["runtime_args"] < positions["launch"], "Runtime args should come before launch"
+    # Verify order (WS7: runtime_args (dimensions) now come before dram_alloc)
+    assert positions["includes"] < positions[
+        "device_apis"], "Includes should come before device APIs"
+    assert positions["device_apis"] < positions[
+        "main_func"], "Device APIs should come before main()"
+    assert positions["main_func"] < positions[
+        "device_setup"], "main() should come before device setup"
+    assert positions["device_setup"] < positions[
+        "cb_config"], "Device setup should come before CB config"
+    assert positions["cb_config"] < positions[
+        "program_create"], "CB config should come before program create"
+    assert positions["program_create"] < positions[
+        "runtime_args"], "Program create should come before runtime args (dimensions)"
+    assert positions["runtime_args"] < positions[
+        "dram_alloc"], "Runtime args (dimensions) should come before DRAM alloc"
+    assert positions["dram_alloc"] < positions["launch"], "DRAM alloc should come before launch"
     assert positions["launch"] < positions["return"], "Launch should come before return"
 
     print("✓ Test 8 passed: Full host program structure verification")
