@@ -13,6 +13,11 @@
       "Bash(ls *)",
       "Bash(sleep *)",
       "Bash(cd *)",
+      "Bash(ninja *)",
+      "Bash(cmake *)",
+      "Bash(python *)",
+      "Bash(export *)",
+      "Bash(nm *)",
       "Read(**/*)",
       "Edit(**/*)",
       "Write(**/*)"

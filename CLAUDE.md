@@ -53,8 +53,22 @@ When creating a PR on GitHub's web UI, verify:
 - If you see `tile-ai/tilelang`, you're targeting the WRONG repository!
 
 **Protected branches:**
-- Changes to `main` require pull requests (direct pushes not allowed)
+- **CRITICAL:** Changes to `main` require pull requests (direct pushes NOT allowed)
+- **NEVER push directly to main** - always create a feature branch first
 - All PRs must pass CI checks before merging
+
+**Workflow summary:**
+```bash
+# ALWAYS work on a feature branch:
+git checkout -b feature-branch-name
+# Make changes, commit
+git add .
+git commit -m "Your changes"
+# Push feature branch
+git push -u origin feature-branch-name
+# Create PR via gh CLI or GitHub web UI
+gh pr create --repo davorchap/tilelang-tt --base main --head feature-branch-name
+```
 
 ## Build System
 
