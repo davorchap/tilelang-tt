@@ -127,6 +127,7 @@ tilelang_file_glob(GLOB TILE_LANG_SRCS
   src/*.cc
   src/layout/*.cc
   src/transform/*.cc
+  src/transform/tt/*.cc
   src/op/*.cc
   src/target/utils.cc
   src/target/codegen_cpp.cc
