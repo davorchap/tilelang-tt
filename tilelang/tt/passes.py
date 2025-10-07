@@ -208,6 +208,38 @@ def memory_space_lower_tt(mod: tvm.IRModule) -> tvm.IRModule:
     return pass_func()(mod)
 
 
+def tile_pad_tt(mod: tvm.IRModule) -> tvm.IRModule:
+    """Insert padding metadata for non-tile-aligned buffers.
+
+    This pass handles buffers with dimensions that are not multiples of the
+    tile size (typically 32). It computes padded dimensions and stamps metadata
+    for use during codegen. It:
+
+    - Reads tt_buffer_*_needs_padding flags from WS2
+    - Computes padded dimensions: ceil(dim / tile_size) * tile_size
+    - Calculates padding amount per dimension
+    - Attaches tt_padding_info metadata with padding details
+
+    For example, a 250×250 buffer with 32×32 tiles becomes 256×256 (6 padding per dim).
+
+    Args:
+        mod: The TVM IRModule to process (should have WS2 padding flags)
+
+    Returns:
+        A new IRModule with padding metadata for codegen
+
+    Example:
+        >>> from tilelang.tt import apply_ws2_passes, tile_pad_tt
+        >>>
+        >>> mod = create_tilelang_kernel()
+        >>> mod = apply_tt_defaults(mod)  # WS1
+        >>> mod = apply_ws2_passes(mod)  # WS2 (detects padding needs)
+        >>> mod = tile_pad_tt(mod)  # WS3 Phase 2 (computes padding)
+    """
+    pass_func = tvm.ffi.get_global_func("tl.transform.TilePadTT")
+    return pass_func()(mod)
+
+
 def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Apply all Workstream 3 TIR transform passes.
 
@@ -232,9 +264,9 @@ def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
     mod = grid_to_persistent_tt(mod)
     mod = tt_shard_to_core_map(mod)
     mod = memory_space_lower_tt(mod)
+    mod = tile_pad_tt(mod)
 
     # TODO(WS3): Add remaining transforms when implemented
-    # mod = tile_pad_tt(mod)
     # mod = tensorize_tt(mod)
     # mod = verify_tt_ir(mod)
 
