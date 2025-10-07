@@ -271,6 +271,41 @@ def tensorize_tt(mod: tvm.IRModule) -> tvm.IRModule:
     return pass_func()(mod)
 
 
+def verify_tt_ir(mod: tvm.IRModule) -> tvm.IRModule:
+    """Validate TT-transformed IR metadata.
+
+    This pass performs comprehensive validation of transformed IR to ensure it's
+    ready for Tenstorrent codegen. It verifies:
+
+    - WS1: tt_schedule_policy, tt_layout_type, tt_tile_* dimensions
+    - WS2: tt_grid_*, tt_num_tiles, tt_tiles_per_core, tt_num_cores
+    - WS3: tt_persistent_loop, tt_core_ranges, tt_circular_buffers, tt_padding_info
+
+    The pass logs errors and warnings but does not modify the IR. It attaches
+    validation results as metadata:
+
+    - tt_ir_validated: Bool indicating if validation passed
+    - tt_validation_error_count: Number of errors found
+    - tt_validation_warning_count: Number of warnings found
+
+    Args:
+        mod: The TVM IRModule to validate (should have WS1-3 metadata)
+
+    Returns:
+        A new IRModule with validation result metadata attached
+
+    Example:
+        >>> from tilelang.tt import apply_ws3_passes, verify_tt_ir
+        >>>
+        >>> mod = create_tilelang_kernel()
+        >>> mod = apply_tt_defaults(mod)  # WS1
+        >>> mod = apply_ws2_passes(mod)  # WS2
+        >>> mod = apply_ws3_passes(mod)  # WS3 (includes verify_tt_ir)
+    """
+    pass_func = tvm.ffi.get_global_func("tl.transform.VerifyTTIR")
+    return pass_func()(mod)
+
+
 def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Apply all Workstream 3 TIR transform passes.
 
@@ -297,8 +332,6 @@ def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
     mod = memory_space_lower_tt(mod)
     mod = tile_pad_tt(mod)
     mod = tensorize_tt(mod)
-
-    # TODO(WS3): Add remaining transforms when implemented
-    # mod = verify_tt_ir(mod)
+    mod = verify_tt_ir(mod)
 
     return mod
