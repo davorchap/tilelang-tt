@@ -1,14 +1,25 @@
 # Workstream 7 Status - API Correctness & Matmul Implementation
 
+> **⚠️ DEPRECATED - 2025-10-07**
+>
+> "Workstream 7" was a misnomer. The tasks listed here are actually **WS4-6 completion tasks**.
+>
+> These tasks are now documented in **[UNIFIED_MATMUL_MVP_PLAN.md](../UNIFIED_MATMUL_MVP_PLAN.md)**
+> under "Workstream 4-6: Code Generation (NEEDS COMPLETION)".
+>
+> This file is retained for historical reference only.
+
+---
+
 **Last Updated:** 2025-10-07
 
 ## Overview
 
-Workstream 7 focuses on achieving **API correctness** by aligning generated code with real TT-Metalium structure and implementing proper matmul computation.
+~~Workstream 7~~ **WS4-6 Completion** focuses on achieving **API correctness** by aligning generated code with real TT-Metalium structure and implementing proper matmul computation.
 
 **Goal:** Generate correct, compilable matmul code matching Metalium examples.
 
-**Status:** 🚧 **IN PROGRESS** - Phase 2 of MVP
+**Status:** 🚧 **IN PROGRESS** - See UNIFIED_MATMUL_MVP_PLAN.md
 
 ## Progress Summary
 

@@ -1,5 +1,15 @@
 # TileLang Tenstorrent Backend MVP - Progress Summary & Roadmap
 
+> **⚠️ DEPRECATED - 2025-10-07**
+>
+> This document has been superseded by **[UNIFIED_MATMUL_MVP_PLAN.md](./UNIFIED_MATMUL_MVP_PLAN.md)**.
+>
+> The unified plan provides the authoritative MVP status and roadmap.
+>
+> This file is retained for historical reference only.
+
+---
+
 **Last Updated:** 2025-10-07
 **Status:** Foundation Complete (WS1-3) | Codegen & Validation Remaining (WS4-6)
 
