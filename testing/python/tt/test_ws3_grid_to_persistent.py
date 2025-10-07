@@ -5,7 +5,6 @@ that converts grid-style kernels to persistent per-core loops.
 """
 
 import pytest
-import tilelang
 from tilelang import tvm
 import tilelang.language as T
 from tilelang.tt import apply_tt_defaults, apply_ws2_passes, grid_to_persistent_tt, apply_ws3_passes
@@ -18,10 +17,7 @@ class TestGridToPersistentTT:
         """Test basic grid-to-persistent transformation on simple kernel."""
 
         @T.prim_func
-        def simple_kernel(
-            A: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def simple_kernel(A: T.Buffer((256, 256), "float16"), C: T.Buffer((256, 256), "float16")):
             with T.Kernel(T.ceildiv(256, 32), T.ceildiv(256, 32)) as (bx, by):
                 # Stub kernel body
                 pass
@@ -75,11 +71,8 @@ class TestWS1WS2WS3Integration:
         """Test WS1 → WS2 → WS3 pipeline on realistic GEMM."""
 
         @T.prim_func
-        def gemm(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                 C: T.Buffer((256, 256), "float16")):
             with T.Kernel(T.ceildiv(256, 32), T.ceildiv(256, 32)) as (bx, by):
                 # Stub kernel body
                 pass
@@ -87,8 +80,8 @@ class TestWS1WS2WS3Integration:
         # Full pipeline
         mod = tvm.IRModule.from_expr(gemm.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)  # WS1
-        mod = apply_ws2_passes(mod)   # WS2
-        mod = apply_ws3_passes(mod)   # WS3
+        mod = apply_ws2_passes(mod)  # WS2
+        mod = apply_ws3_passes(mod)  # WS3
 
         func = mod["main"]
 

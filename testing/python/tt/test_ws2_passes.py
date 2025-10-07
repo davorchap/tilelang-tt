@@ -9,7 +9,6 @@ TT-specific metadata into IRModules. These tests verify that:
 """
 
 import pytest
-import tilelang
 from tilelang import tvm
 import tilelang.language as T
 from tilelang.tt import apply_tt_defaults, infer_default_tt_schedule, infer_default_tt_shard, apply_ws2_passes
@@ -22,11 +21,8 @@ class TestScheduleInference:
         """Test schedule inference on 8x8 grid (64 tiles, perfect fit for 64 cores)."""
 
         @T.prim_func
-        def gemm_8x8(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_8x8(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
             with T.Kernel(T.ceildiv(256, 32), T.ceildiv(256, 32)) as (bx, by):
                 pass  # Stub kernel
 
@@ -65,11 +61,8 @@ class TestScheduleInference:
         """Test schedule inference on 4x4 grid (16 tiles, non-perfect fit for 64 cores)."""
 
         @T.prim_func
-        def gemm_4x4(
-            A: T.Buffer((128, 128), "float16"),
-            B: T.Buffer((128, 128), "float16"),
-            C: T.Buffer((128, 128), "float16")
-        ):
+        def gemm_4x4(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"),
+                     C: T.Buffer((128, 128), "float16")):
             with T.Kernel(T.ceildiv(128, 32), T.ceildiv(128, 32)) as (bx, by):
                 pass  # Stub kernel
 
@@ -104,11 +97,8 @@ class TestScheduleInference:
         """Test schedule inference on 16x16 grid (256 tiles > 64 cores)."""
 
         @T.prim_func
-        def gemm_16x16(
-            A: T.Buffer((512, 512), "float16"),
-            B: T.Buffer((512, 512), "float16"),
-            C: T.Buffer((512, 512), "float16")
-        ):
+        def gemm_16x16(A: T.Buffer((512, 512), "float16"), B: T.Buffer((512, 512), "float16"),
+                       C: T.Buffer((512, 512), "float16")):
             with T.Kernel(T.ceildiv(512, 32), T.ceildiv(512, 32)) as (bx, by):
                 pass  # Stub kernel
 
@@ -141,11 +131,8 @@ class TestShardInference:
         """Test sharding inference on tile-aligned buffers (256x256, multiples of 32)."""
 
         @T.prim_func
-        def gemm_aligned(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_aligned(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                         C: T.Buffer((256, 256), "float16")):
             with T.Kernel(8, 8) as (bx, by):
                 pass  # Stub kernel
 
@@ -179,7 +166,7 @@ class TestShardInference:
             assert tiles_height_key in func.attrs, f"Missing {tiles_height_key}"
             assert tiles_width_key in func.attrs, f"Missing {tiles_width_key}"
             assert int(func.attrs[tiles_height_key]) == 8  # 256/32 = 8
-            assert int(func.attrs[tiles_width_key]) == 8   # 256/32 = 8
+            assert int(func.attrs[tiles_width_key]) == 8  # 256/32 = 8
 
             # Check padding (should be False for tile-aligned)
             needs_padding_key = f"tt_buffer_{buffer_name}_needs_padding"
@@ -190,11 +177,8 @@ class TestShardInference:
         """Test sharding inference on non-tile-aligned buffers (100x100, not multiples of 32)."""
 
         @T.prim_func
-        def gemm_unaligned(
-            A: T.Buffer((100, 100), "float16"),
-            B: T.Buffer((100, 100), "float16"),
-            C: T.Buffer((100, 100), "float16")
-        ):
+        def gemm_unaligned(A: T.Buffer((100, 100), "float16"), B: T.Buffer((100, 100), "float16"),
+                           C: T.Buffer((100, 100), "float16")):
             with T.Kernel(T.ceildiv(100, 32), T.ceildiv(100, 32)) as (bx, by):
                 pass  # Stub kernel
 
@@ -213,7 +197,7 @@ class TestShardInference:
             tiles_height_key = f"tt_buffer_{buffer_name}_num_tiles_height"
             tiles_width_key = f"tt_buffer_{buffer_name}_num_tiles_width"
             assert int(func.attrs[tiles_height_key]) == 4  # ceil(100/32) = 4
-            assert int(func.attrs[tiles_width_key]) == 4   # ceil(100/32) = 4
+            assert int(func.attrs[tiles_width_key]) == 4  # ceil(100/32) = 4
 
             # Check padding (should be True)
             needs_padding_key = f"tt_buffer_{buffer_name}_needs_padding"
@@ -236,11 +220,8 @@ class TestWS2Integration:
         """Test full WS1 -> WS2 pipeline on realistic GEMM."""
 
         @T.prim_func
-        def gemm(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                 C: T.Buffer((256, 256), "float16")):
             with T.Kernel(T.ceildiv(256, 32), T.ceildiv(256, 32)) as (bx, by):
                 pass  # Stub kernel
 
