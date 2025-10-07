@@ -147,6 +147,36 @@ def grid_to_persistent_tt(mod: tvm.IRModule) -> tvm.IRModule:
     return pass_func()(mod)
 
 
+def tt_shard_to_core_map(mod: tvm.IRModule) -> tvm.IRModule:
+    """Map tile assignments to physical core coordinates.
+
+    This pass converts logical tile-to-core assignments from WS2 into physical
+    CoreRangeSet topology for Tenstorrent devices. It generates:
+
+    - tt_core_ranges: Physical core topology as [start_x, start_y, end_x, end_y, start_tile, count]
+    - tt_core_runtime_args: Per-core runtime args as [start_tile, num_tiles]
+
+    For Grayskull/Wormhole 8×8 core grids, uses row-major layout where
+    core_id maps to (x, y) = (core_id % 8, core_id / 8).
+
+    Args:
+        mod: The TVM IRModule to process (should have WS2 tt_tiles_per_core metadata)
+
+    Returns:
+        A new IRModule with physical core topology metadata
+
+    Example:
+        >>> from tilelang.tt import apply_ws2_passes, tt_shard_to_core_map
+        >>>
+        >>> mod = create_tilelang_kernel()
+        >>> mod = apply_tt_defaults(mod)  # WS1
+        >>> mod = apply_ws2_passes(mod)  # WS2
+        >>> mod = tt_shard_to_core_map(mod)  # WS3 Phase 2
+    """
+    pass_func = tvm.ffi.get_global_func("tl.transform.TTShardToCoreMap")
+    return pass_func()(mod)
+
+
 def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Apply all Workstream 3 TIR transform passes.
 
@@ -167,11 +197,11 @@ def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
         >>> mod = apply_ws2_passes(mod)  # WS2
         >>> mod = apply_ws3_passes(mod)  # WS3
     """
-    # WS3 Transform Pipeline (MVP: only GridToPersistentTT implemented)
+    # WS3 Transform Pipeline
     mod = grid_to_persistent_tt(mod)
+    mod = tt_shard_to_core_map(mod)
 
     # TODO(WS3): Add remaining transforms when implemented
-    # mod = tt_shard_to_core_map(mod)
     # mod = memory_space_lower_tt(mod)
     # mod = tile_pad_tt(mod)
     # mod = tensorize_tt(mod)
