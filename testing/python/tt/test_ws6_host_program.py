@@ -196,11 +196,12 @@ def test_runtime_args_configuration():
     artifacts = tt.emit_tt_artifacts(mod)
     main_cpp = artifacts["main.cpp"]
 
-    # Verify runtime args
-    assert "constexpr uint32_t GRID_X = 8" in main_cpp, "GRID_X constant missing"
-    assert "constexpr uint32_t GRID_Y = 8" in main_cpp, "GRID_Y constant missing"
-    assert "constexpr uint32_t NUM_TILES = 64" in main_cpp, "NUM_TILES constant missing (8*8=64)"
-    assert "constexpr uint32_t NUM_CORES = 64" in main_cpp, "NUM_CORES constant missing"
+    # WS7: Runtime args now use matmul dimensions (Mt, Kt, Nt)
+    assert "constexpr uint32_t Mt = 8" in main_cpp, "Mt constant missing"
+    assert "constexpr uint32_t Nt = 8" in main_cpp, "Nt constant missing"
+    assert "constexpr uint32_t Kt = 8" in main_cpp, "Kt constant missing"
+    assert "constexpr uint32_t NUM_OUTPUT_TILES = 64" in main_cpp, "NUM_OUTPUT_TILES constant missing (8*8=64)"
+    assert "constexpr uint32_t NUM_CORES = " in main_cpp, "NUM_CORES constant missing"
 
     print("✓ Test 6 passed: Runtime args configuration")
 
@@ -222,17 +223,17 @@ def test_different_grid_sizes():
         artifacts = tt.emit_tt_artifacts(mod)
         main_cpp = artifacts["main.cpp"]
 
-        # Verify grid dimensions
+        # WS7: Verify matmul dimensions (Mt, Kt, Nt)
         expected_tiles = grid_x * grid_y
         expected_m = grid_y * 32
         expected_n = grid_x * 32
 
-        assert f"constexpr uint32_t GRID_X = {grid_x}" in main_cpp, \
-            f"GRID_X {grid_x} not found"
-        assert f"constexpr uint32_t GRID_Y = {grid_y}" in main_cpp, \
-            f"GRID_Y {grid_y} not found"
-        assert f"constexpr uint32_t NUM_TILES = {expected_tiles}" in main_cpp, \
-            f"NUM_TILES {expected_tiles} not found"
+        assert f"constexpr uint32_t Mt = {grid_y}" in main_cpp, \
+            f"Mt {grid_y} not found"
+        assert f"constexpr uint32_t Nt = {grid_x}" in main_cpp, \
+            f"Nt {grid_x} not found"
+        assert f"constexpr uint32_t NUM_OUTPUT_TILES = {expected_tiles}" in main_cpp, \
+            f"NUM_OUTPUT_TILES {expected_tiles} not found"
 
         # Verify buffer dimensions
         assert f"constexpr uint32_t M = {expected_m}" in main_cpp, \
@@ -254,7 +255,7 @@ def test_full_host_program_structure():
     artifacts = tt.emit_tt_artifacts(mod)
     main_cpp = artifacts["main.cpp"]
 
-    # Verify section order by finding positions
+    # Verify section order by finding positions (WS7: updated for matmul dimensions)
     sections = [
         ("includes", "#include <cstdint>"),
         ("device_apis", "class Device"),
@@ -263,7 +264,7 @@ def test_full_host_program_structure():
         ("cb_config", "CircularBufferConfig cb_a"),
         ("program_create", "Program program"),
         ("dram_alloc", "std::vector<uint16_t> dram_a"),
-        ("runtime_args", "constexpr uint32_t GRID_X"),
+        ("runtime_args", "constexpr uint32_t Mt"),
         ("launch", "CommandQueue cq"),
         ("return", "return 0;"),
     ]
