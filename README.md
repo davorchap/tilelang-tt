@@ -38,7 +38,7 @@ tt.write_artifacts_to_disk(artifacts, "./build/tt_kernels")
 
 **Related docs**
 
-- **MVP Progress:** [MVP Status & Roadmap](docs/tenstorrent/MVP_PROGRESS_SUMMARY.md)
+- **MVP Progress:** [Unified MVP Plan](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md)
 - **Architecture comparison:** [GPU vs. Tenstorrent (TT‑Metalium)](docs/tenstorrent/GPU_vs_Tenstorrent.md)
 - **Kernel authoring patterns:** [GPU vs. Tenstorrent — Kernel Authoring](docs/tenstorrent/kernel_authoring_comparison.md)
 

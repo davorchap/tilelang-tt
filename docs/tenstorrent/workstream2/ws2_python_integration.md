@@ -411,4 +411,4 @@ After Python integration complete:
 - [WS2 Status](WS2_STATUS.md) - Overall WS2 progress
 - [Schedule Inference](ws2_schedule_inference.md) - C++ pass details
 - [Shard Inference](ws2_shard_inference.md) - C++ pass details
-- [Project Plan](../project_1.md) - WS2 specification
+- [Unified MVP Plan](../UNIFIED_MATMUL_MVP_PLAN.md) - WS2 specification

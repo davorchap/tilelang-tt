@@ -400,6 +400,6 @@ Once WS3 is complete, **Workstream 4: Code Generation** will:
 
 - [WS1 Status](../workstream1/WS1_STATUS.md) - Target registration
 - [WS2 Status](../workstream2/WS2_STATUS.md) - Metadata inference
-- [Project Plan](../project_1.md) - Overall TT backend MVP plan
+- [Unified MVP Plan](../UNIFIED_MATMUL_MVP_PLAN.md) - Overall TT backend MVP plan
 
 ---

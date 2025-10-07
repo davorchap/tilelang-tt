@@ -12,7 +12,7 @@ This repository (`tilelang-tt`) is a **public fork** focused on adding first-cla
 
 **⚠️ IMPORTANT:** The authoritative plan for Tenstorrent backend development is **[docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md)**.
 
-Previous documents (project_1.md, MVP_PROGRESS_SUMMARY.md, MVP_PHASE2_PLAN.md, WS7_STATUS.md) are deprecated. The unified plan consolidates all MVP work into a single source of truth.
+The unified plan consolidates all MVP work into a single source of truth.
 
 ## Repository Information
 
@@ -677,7 +677,7 @@ Plan → Implement → Test → Document → PR → Merge → Next WS
 2. **Identify next workstream:**
    ```bash
    # Read project plan
-   cat docs/tenstorrent/project_1.md
+   cat docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md
 
    # Check next WS directory
    ls -la docs/tenstorrent/workstream{N+1}/
@@ -790,11 +790,6 @@ This allows existing GPU-style kernels to run on TT with minimal changes (subjec
 - [WS5 Status](docs/tenstorrent/workstream5/WS5_STATUS.md) 🚧 In Progress
 - [WS6 Status](docs/tenstorrent/workstream6/WS6_STATUS.md) 🚧 In Progress
 
-### Deprecated Documents (See Unified Plan Instead)
-- ~~project_1.md~~ → Use UNIFIED_MATMUL_MVP_PLAN.md
-- ~~MVP_PROGRESS_SUMMARY.md~~ → Use UNIFIED_MATMUL_MVP_PLAN.md
-- ~~mvp/MVP_PHASE2_PLAN.md~~ → Integrated into UNIFIED_MATMUL_MVP_PLAN.md
-- ~~workstream7/WS7_STATUS.md~~ → Not a real workstream, see WS4-6 in unified plan
 
 ## Important Notes
 

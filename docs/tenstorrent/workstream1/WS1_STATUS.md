@@ -231,7 +231,7 @@ Once WS1 is complete, WS2 will focus on:
 
 ## Related Documentation
 
-- [Project Plan](../project_1.md) - Overall TT backend MVP plan
+- [Unified MVP Plan](../UNIFIED_MATMUL_MVP_PLAN.md) - Overall TT backend MVP plan
 - [Local Build Guide](../local_build_guide.md) - Build and test instructions
 - [WS1 Target Registration](ws1_target_registration.md) - Detailed task breakdown
 - [WS1 Engine Adapter](ws1_engine_adapter.md) - Engine implementation details
