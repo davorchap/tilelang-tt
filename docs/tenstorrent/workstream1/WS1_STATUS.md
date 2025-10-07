@@ -1,6 +1,6 @@
 # Workstream 1 Status - Frontend Integration & Target Selection
 
-**Last Updated:** 2025-10-06
+**Last Updated:** 2025-10-07
 
 ## Overview
 
@@ -12,20 +12,20 @@ Workstream 1 focuses on enabling TileLang to recognize `target="tenstorrent"`, s
 
 | Task | Status | Priority | Blocker |
 |------|--------|----------|---------|
-| Target Registration | ✅ In Review | High | None |
-| Engine Adapter | ✅ In Review | High | None |
-| Target Registration Tests | ⚠️ In Review (1 xfail) | High | TVM target registration |
-| **TVM Target Registration** | ❌ **TODO** | **🔥 CRITICAL** | **Blocks test passing** |
-| Default Annotation Helper | ❌ TODO | Medium | Target registration |
-| Lower Hook | ❌ TODO | Medium | Annotation helper |
+| Target Registration | ✅ Complete | High | None |
+| Engine Adapter | ✅ Complete | High | None |
+| Target Registration Tests | ✅ Complete (All 8 passing) | High | None |
+| TVM Target Registration | ✅ Complete | High | None |
+| Default Annotation Helper | ✅ Complete | High | None |
+| **Lower Hook** | ✅ **Complete** | **High** | None |
 
-**Overall WS1 Progress:** ~50% complete (3 of 6 tasks in review/done)
+**Overall WS1 Progress:** 🎉 100% complete (All 6 tasks complete!)
 
-## Completed/In Review
+## Completed
 
 ### ✅ Target Registration (`ws1_target_registration.md`)
-**Status:** In Review
-**Branch:** `tt-matmul-mvp-plan`
+**Status:** Complete
+**Merged:** PR #19
 **Location:** `tilelang/utils/target.py`
 
 **Implemented:**
@@ -43,8 +43,8 @@ Workstream 1 focuses on enabling TileLang to recognize `target="tenstorrent"`, s
 ---
 
 ### ✅ Engine Adapter (`ws1_engine_adapter.md`)
-**Status:** In Review
-**Branch:** `ws1-engine-adapter`
+**Status:** Complete
+**Merged:** PR #19
 **Location:** `tilelang/engine/tt/`
 
 **Implemented:**
@@ -59,144 +59,131 @@ Workstream 1 focuses on enabling TileLang to recognize `target="tenstorrent"`, s
 
 ---
 
-### ⚠️ Target Registration Tests (`ws1_target_registration_test.md`)
-**Status:** In Review (1 test marked xfail)
-**Branch:** `tt-matmul-mvp-plan`
+### ✅ Target Registration Tests (`ws1_target_registration_test.md`)
+**Status:** Complete
+**Merged:** PR #19
 **Location:** `testing/python/tt/test_target_registration.py`
 
 **Test Results:**
 - ✅ `test_available_targets_contains_tt` - PASSED
-- ❌ `test_determine_target_returns_target_when_backend_enabled` - **XFAIL** (expected failure)
+- ✅ `test_determine_target_returns_target_when_backend_enabled` - PASSED
 - ✅ `test_determine_target_raises_when_backend_disabled` - PASSED
 - ✅ `test_tenstorrent_engine_lower_raises_not_implemented` - PASSED
 - ✅ `test_tenstorrent_engine_lower_validates_target` - PASSED
 
-**Current status:** 4 passed, 1 xfailed
-
-**Why xfail:** The failing test expects to create a TVM `Target` object with `kind="tenstorrent"`, but this target kind hasn't been registered in TVM's C++ target registry yet.
-
-**Error message:**
-```
-ValueError: Target kind "tenstorrent" is not defined. Target creation from string failed: tenstorrent
-```
-
-**To fix:** Need to register the target in TVM (see TODO section below)
+**Current status:** All 5 tests passing ✅
 
 ---
 
-## TODO - Next Steps
+### ✅ TVM Target Registration
+**Status:** Complete
+**Merged:** PR #19
+**Location:** `3rdparty/tvm` (submodule updated to davorchap/tvm fork)
 
-### 🔥 CRITICAL: TVM Target Registration
-**Priority:** HIGHEST
-**Blocks:** Test suite passing, downstream WS1 tasks
+**Implemented:**
+- Registered "tenstorrent" as a valid target kind in TVM's C++ target registry
+- Updated TVM submodule to point to davorchap/tvm fork with TT support
+- Removed xfail marker from test - all tests now passing
 
-**What needs to be done:**
-Register "tenstorrent" as a valid target kind in TVM's C++ target registry.
-
-**Likely locations:**
-- `3rdparty/tvm/src/target/target.cc` - Main target registration
-- `3rdparty/tvm/src/target/target_kind.cc` - Target kind definitions
-- `3rdparty/tvm/include/tvm/target/target.h` - Target API
-
-**Implementation approach:**
-1. Add "tenstorrent" to TVM's registered target kinds
-2. Define basic target attributes (similar to LLVM/CUDA targets)
-3. Register target with TVM's target registry
-4. Rebuild TVM submodule
-5. Verify test passes (remove xfail marker)
-
-**Dependencies:** None (can start immediately)
-
-**Success criteria:**
-- `test_determine_target_returns_target_when_backend_enabled` passes
-- Can create `Target("tenstorrent")` without errors
-- `target.kind.name == "tenstorrent"` works
+**What it does:**
+- Allows creation of `Target("tenstorrent")` objects
+- Enables `target.kind.name == "tenstorrent"` checks
+- Provides foundation for TT-specific target attributes in future
 
 ---
 
-### Default Annotation Helper (`ws1_default_annotation_helper.md`)
-**Priority:** Medium
-**Depends on:** TVM target registration
-**Status:** TODO
+### ✅ Default Annotation Helper (`ws1_default_annotation_helper.md`)
+**Status:** Complete
+**Location:** `tilelang/tt/target.py`
 
-**What needs to be done:**
-Implement `python/tilelang_tt/target.py` with a helper that stamps default TT schedule/sharding attributes when users omit them.
+**Implemented:**
+- Created `tilelang/tt/target.py` with `apply_tt_defaults()` function
+- Adds default TT attributes to PrimFuncs when not already present
+- Ensures idempotency - doesn't override existing user annotations
+- Added comprehensive tests (3 new tests, all passing)
 
-**Default behavior:**
+**Default behavior applied:**
 - **Schedule:** `policy="contiguous"`, `order="row_major"`
 - **Layout:** Row-major 32×32 DRAM interleaved tilization
-- **Sharding:** DRAM interleaved tensors via TensorAccessor
+  - `tt_tile_height=32`, `tt_tile_width=32`
+  - `tt_layout_type="dram_interleaved"`
 
-**Implementation:**
-- Create `python/tilelang_tt/target.py`
-- Implement `synthesize_default_tt_annotations(mod: IRModule) -> IRModule`
-- Add function attributes for schedule/sharding metadata
-- Only apply when attributes are missing (don't override user annotations)
+**What it does:**
+Allows existing GPU-style kernels to run on TT with minimal changes by providing sensible defaults when users don't specify TT-specific annotations.
+
+### ✅ Lower Hook (`ws1_lower_hook.md`)
+**Status:** Complete
+**Location:** `tilelang/engine/tt/lower.py`
+
+**Implemented:**
+- Wired `apply_tt_defaults()` into TT lowering entry point
+- Called immediately after target validation, before raising NotImplementedError
+- Only applies to TT target (doesn't impact other backends)
+- Updated documentation and comments to reflect integration
+
+**Integration:**
+The TT lowering function now:
+1. Validates the target is "tenstorrent"
+2. Applies default TT annotations via `apply_tt_defaults(mod)`
+3. Returns prepared module (full pipeline to be added in Workstream 2)
 
 **Why it's needed:**
-Allows existing GPU-style kernels to run on TT with minimal changes by providing sensible defaults.
+Ensures backward compatibility - GPU-style kernels can target TT without modification.
 
 ---
 
-### Lower Hook (`ws1_lower_hook.md`)
-**Priority:** Medium
-**Depends on:** Default annotation helper
-**Status:** TODO
+## WS1 Complete! 🎉
 
-**What needs to be done:**
-Wire the default annotation helper into the main lowering entry point.
+All Workstream 1 tasks are now complete:
+- ✅ Target registration and validation
+- ✅ Engine adapter with lowering entry point
+- ✅ TVM C++ target registration
+- ✅ Default annotation helper
+- ✅ Lower hook integration
+- ✅ Comprehensive test coverage (8 tests, all passing)
 
-**Implementation:**
-- Update `tilelang/engine/lower.lower` to call annotation helper
-- Call after target determination, before main lowering
-- Only invoke for TT target (don't impact other backends)
-- Ensure helper is called before TT-specific passes
-
-**Integration point:**
-```python
-# In tilelang/engine/lower.lower
-if target == "tenstorrent":
-    mod = synthesize_default_tt_annotations(mod)
-# Continue with normal lowering...
-```
+**What this means:**
+TileLang can now recognize `target="tenstorrent"` and automatically apply sensible defaults for TT execution. The foundation is in place for Workstream 2 (Schedule & Sharding Metadata) to build upon.
 
 ---
 
 ## Dependency Graph
 
 ```
-TVM Target Registration (CRITICAL BLOCKER)
+✅ TVM Target Registration (COMPLETE)
     ↓
-    └─→ Fixes test_target_registration.py xfail
+    └─→ ✅ Test suite passing (8/8 tests)
 
-Default Annotation Helper
+✅ Default Annotation Helper (COMPLETE)
     ↓
-    └─→ Lower Hook
+    └─→ ✅ Lower Hook (COMPLETE)
          ↓
-         └─→ Complete WS1 ✅
+         └─→ ✅ WS1 Complete! Ready for WS2
 ```
 
 **Critical path:**
-1. TVM target registration must complete first
-2. Annotation helper can start after target registration
-3. Lower hook requires annotation helper
-4. All must complete before Workstream 2 begins
+1. ✅ TVM target registration - COMPLETE
+2. ✅ Annotation helper - COMPLETE
+3. ✅ Lower hook - COMPLETE
+4. ✅ All tasks complete - Ready for Workstream 2!
 
 ---
 
 ## Testing Strategy
 
-### Current Test Coverage
+### Current Test Coverage (8/8 passing)
 - ✅ Target string "tenstorrent" recognized
 - ✅ Error handling when backend disabled
 - ✅ Engine adapter validates target
-- ⚠️ TVM Target creation (xfail - needs TVM registration)
+- ✅ TVM Target creation works correctly
+- ✅ Default annotations applied to unannotated modules
+- ✅ User annotations preserved when present
+- ✅ Idempotency of annotation helper
 
-### Needed Test Coverage (after completing TODO items)
-- [ ] Default annotations applied to unannotated modules
-- [ ] User annotations preserved when present
+### Future Test Coverage (Workstream 2+)
 - [ ] Lower hook integrates correctly in full pipeline
 - [ ] End-to-end dry-run of simple GEMM with TT target
+- [ ] TT-specific compiler passes work correctly
 
 ---
 
@@ -221,8 +208,7 @@ pytest testing/python/tt/test_target_registration.py -v
 ```
 
 **Expected results:**
-- 4 tests pass
-- 1 test xfail (until TVM target registration is complete)
+- All 8 tests pass ✅ (5 original + 3 annotation helper tests)
 
 ### Building for Development
 

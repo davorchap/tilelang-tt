@@ -10,6 +10,7 @@ except ModuleNotFoundError as exc:
 
 _target_mod = importlib.import_module("tilelang.utils.target")
 _tt_lower = importlib.import_module("tilelang.engine.tt.lower")
+_tt_target = importlib.import_module("tilelang.tt.target")
 CompiledArtifact = importlib.import_module("tilelang.engine.param").CompiledArtifact
 
 
@@ -74,3 +75,70 @@ def test_tenstorrent_engine_lower_validates_target(toggle_tt_backend):
             enable_host_codegen=False,
             enable_device_compile=False,
         )
+
+
+def test_apply_tt_defaults_adds_attributes_to_empty_module():
+    """Test that default TT attributes are added to PrimFuncs without TT attrs."""
+    # Create a simple PrimFunc without any TT attributes
+    # Use a basic empty PrimFunc
+    func = tvm.tir.PrimFunc([], tvm.tir.Evaluate(0))
+    func = func.with_attr("global_symbol", "main")
+    mod = tvm.IRModule({"main": func})
+
+    # Apply defaults
+    mod_with_defaults = _tt_target.apply_tt_defaults(mod)
+
+    # Check that the function now has TT attributes
+    func = mod_with_defaults["main"]
+    assert "tt_schedule_policy" in func.attrs
+    assert func.attrs["tt_schedule_policy"] == "contiguous"
+    assert "tt_schedule_order" in func.attrs
+    assert func.attrs["tt_schedule_order"] == "row_major"
+    assert "tt_layout_type" in func.attrs
+    assert func.attrs["tt_layout_type"] == "dram_interleaved"
+    assert "tt_tile_height" in func.attrs
+    assert func.attrs["tt_tile_height"] == 32
+    assert "tt_tile_width" in func.attrs
+    assert func.attrs["tt_tile_width"] == 32
+
+
+def test_apply_tt_defaults_preserves_existing_attributes():
+    """Test that existing TT attributes are not overwritten."""
+    # Create a PrimFunc with existing TT attributes
+    func = tvm.tir.PrimFunc([], tvm.tir.Evaluate(0))
+    func = func.with_attr("global_symbol", "main")
+    func = func.with_attr("tt_schedule_policy", "custom_policy")
+    func = func.with_attr("tt_custom_attr", "custom_value")
+    mod = tvm.IRModule({"main": func})
+
+    # Apply defaults
+    mod_with_defaults = _tt_target.apply_tt_defaults(mod)
+
+    # Check that existing attributes are preserved
+    func = mod_with_defaults["main"]
+    assert func.attrs["tt_schedule_policy"] == "custom_policy"
+    assert func.attrs["tt_custom_attr"] == "custom_value"
+
+    # Other default attributes should NOT be added since we already have TT attrs
+    assert "tt_schedule_order" not in func.attrs
+
+
+def test_apply_tt_defaults_is_idempotent():
+    """Test that applying defaults multiple times produces the same result."""
+    # Create a simple PrimFunc
+    func = tvm.tir.PrimFunc([], tvm.tir.Evaluate(0))
+    func = func.with_attr("global_symbol", "main")
+    mod = tvm.IRModule({"main": func})
+
+    # Apply defaults twice
+    mod1 = _tt_target.apply_tt_defaults(mod)
+    mod2 = _tt_target.apply_tt_defaults(mod1)
+
+    # Check that attributes are the same
+    func1 = mod1["main"]
+    func2 = mod2["main"]
+
+    for key in func1.attrs.keys():
+        if key.startswith("tt_"):
+            assert key in func2.attrs
+            assert func1.attrs[key] == func2.attrs[key]
