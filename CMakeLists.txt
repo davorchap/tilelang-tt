@@ -132,6 +132,7 @@ tilelang_file_glob(GLOB TILE_LANG_SRCS
   src/target/utils.cc
   src/target/codegen_cpp.cc
   src/target/rt_mod_cpp.cc
+  src/target/tt/*.cc
   # webgpu doesn't have system dependency
   src/target/codegen_webgpu.cc
   # intrin_rule doesn't have system dependency

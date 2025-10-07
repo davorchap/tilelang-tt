@@ -14,6 +14,10 @@ from .passes import (
     grid_to_persistent_tt,
     apply_ws3_passes,
 )
+from .codegen import (
+    emit_tt_artifacts,
+    write_artifacts_to_disk,
+)
 
 __all__ = [
     "apply_tt_defaults",
@@ -22,4 +26,6 @@ __all__ = [
     "apply_ws2_passes",
     "grid_to_persistent_tt",
     "apply_ws3_passes",
+    "emit_tt_artifacts",
+    "write_artifacts_to_disk",
 ]
