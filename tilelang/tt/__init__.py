@@ -11,6 +11,8 @@ from .passes import (
     infer_default_tt_schedule,
     infer_default_tt_shard,
     apply_ws2_passes,
+    grid_to_persistent_tt,
+    apply_ws3_passes,
 )
 
 __all__ = [
@@ -18,4 +20,6 @@ __all__ = [
     "infer_default_tt_schedule",
     "infer_default_tt_shard",
     "apply_ws2_passes",
+    "grid_to_persistent_tt",
+    "apply_ws3_passes",
 ]

@@ -115,3 +115,66 @@ def apply_ws2_passes(mod: tvm.IRModule) -> tvm.IRModule:
     mod = infer_default_tt_schedule(mod)
     mod = infer_default_tt_shard(mod)
     return mod
+
+
+# ============================================================================
+# Workstream 3: TIR Transform Pipeline
+# ============================================================================
+
+
+def grid_to_persistent_tt(mod: tvm.IRModule) -> tvm.IRModule:
+    """Transform grid-style kernel to persistent per-core loop.
+
+    This pass converts GPU-style grid kernels to Tenstorrent's persistent
+    execution model. Each core runs a persistent loop iterating over its
+    assigned tiles, recovering block indices from the static schedule.
+
+    Args:
+        mod: The TVM IRModule to process (should have WS2 schedule metadata)
+
+    Returns:
+        A new IRModule with persistent loop structure
+
+    Example:
+        >>> from tilelang.tt import apply_ws2_passes, grid_to_persistent_tt
+        >>>
+        >>> mod = create_tilelang_kernel()
+        >>> mod = apply_tt_defaults(mod)  # WS1
+        >>> mod = apply_ws2_passes(mod)  # WS2
+        >>> mod = grid_to_persistent_tt(mod)  # WS3
+    """
+    pass_func = tvm.ffi.get_global_func("tl.transform.GridToPersistentTT")
+    return pass_func()(mod)
+
+
+def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
+    """Apply all Workstream 3 TIR transform passes.
+
+    This is a convenience function that applies all WS3 transforms in the
+    correct order to produce TT-ready IR.
+
+    Args:
+        mod: The TVM IRModule to process (should have WS2 metadata)
+
+    Returns:
+        A new IRModule with transformed TIR ready for codegen
+
+    Example:
+        >>> from tilelang.tt import apply_tt_defaults, apply_ws2_passes, apply_ws3_passes
+        >>>
+        >>> mod = create_tilelang_kernel()
+        >>> mod = apply_tt_defaults(mod)  # WS1
+        >>> mod = apply_ws2_passes(mod)  # WS2
+        >>> mod = apply_ws3_passes(mod)  # WS3
+    """
+    # WS3 Transform Pipeline (MVP: only GridToPersistentTT implemented)
+    mod = grid_to_persistent_tt(mod)
+
+    # TODO(WS3): Add remaining transforms when implemented
+    # mod = tt_shard_to_core_map(mod)
+    # mod = memory_space_lower_tt(mod)
+    # mod = tile_pad_tt(mod)
+    # mod = tensorize_tt(mod)
+    # mod = verify_tt_ir(mod)
+
+    return mod
