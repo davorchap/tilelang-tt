@@ -8,6 +8,12 @@ TileLang is a domain-specific language for developing high-performance GPU/CPU k
 
 This repository (`tilelang-tt`) is a **public fork** focused on adding first-class **Tenstorrent TT-Metalium backend** support alongside existing NVIDIA CUDA, AMD ROCm, and Huawei Ascend targets.
 
+### Unified MVP Plan
+
+**⚠️ IMPORTANT:** The authoritative plan for Tenstorrent backend development is **[docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md)**.
+
+Previous documents (project_1.md, MVP_PROGRESS_SUMMARY.md, MVP_PHASE2_PLAN.md, WS7_STATUS.md) are deprecated. The unified plan consolidates all MVP work into a single source of truth.
+
 ## Repository Information
 
 **⚠️ CRITICAL: This is a fork. Always target the correct repository for PRs! ⚠️**
@@ -181,33 +187,44 @@ The format script will show diffs; manually apply changes or use auto-formatting
 
 **Key concept:** Users write grid-style kernels with `T.Kernel(grid_x, grid_y)` using block indices `(bx, by)`. The backend generates a **persistent outer loop** for each core that iterates over assigned tiles, recovering `(bx, by)` from a static schedule.
 
+**Current Status (2025-10-07):**
+- ✅ **WS1-3 Complete (60%)** - Target registration, metadata inference, basic transforms
+- 🚧 **WS4-6 In Progress (40%)** - Codegen needs API correctness fixes (see UNIFIED_MATMUL_MVP_PLAN.md)
+
+**Architecture Details:** See [docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md) for:
+- Complete IR flow (TileLang → WS1 → WS2 → WS3 → WS4-6)
+- TT vs CUDA stack comparison
+- Matmul IR with TT extensions (detailed examples)
+- Generated kernel structure (compute, reader, writer, host)
+
 **Components:**
 
-1. **Default Annotation Helper** (`tilelang/tt/target.py`):
-   - ✅ **Implemented (WS1)** - `apply_tt_defaults()` function
-   - Stamps default TT attributes on PrimFuncs when user doesn't specify them
-   - Default schedule: `contiguous` policy with `row_major` order
-   - Default layout: 32×32 DRAM interleaved tilization
-   - Ensures backward compatibility for GPU-style kernels
+1. **WS1: Target Registration & Default Annotations** ✅ COMPLETE
+   - `tilelang/utils/target.py` - Target registration
+   - `tilelang/engine/tt/` - Engine adapter
+   - `tilelang/tt/target.py` - `apply_tt_defaults()` function
+   - Stamps default TT attributes: contiguous schedule, DRAM interleaved layout
+   - 8 tests passing
 
-2. **Annotations API** (`python/tilelang_tt/annotations.py`):
-   - `T.annotate_tt_schedule()` - Control static scheduling (contiguous/strided/rect)
-   - `T.annotate_tt_sharding()` - Specify tensor sharding/layout on TT cores
+2. **WS2: Schedule & Sharding Metadata Inference** ✅ COMPLETE
+   - `src/transform/tt/infer_tt_schedule.cc` - Compute per-core tile ranges
+   - `src/transform/tt/infer_tt_shard.cc` - Generate DRAM layout descriptors
+   - `tilelang/tt/passes.py` - Python bindings
+   - 7 tests passing
 
-3. **Compiler Passes** (`src/tt/passes/`):
-   - `GridToPersistentTT` - Wraps grid kernel body in per-core scheduler loop
-   - `TTShardToCoreMap` - Translates sharding annotations to CoreRangeSet
-   - `TilePadTT` - Handles non-tile-multiple shapes (32×32 tiles)
-   - `MemorySpaceLowerTT` - Lower DRAM↔L1 moves, circular buffers
-   - `TensorizeTT` - Map tile operations to TT micro-kernels
+3. **WS3: TIR Transform Pipeline (Foundation)** ✅ FOUNDATION COMPLETE
+   - `src/transform/tt/grid_to_persistent_tt.cc` - GridToPersistentTT implemented
+   - **Deferred to post-MVP:** TTShardToCoreMap, MemorySpaceLowerTT, TilePadTT, TensorizeTT, VerifyTTIR
+   - 3 tests passing
 
-4. **Codegen** (`src/tt/codegen/`):
-   - `EmitTTKernels` - Generate compute/reader/writer C++ kernels and host stubs
-
-5. **Target Registration & Engine** (`tilelang/engine/tt/`):
-   - ✅ **Implemented (WS1)** - Target registration hooks for TVM integration
-   - ✅ **Implemented (WS1)** - Engine adapter with lowering entry point
-   - Integrates default annotation helper into lowering pipeline
+4. **WS4-6: Code Generation** 🚧 40% COMPLETE - NEEDS API FIXES
+   - `src/target/tt/codegen_tt.cc` - Codegen implementation exists
+   - **Critical gaps (see UNIFIED_MATMUL_MVP_PLAN.md):**
+     - ❌ Compute kernel missing K-loop (not real matmul)
+     - ❌ Reader/writer wrong tile indexing
+     - ❌ Mock APIs instead of real Metalium
+     - ❌ Hardcoded dimensions instead of reading from IR
+   - Tests exist but need updates after fixes
 
 ### Directory Structure
 
@@ -299,21 +316,33 @@ LD_LIBRARY_PATH=build/tvm pytest testing/python/tt/ -v
 
 ### For Tenstorrent Backend Development
 
-1. **Branch naming:** Use `ws1-*` prefix for workstream 1 tasks (auto-triggers CI)
+**Primary Reference:** [docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md)
 
-2. **Key files to modify:**
-   - `tilelang/engine/tt/` - Python-level target registration and engine
-   - `src/tt/` - C++ passes and codegen (when ready for Phase 0)
-   - `testing/python/tt/` - Tests for Tenstorrent backend
+1. **Current Priority:** Complete WS4-6 (Code Generation)
+   - Fix compute kernel K-loop (matmul accumulation)
+   - Fix reader/writer tile indexing (A[m,k], B[k,n] pattern)
+   - Replace mock APIs with real Metalium structure
+   - Extract buffer dimensions from IR
+   - Update runtime args to match Metalium examples
 
-3. **Testing strategy:**
-   - Start with target registration tests (`test_target_registration.py`)
-   - Add compile-only tests before hardware tests
-   - Use "dry-run" mode to emit kernel sources without execution
+2. **Branch naming:** Use `ws<N>-*` prefix for workstream tasks
 
-4. **Documentation:**
-   - Update `docs/tenstorrent/` with design decisions
-   - Follow phased approach (Phase 0: GEMM, Phase 1: SDPA, Phase 2: Ergonomics)
+3. **Key files to modify:**
+   - `src/target/tt/codegen_tt.cc` - Main codegen (EmitTTComputeKernel, EmitTTReaderKernel, EmitTTWriterKernel, EmitTTHostProgram)
+   - `testing/python/tt/test_ws4_codegen.py` - Compute kernel tests
+   - `testing/python/tt/test_ws5_reader_writer.py` - Reader/writer tests
+   - `testing/python/tt/test_ws6_host_program.py` - Host program tests
+   - `testing/python/tt/test_mvp_acceptance.py` - End-to-end MVP test
+
+4. **Testing strategy:**
+   - WS1-3: 18 tests passing ✅
+   - WS4-6: ~20 tests exist, need updates after API fixes
+   - Target: 40+ tests passing for MVP completion
+
+5. **Documentation:**
+   - Update workstream STATUS.md files after completion
+   - Update UNIFIED_MATMUL_MVP_PLAN.md with progress
+   - Add inline comments for complex codegen logic
 
 ## Autonomous Workstream Execution Framework
 
@@ -738,10 +767,34 @@ This allows existing GPU-style kernels to run on TT with minimal changes (subjec
 
 ## Related Documentation
 
+### Primary References
+- **[UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md)** ⭐ **AUTHORITATIVE PLAN**
+  - Complete MVP scope and status
+  - IR flow and transformations
+  - TT vs CUDA stack comparison
+  - Detailed matmul IR with TT extensions
+  - Generated code examples
+
+### Supporting Documentation
 - [GPU vs Tenstorrent Architecture](docs/tenstorrent/GPU_vs_Tenstorrent.md)
 - [Kernel Authoring Comparison](docs/tenstorrent/kernel_authoring_comparison.md)
 - [CI Documentation](docs/tenstorrent/CI.md)
+- [Local Build Guide](docs/tenstorrent/local_build_guide.md)
 - [Installation Guide](docs/get_started/Installation.md)
+
+### Workstream Status (Historical - See Unified Plan for Current Status)
+- [WS1 Status](docs/tenstorrent/workstream1/WS1_STATUS.md) ✅ Complete
+- [WS2 Status](docs/tenstorrent/workstream2/WS2_STATUS.md) ✅ Complete
+- [WS3 Status](docs/tenstorrent/workstream3/WS3_STATUS.md) ✅ Foundation Complete
+- [WS4 Status](docs/tenstorrent/workstream4/WS4_STATUS.md) 🚧 In Progress
+- [WS5 Status](docs/tenstorrent/workstream5/WS5_STATUS.md) 🚧 In Progress
+- [WS6 Status](docs/tenstorrent/workstream6/WS6_STATUS.md) 🚧 In Progress
+
+### Deprecated Documents (See Unified Plan Instead)
+- ~~project_1.md~~ → Use UNIFIED_MATMUL_MVP_PLAN.md
+- ~~MVP_PROGRESS_SUMMARY.md~~ → Use UNIFIED_MATMUL_MVP_PLAN.md
+- ~~mvp/MVP_PHASE2_PLAN.md~~ → Integrated into UNIFIED_MATMUL_MVP_PLAN.md
+- ~~workstream7/WS7_STATUS.md~~ → Not a real workstream, see WS4-6 in unified plan
 
 ## Important Notes
 

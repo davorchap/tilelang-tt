@@ -1,7 +1,18 @@
 # MVP Phase 2: Correct APIs + Compilable Matmul
 
+> **⚠️ DEPRECATED - 2025-10-07**
+>
+> This "Phase 2" plan has been integrated into **[UNIFIED_MATMUL_MVP_PLAN.md](../UNIFIED_MATMUL_MVP_PLAN.md)**.
+>
+> The issues identified here are now part of WS4-6 completion tasks in the unified plan.
+> There is no separate "Phase 2"—this is simply completing the original MVP.
+>
+> This file is retained for historical reference only.
+
+---
+
 **Created:** 2025-10-07
-**Status:** 🚧 **IN PROGRESS**
+**Status:** 🚧 **IN PROGRESS** (Superseded by Unified Plan)
 
 ## Overview
 

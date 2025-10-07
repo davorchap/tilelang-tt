@@ -1,5 +1,18 @@
 # Project Plan — TT Backend MVP (Matrix Multiplication Dry Run)
 
+> **⚠️ DEPRECATED - 2025-10-07**
+>
+> This document has been superseded by **[UNIFIED_MATMUL_MVP_PLAN.md](./UNIFIED_MATMUL_MVP_PLAN.md)**.
+>
+> The unified plan consolidates this document with MVP_PROGRESS_SUMMARY.md and MVP_PHASE2_PLAN.md
+> into a single authoritative source.
+>
+> This file is retained for historical reference only.
+
+---
+
+# Original Content Below
+
 ## Scope & Goals
 - Deliver the minimal Tenstorrent backend path that lowers a TileLang GEMM into Metalium-ready host/kernels without executing on hardware.
 - Lock the MVP operating point to: contiguous per-core schedule, interleaved DRAM tilization via TensorAccessor, bf16 tensors, and no user-authored annotations.
