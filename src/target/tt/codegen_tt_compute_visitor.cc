@@ -37,6 +37,7 @@ using namespace tir;
 TTComputeCodegenVisitor::TTComputeCodegenVisitor(const PrimFunc& func)
     : TTCodegenVisitor(func),
       matmul_init_emitted_(false),
+      elementwise_init_emitted_(false),
       current_k_iter_(0),
       k_loop_var_(""),
       dst_acquired_(false),
@@ -111,25 +112,26 @@ void TTComputeCodegenVisitor::EmitPreamble() {
   EmitLine("inline void cb_push_back(uint32_t cb_id, uint32_t n_tiles) {}");
   EmitLine("");
   EmitLine("// Mock TT matmul compute APIs for dry-run");
-  EmitLine("inline void matmul_tiles_init(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c) {}");
-  EmitLine("inline void matmul_tiles(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c, bool accumulate) {}");
+  EmitLine("inline void mm_init(uint32_t cb_in0, uint32_t cb_in1, uint32_t cb_out = 16) {}");
+  EmitLine("inline void matmul_tiles(uint32_t cb_in0, uint32_t cb_in1, uint32_t tile_idx_in0, uint32_t tile_idx_in1, uint32_t dst_tile_idx, bool transpose) {}");
   EmitLine("");
-  EmitLine("// Mock TT DST register double buffering APIs for dry-run");
-  EmitLine("inline void acquire_dst() {}");
-  EmitLine("inline void commit_dst() {}");
-  EmitLine("inline void wait_for_tile() {}");
-  EmitLine("inline void release_dst() {}");
+  EmitLine("// Mock TT tile register APIs for dry-run");
+  EmitLine("inline void tile_regs_acquire() {}");
+  EmitLine("inline void tile_regs_commit() {}");
+  EmitLine("inline void tile_regs_wait() {}");
+  EmitLine("inline void tile_regs_release() {}");
   EmitLine("");
   EmitLine("// Mock TT element-wise compute APIs for dry-run");
-  EmitLine("inline void add_tiles_init() {}");
+  EmitLine("inline void binary_op_init_common(uint32_t cb_in0, uint32_t cb_in1, uint32_t cb_out = 16) {}");
+  EmitLine("inline void add_tiles_init(uint32_t cb_in0 = 0, uint32_t cb_in1 = 1) {}");
   EmitLine("inline void add_tiles(uint32_t cb_a, uint32_t cb_b, uint32_t idx_a, uint32_t idx_b, uint32_t idx_dst) {}");
   EmitLine("inline void pack_tile(uint32_t idx_dst, uint32_t cb_out) {}");
 #endif
   EmitLine("");
   EmitLine("// Circular Buffer Indices");
-  EmitLine("constexpr uint32_t CB_A = 0;");
-  EmitLine("constexpr uint32_t CB_B = 1;");
-  EmitLine("constexpr uint32_t CB_C = 2;");
+  EmitLine("constexpr auto cb_in0 = tt::CBIndex::c_0;");
+  EmitLine("constexpr auto cb_in1 = tt::CBIndex::c_1;");
+  EmitLine("constexpr auto cb_out0 = tt::CBIndex::c_16;");
   EmitLine("");
 }
 
@@ -150,19 +152,51 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
       std::string inner_extent = EmitExpr(inner_for->extent);
       if (inner_extent == "32") {
         // Found T.grid(32, 32) pattern - emit element-wise intrinsic instead
+
+        // Emit initialization once before first element-wise operation
+        if (!elementwise_init_emitted_) {
+          EmitLine("// Initialize element-wise operation (once before all operations)");
+          EmitLine("binary_op_init_common(cb_in0, cb_in1, cb_out0);");
+          EmitLine("add_tiles_init();");
+          EmitLine("");
+          elementwise_init_emitted_ = true;
+        }
+
         EmitLine("// Wait for input tiles from reader");
-        EmitLine("cb_wait_front(CB_A, 1);");
-        EmitLine("cb_wait_front(CB_B, 1);");
+        EmitLine("cb_wait_front(cb_in0, 1);");
+        EmitLine("cb_wait_front(cb_in1, 1);");
+        EmitLine("");
+
+        // Acquire tile registers for this tile
+        EmitLine("// Acquire tile registers for computation");
+        EmitLine("tile_regs_acquire();");
         EmitLine("");
 
         EmitLine("// Compute C = A + B (element-wise)");
-        EmitLine("add_tiles_init();");
-        EmitLine("add_tiles(CB_A, CB_B, 0, 0, 0);");
+        EmitLine("add_tiles(cb_in0, cb_in1, 0, 0, 0);");
+        EmitLine("");
+
+        // Commit and wait for computation
+        EmitLine("// Commit tile register computation");
+        EmitLine("tile_regs_commit();");
+        EmitLine("tile_regs_wait();");
+        EmitLine("");
+
+        // Pack result to output CB
+        EmitLine("// Pack result to output circular buffer");
+        EmitLine("cb_reserve_back(cb_out0, 1);");
+        EmitLine("pack_tile(0, cb_out0);");
+        EmitLine("cb_push_back(cb_out0, 1);");
         EmitLine("");
 
         EmitLine("// Pop input tiles");
-        EmitLine("cb_pop_front(CB_A, 1);");
-        EmitLine("cb_pop_front(CB_B, 1);");
+        EmitLine("cb_pop_front(cb_in0, 1);");
+        EmitLine("cb_pop_front(cb_in1, 1);");
+        EmitLine("");
+
+        // Release tile registers
+        EmitLine("// Release tile registers");
+        EmitLine("tile_regs_release();");
         EmitLine("");
 
         // Skip the loop body (already emitted intrinsic)
@@ -179,28 +213,32 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
   // Detect outer tile loop (persistent loop)
   bool is_outer_loop = (loop_depth_ == 1);
 
-  // For outer tile loop in matmul pattern: acquire DST before K-loop
-  if (is_outer_loop && !dst_acquired_) {
-    EmitLine("// Outer loop: process output tile");
-    EmitDSTAcquire();
-    EmitLine("");
-
+  // For outer tile loop: reset state for each output tile
+  if (is_outer_loop) {
     // Reset K-loop iteration counter for each output tile
     current_k_iter_ = 0;
-    matmul_init_emitted_ = false;
+    // Note: matmul_init_emitted_ is NOT reset - mm_init() called once before all loops
   }
 
   // Emit K-loop comment and init if detected
   if (is_k_loop) {
+    // Acquire tile registers before K-loop (matmul pattern)
+    if (!dst_acquired_) {
+      EmitLine("// Acquire tile registers for matmul accumulation");
+      EmitTileRegsAcquire();
+      EmitLine("");
+    }
+
     EmitLine("// K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)");
 
     // Store K-loop variable name for accumulate flag emission
     k_loop_var_ = loop_var;
 
-    // Emit matmul_tiles_init() before entering K-loop (only once per output tile)
+    // Emit mm_init() before entering K-loop (only once for entire kernel)
     if (!matmul_init_emitted_) {
-      EmitLine("// Initialize matmul");
-      EmitLine("matmul_tiles_init(CB_A, CB_B, CB_C);");
+      EmitLine("// Initialize matmul (once before all loops)");
+      EmitLine("mm_init(cb_in0, cb_in1, cb_out0);");
+      EmitLine("");
       matmul_init_emitted_ = true;
     }
   }
@@ -225,27 +263,30 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
   DecIndent();
   EmitLine("}");
 
-  // After loop completes: commit and release DST
+  // After loop completes: commit and release tile registers
   if (dst_acquired_) {
     if (is_k_loop) {
       // K-loop pattern: emit pack/commit/release after K-loop
       EmitLine("");
       EmitLine("// After K-loop: pack result");
-      EmitLine("cb_reserve_back(CB_C, 1);");
-      EmitDSTCommit();
-      EmitLine("pack_tile(0, CB_C);");
-      EmitLine("cb_push_back(CB_C, 1);");
-      EmitDSTRelease();
+      EmitTileRegsCommit();
+      EmitTileRegsWait();
+      EmitLine("cb_reserve_back(cb_out0, 1);");
+      EmitLine("pack_tile(0, cb_out0);");
+      EmitLine("cb_push_back(cb_out0, 1);");
+      EmitTileRegsRelease();
       EmitLine("");
     } else if (is_outer_loop) {
       // Element-wise pattern: emit pack/commit/release after outer loop
+      // Note: This path is dead code for element-wise (handled inside loop now)
       EmitLine("");
       EmitLine("// After tile processing: pack result");
-      EmitLine("cb_reserve_back(CB_C, 1);");
-      EmitDSTCommit();
-      EmitLine("pack_tile(0, CB_C);");
-      EmitLine("cb_push_back(CB_C, 1);");
-      EmitDSTRelease();
+      EmitTileRegsCommit();
+      EmitTileRegsWait();
+      EmitLine("cb_reserve_back(cb_out0, 1);");
+      EmitLine("pack_tile(0, cb_out0);");
+      EmitLine("cb_push_back(cb_out0, 1);");
+      EmitTileRegsRelease();
       EmitLine("");
     }
   }
@@ -320,39 +361,33 @@ void TTComputeCodegenVisitor::EmitMatmulIntrinsic(const AttrStmtNode* op) {
   if (matmul_id == 0 && !matmul_init_emitted_) {
     // First matmul: emit init
     EmitLine("// Initialize matmul");
-    EmitLine("matmul_tiles_init(CB_A, CB_B, CB_C);");
+    EmitLine("matmul_tiles_init(cb_in0, cb_in1, cb_out0);");
     matmul_init_emitted_ = true;
   }
 
   // Always emit wait for input tiles
   EmitLine("// Wait for input tiles from reader");
-  EmitLine("cb_wait_front(CB_A, 1);");
-  EmitLine("cb_wait_front(CB_B, 1);");
+  EmitLine("cb_wait_front(cb_in0, 1);");
+  EmitLine("cb_wait_front(cb_in1, 1);");
   EmitLine("");
 
   // Emit matmul operation
-  // Real Metalium signature: matmul_tiles(cb_a, cb_b, cb_c, ntiles, transpose)
-  // Note: Real API automatically accumulates; mock used bool accumulate parameter
+  // Real Metalium signature: matmul_tiles(cb_in0, cb_in1, tile_idx_in0, tile_idx_in1, dst_tile_idx, transpose)
+  // Note: Real API automatically accumulates into dst across multiple calls
 #ifdef TL_USE_REAL_METALIUM
-  EmitLine("// Matmul: process tile (accumulation handled by API)");
-  EmitLine("matmul_tiles(CB_A, CB_B, CB_C, /*ntiles*/1, /*transpose*/false);");
+  EmitLine("// Matmul: process tile (accumulation automatic)");
+  EmitLine("matmul_tiles(cb_in0, cb_in1, 0, 0, 0, false);");
 #else
-  // Mock API uses bool accumulate parameter
-  bool accumulate = (current_k_iter_ > 0);
-  if (accumulate) {
-    EmitLine("// Matmul: accumulate");
-    EmitLine("matmul_tiles(CB_A, CB_B, CB_C, true);");
-  } else {
-    EmitLine("// Matmul: first K iteration");
-    EmitLine("matmul_tiles(CB_A, CB_B, CB_C, false);");
-  }
+  // For dry-run: use mock API (accumulation automatic, transpose=false)
+  EmitLine("// Matmul: process tile");
+  EmitLine("matmul_tiles(cb_in0, cb_in1, 0, 0, 0, false);");
 #endif
   EmitLine("");
 
   // Pop input tiles
   EmitLine("// Release input tiles");
-  EmitLine("cb_pop_front(CB_A, 1);");
-  EmitLine("cb_pop_front(CB_B, 1);");
+  EmitLine("cb_pop_front(cb_in0, 1);");
+  EmitLine("cb_pop_front(cb_in1, 1);");
 
   current_k_iter_++;
 
@@ -367,32 +402,19 @@ void TTComputeCodegenVisitor::EmitGemmIntrinsic(const CallNode* call) {
 
   // Wait for input tiles
   EmitLine("// Wait for input tiles from reader");
-  EmitLine("cb_wait_front(CB_A, 1);");
-  EmitLine("cb_wait_front(CB_B, 1);");
+  EmitLine("cb_wait_front(cb_in0, 1);");
+  EmitLine("cb_wait_front(cb_in1, 1);");
   EmitLine("");
 
-  // Emit matmul operation with accumulation based on K-loop variable
-  if (!k_loop_var_.empty()) {
-    // Use K-loop variable to determine accumulate flag
-    std::ostringstream matmul_line;
-    matmul_line << "// Matmul: accumulate if " << k_loop_var_ << " > 0";
-    EmitLine(matmul_line.str());
-
-    std::ostringstream accumulate_line;
-    accumulate_line << "bool accumulate = (" << k_loop_var_ << " > 0);";
-    EmitLine(accumulate_line.str());
-    EmitLine("matmul_tiles(CB_A, CB_B, CB_C, accumulate);");
-  } else {
-    // Fallback: no K-loop variable, assume no accumulation
-    EmitLine("// Matmul: no accumulation");
-    EmitLine("matmul_tiles(CB_A, CB_B, CB_C, false);");
-  }
+  // Emit matmul operation (accumulation automatic across K iterations)
+  EmitLine("// Matmul: process tile (accumulation automatic)");
+  EmitLine("matmul_tiles(cb_in0, cb_in1, 0, 0, 0, false);");
   EmitLine("");
 
   // Pop input tiles
   EmitLine("// Release input tiles");
-  EmitLine("cb_pop_front(CB_A, 1);");
-  EmitLine("cb_pop_front(CB_B, 1);");
+  EmitLine("cb_pop_front(cb_in0, 1);");
+  EmitLine("cb_pop_front(cb_in1, 1);");
   EmitLine("");
 }
 
@@ -402,14 +424,14 @@ void TTComputeCodegenVisitor::EmitElementwiseAddIntrinsic(const AttrStmtNode* op
 
   // Wait for input tiles from reader kernel
   EmitLine("// Wait for input tiles from reader");
-  EmitLine("cb_wait_front(CB_A, 1);");
-  EmitLine("cb_wait_front(CB_B, 1);");
+  EmitLine("cb_wait_front(cb_in0, 1);");
+  EmitLine("cb_wait_front(cb_in1, 1);");
   EmitLine("");
 
   // Initialize and execute element-wise add
   EmitLine("// Compute C = A + B (element-wise)");
   EmitLine("add_tiles_init();");
-  EmitLine("add_tiles(CB_A, CB_B, 0, 0, 0);");
+  EmitLine("add_tiles(cb_in0, cb_in1, 0, 0, 0);");
   EmitLine("");
 
   // Visit body (loop body with element-wise operations)
@@ -419,8 +441,8 @@ void TTComputeCodegenVisitor::EmitElementwiseAddIntrinsic(const AttrStmtNode* op
   // Note: DST commit/pack/release handled by outer loop in VisitStmt_(ForNode*)
   // CB pop for inputs happens here
   EmitLine("// Release input tiles");
-  EmitLine("cb_pop_front(CB_A, 1);");
-  EmitLine("cb_pop_front(CB_B, 1);");
+  EmitLine("cb_pop_front(cb_in0, 1);");
+  EmitLine("cb_pop_front(cb_in1, 1);");
   EmitLine("");
 }
 
@@ -449,25 +471,32 @@ int TTComputeCodegenVisitor::GetMatmulId(const PrimExpr& value) {
   return 0;
 }
 
-void TTComputeCodegenVisitor::EmitDSTAcquire() {
+void TTComputeCodegenVisitor::EmitTileRegsAcquire() {
   if (!dst_acquired_) {
-    EmitLine("// DST: Acquire registers for computation");
-    EmitLine("acquire_dst();");
+    EmitLine("// Acquire tile registers for computation");
+    EmitLine("tile_regs_acquire();");
     dst_acquired_ = true;
   }
 }
 
-void TTComputeCodegenVisitor::EmitDSTCommit() {
+void TTComputeCodegenVisitor::EmitTileRegsCommit() {
   if (dst_acquired_) {
-    EmitLine("// DST: Commit computation complete");
-    EmitLine("commit_dst();");
+    EmitLine("// Commit tile register computation");
+    EmitLine("tile_regs_commit();");
   }
 }
 
-void TTComputeCodegenVisitor::EmitDSTRelease() {
+void TTComputeCodegenVisitor::EmitTileRegsWait() {
   if (dst_acquired_) {
-    EmitLine("// DST: Release registers");
-    EmitLine("release_dst();");
+    EmitLine("// Wait for tile register computation to complete");
+    EmitLine("tile_regs_wait();");
+  }
+}
+
+void TTComputeCodegenVisitor::EmitTileRegsRelease() {
+  if (dst_acquired_) {
+    EmitLine("// Release tile registers");
+    EmitLine("tile_regs_release();");
     dst_acquired_ = false;
   }
 }
