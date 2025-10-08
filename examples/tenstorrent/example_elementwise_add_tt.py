@@ -65,7 +65,6 @@ def elementwise_add_tt(
 
         # Compute C = A + B (element-wise)
         # This should generate: add_tiles_init(); add_tiles(CB_A, CB_B, 0, 0, 0);
-        T.annotate_attr("tt.elementwise_add", 1)
         for i, j in T.grid(32, 32):
             C_tile[i, j] = A_tile[i, j] + B_tile[i, j]
 
