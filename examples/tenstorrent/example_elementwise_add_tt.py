@@ -31,24 +31,50 @@ for (tile_id in tiles) {
 
 import tvm
 from tvm import tir
+import tilelang.language as T
 import tilelang.tt as tt
+
+@T.prim_func
+def elementwise_add_tt(
+    A: T.Buffer((256, 256), "float16"),
+    B: T.Buffer((256, 256), "float16"),
+    C: T.Buffer((256, 256), "float16")
+):
+    """
+    Elementwise addition for Tenstorrent backend.
+
+    Pattern 1 (Element-wise): C = A + B
+    - DST acquired and released per tile
+    - No K-loop accumulation
+    - Single add_tiles operation per tile
+
+    Grid-style kernel that will be transformed to persistent per-core loop.
+    """
+    with T.Kernel(T.ceildiv(256, 32), T.ceildiv(256, 32)) as (bx, by):
+        # Allocate tile-sized storage
+        # These will be lowered to circular buffers
+        A_tile = T.alloc_fragment((32, 32), "float16")
+        B_tile = T.alloc_fragment((32, 32), "float16")
+        C_tile = T.alloc_fragment((32, 32), "float16")
+
+        # Load A[by, bx] tile from DRAM
+        T.copy(A[by * 32:(by+1)*32, bx * 32:(bx+1)*32], A_tile)
+
+        # Load B[by, bx] tile from DRAM
+        T.copy(B[by * 32:(by+1)*32, bx * 32:(bx+1)*32], B_tile)
+
+        # Compute C = A + B (element-wise)
+        # This should generate: add_tiles_init(); add_tiles(CB_A, CB_B, 0, 0, 0);
+        T.annotate_attr("tt.elementwise_add", 1)
+        for i, j in T.grid(32, 32):
+            C_tile[i, j] = A_tile[i, j] + B_tile[i, j]
+
+        # Store result tile to DRAM
+        T.copy(C_tile, C[by * 32:(by+1)*32, bx * 32:(bx+1)*32])
 
 def create_elementwise_add_module(M=256, N=256):
     """Create TileLang IR for elementwise add."""
-
-    A = tir.decl_buffer((M, N), "float16", name="A")
-    B = tir.decl_buffer((M, N), "float16", name="B")
-    C = tir.decl_buffer((M, N), "float16", name="C")
-
-    # For now, use simple function body
-    # TODO: Add proper elementwise IR structure
-    func = tir.PrimFunc(params=[A, B, C], body=tir.Evaluate(0))
-    func = func.with_attrs({
-        "global_symbol": "main",
-        "tl.backend": "tenstorrent",
-    })
-
-    return tvm.IRModule({"main": func})
+    return tvm.IRModule({"main": elementwise_add_tt})
 
 def main():
     print("=" * 70)

@@ -209,6 +209,9 @@ void TTComputeCodegenVisitor::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == "tt.matmul_intrinsic") {
     // Found matmul intrinsic annotation
     EmitMatmulIntrinsic(op);
+  } else if (op->attr_key == "tt.elementwise_add") {
+    // Found element-wise add intrinsic annotation
+    EmitElementwiseAddIntrinsic(op);
   } else if (op->attr_key == "tt.copy") {
     // Handle copy operation (CB wait/pop/push)
     // For now, just visit body
@@ -285,6 +288,34 @@ void TTComputeCodegenVisitor::EmitMatmulIntrinsic(const AttrStmtNode* op) {
 
   // Visit body if any
   VisitStmt(op->body);
+}
+
+void TTComputeCodegenVisitor::EmitElementwiseAddIntrinsic(const AttrStmtNode* op) {
+  // Emit element-wise add pattern
+  // Pattern 1 (Element-wise): DST lifecycle per tile, no accumulation
+
+  // Wait for input tiles from reader kernel
+  EmitLine("// Wait for input tiles from reader");
+  EmitLine("cb_wait_front(CB_A, 1);");
+  EmitLine("cb_wait_front(CB_B, 1);");
+  EmitLine("");
+
+  // Initialize and execute element-wise add
+  EmitLine("// Compute C = A + B (element-wise)");
+  EmitLine("add_tiles_init();");
+  EmitLine("add_tiles(CB_A, CB_B, 0, 0, 0);");
+  EmitLine("");
+
+  // Visit body (loop body with element-wise operations)
+  // We don't visit the body since we're replacing it with intrinsic
+  // VisitStmt(op->body);
+
+  // Note: DST commit/pack/release handled by outer loop in VisitStmt_(ForNode*)
+  // CB pop for inputs happens here
+  EmitLine("// Release input tiles");
+  EmitLine("cb_pop_front(CB_A, 1);");
+  EmitLine("cb_pop_front(CB_B, 1);");
+  EmitLine("");
 }
 
 void TTComputeCodegenVisitor::EmitCBWait(uint32_t cb_id, uint32_t ntiles) {
