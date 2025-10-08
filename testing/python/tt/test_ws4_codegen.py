@@ -68,16 +68,23 @@ def test_emit_tt_artifacts_basic():
     assert "compute.cpp" in artifacts, "compute.cpp artifact missing"
     assert "tt.plan.json" in artifacts, "tt.plan.json artifact missing"
 
-    # Verify compute kernel contains expected elements (WS7: matmul with K-loop)
+    # Verify compute kernel contains expected elements (IR-driven codegen)
     compute_cpp = artifacts["compute.cpp"]
+
+    # Check IR-driven marker
+    assert "// Generated TT Compute Kernel (IR-Driven)" in compute_cpp, "IR-driven marker missing"
+
+    # Check structure
     assert "void MAIN()" in compute_cpp, "MAIN function missing"
-    assert "out_tile_start_id" in compute_cpp, "runtime args missing"
-    assert "num_output_tiles" in compute_cpp, "output tile count missing"
-    assert "Kt" in compute_cpp, "K-dimension tile count missing"
-    assert "for (uint32_t out_tile = 0; out_tile < num_output_tiles; ++out_tile)" in compute_cpp, "output tile loop missing"
-    assert "for (uint32_t kt = 0; kt < Kt; ++kt)" in compute_cpp, "K-loop missing"
-    assert "matmul_tiles_init" in compute_cpp, "matmul init missing"
-    assert "matmul_tiles" in compute_cpp, "matmul operation missing"
+
+    # Check runtime arguments (IR-driven uses get_arg_val pattern)
+    assert "get_arg_val<uint32_t>(0)" in compute_cpp, "runtime arg 0 missing"
+    assert "get_arg_val<uint32_t>(1)" in compute_cpp, "runtime arg 1 missing"
+    assert "get_arg_val<uint32_t>(2)" in compute_cpp, "runtime arg 2 missing"
+
+    # Check for loop presence (IR-driven generates actual loops from IR body, but empty body = no loops)
+    # Note: This test uses empty body, so we just check for matmul operations
+    assert "matmul_tiles_init" in compute_cpp or "matmul_tiles" in compute_cpp, "matmul operations missing"
 
     # Verify plan JSON contains expected elements
     plan_json = artifacts["tt.plan.json"]
@@ -100,7 +107,7 @@ def test_emit_tt_artifacts_grid_metadata():
 
     artifacts = tt.emit_tt_artifacts(mod)
 
-    # Check compute kernel header
+    # Check compute kernel header (IR-driven includes grid metadata in comments)
     compute_cpp = artifacts["compute.cpp"]
     assert "// Grid: 8x8" in compute_cpp, "Grid dimensions missing from kernel header"
     assert "// Cores: 64" in compute_cpp, "Core count missing from kernel header"
