@@ -14,6 +14,14 @@ from tilelang import tvm as tvm
 from tilelang.engine.param import CompiledArtifact, KernelParam
 from tilelang.engine.phase import LowerAndLegalize
 from tilelang.tt import apply_tt_defaults
+from tilelang.tt.passes import (
+    grid_to_persistent_tt,
+    tt_shard_to_core_map,
+    memory_space_lower_tt,
+    tile_pad_tt,
+    tensorize_tt,
+    verify_tt_ir,
+)
 
 
 def LowerAndLegalizeTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
@@ -45,8 +53,15 @@ def LowerAndLegalizeTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
 def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     """TT-specific optimization phase.
 
-    This will integrate WS2/WS3 passes in Tasks 3-4.
-    For now, it's a placeholder.
+    This phase transforms TIR into TT-ready IR with:
+    - Persistent loop structure (grid → persistent cores)
+    - Core topology mapping (shard → core coordinates)
+    - Circular buffer allocations (memory space lowering)
+    - Tile padding (align buffers to 32×32 tiles)
+    - Tensorization (map to TT intrinsics like matmul_tiles)
+    - IR validation (verify TT constraints)
+
+    This integrates WS3 transformation passes.
 
     Args:
         mod: The TVM IRModule to optimize
@@ -55,23 +70,28 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     Returns:
         Optimized IRModule with TT-specific transforms
     """
-    # TODO Task 3-4: Add WS2/WS3 passes
-    # from tilelang.tt.passes import (
-    #     infer_default_tt_schedule,
-    #     infer_default_tt_shard,
-    #     grid_to_persistent_tt,
-    #     tt_shard_to_core_map,
-    #     memory_space_lower_tt,
-    #     tile_pad_tt,
-    #     tensorize_tt,
-    #     verify_tt_ir,
-    # )
-    # mod = infer_default_tt_schedule(mod)
-    # mod = infer_default_tt_shard(mod)
-    # mod = grid_to_persistent_tt(mod)
-    # ... etc
+    # WS3 Phase 1: Grid to persistent transformation
+    # Transform GPU-style grid kernel to TT persistent loop model
+    mod = grid_to_persistent_tt(mod)
 
-    # Placeholder - just return mod for now
+    # WS3 Phase 2: Core topology and memory
+    # Map shards to core coordinates (x, y) on NOC grid
+    mod = tt_shard_to_core_map(mod)
+
+    # Lower memory spaces (DRAM → L1 circular buffers)
+    mod = memory_space_lower_tt(mod)
+
+    # Pad buffers to tile-aligned dimensions (multiple of 32)
+    mod = tile_pad_tt(mod)
+
+    # WS3 Phase 3: Tensorization
+    # Map high-level ops (gemm, etc.) to TT intrinsics (matmul_tiles, etc.)
+    mod = tensorize_tt(mod)
+
+    # WS3 Phase 4: Validation
+    # Verify TT IR constraints (grid size, CB counts, etc.)
+    mod = verify_tt_ir(mod)
+
     return mod
 
 
@@ -164,8 +184,8 @@ def lower(
         mod = LowerAndLegalizeTT(mod, target)
 
     # === Phase 3: TT-specific optimizations ===
-    # TODO Task 3-4: Uncomment when OptimizeForTargetTT is implemented
-    # mod = OptimizeForTargetTT(mod, target)
+    # Apply WS3 transformation passes
+    mod = OptimizeForTargetTT(mod, target)
 
     # === Phase 4: Device splitting (3-kernel architecture) ===
     # TODO Task 6: Uncomment when SplitTTKernels is implemented
