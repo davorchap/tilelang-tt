@@ -130,25 +130,34 @@ class TTComputeCodegenVisitor : public TTCodegenVisitor {
   int GetMatmulId(const PrimExpr& value);
 
   /*!
-   * \brief Emit DST register acquire operation
-   * Reserves DST registers for computation (FPU access)
+   * \brief Emit tile register acquire operation
+   * Reserves tile registers for computation (FPU access)
    */
-  void EmitDSTAcquire();
+  void EmitTileRegsAcquire();
 
   /*!
-   * \brief Emit DST register commit operation
-   * Signals computation complete, DST ready for packer
+   * \brief Emit tile register commit operation
+   * Signals computation complete, registers ready for packer
    */
-  void EmitDSTCommit();
+  void EmitTileRegsCommit();
 
   /*!
-   * \brief Emit DST register release operation
-   * Frees DST registers back to pool
+   * \brief Emit tile register wait operation
+   * Waits for computation to complete on tile registers
    */
-  void EmitDSTRelease();
+  void EmitTileRegsWait();
+
+  /*!
+   * \brief Emit tile register release operation
+   * Frees tile registers back to pool
+   */
+  void EmitTileRegsRelease();
 
   /*! \brief Track if matmul_init has been emitted */
   bool matmul_init_emitted_;
+
+  /*! \brief Track if element-wise init has been emitted */
+  bool elementwise_init_emitted_;
 
   /*! \brief Track current K-loop iteration for accumulate flag */
   int current_k_iter_;

@@ -75,7 +75,7 @@ std::string TTReaderCodegenVisitor::GetFullKernel() {
   EmitLine("// Read A[out_m, kt]");
   EmitLine("uint32_t tile_a_idx = out_m * Kt + kt;");
   EmitCBReserve(0, 1);
-  EmitLine("uint32_t l1_write_addr_a = get_write_ptr(CB_A);");
+  EmitLine("uint32_t l1_write_addr_a = get_write_ptr(cb_in0);");
   EmitLine("noc_async_read_tile(tile_a_idx, dram_addr_a, l1_write_addr_a);");
   EmitLine("noc_async_read_barrier();");
   EmitCBPushBack(0, 1);
@@ -85,7 +85,7 @@ std::string TTReaderCodegenVisitor::GetFullKernel() {
   EmitLine("// Read B[kt, out_n]");
   EmitLine("uint32_t tile_b_idx = kt * Nt + out_n;");
   EmitCBReserve(1, 1);
-  EmitLine("uint32_t l1_write_addr_b = get_write_ptr(CB_B);");
+  EmitLine("uint32_t l1_write_addr_b = get_write_ptr(cb_in1);");
   EmitLine("noc_async_read_tile(tile_b_idx, dram_addr_b, l1_write_addr_b);");
   EmitLine("noc_async_read_barrier();");
   EmitCBPushBack(1, 1);
@@ -137,8 +137,8 @@ void TTReaderCodegenVisitor::EmitPreamble() {
 #endif
   EmitLine("");
   EmitLine("// Circular Buffer Indices");
-  EmitLine("constexpr uint32_t CB_A = 0;");
-  EmitLine("constexpr uint32_t CB_B = 1;");
+  EmitLine("constexpr auto cb_in0 = tt::CBIndex::c_0;");
+  EmitLine("constexpr auto cb_in1 = tt::CBIndex::c_1;");
   EmitLine("");
   EmitLine("constexpr uint32_t TILE_SIZE_BYTES = 32 * 32 * sizeof(uint16_t);  // fp16");
   EmitLine("");
@@ -171,9 +171,9 @@ void TTReaderCodegenVisitor::EmitCBReserve(uint32_t cb_id, uint32_t ntiles) {
   std::ostringstream line;
   line << "cb_reserve_back(";
   if (cb_id == 0) {
-    line << "CB_A";
+    line << "cb_in0";
   } else if (cb_id == 1) {
-    line << "CB_B";
+    line << "cb_in1";
   } else {
     line << cb_id;
   }
@@ -185,9 +185,9 @@ void TTReaderCodegenVisitor::EmitCBPushBack(uint32_t cb_id, uint32_t ntiles) {
   std::ostringstream line;
   line << "cb_push_back(";
   if (cb_id == 0) {
-    line << "CB_A";
+    line << "cb_in0";
   } else if (cb_id == 1) {
-    line << "CB_B";
+    line << "cb_in1";
   } else {
     line << cb_id;
   }

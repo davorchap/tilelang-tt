@@ -64,7 +64,7 @@ std::string TTWriterCodegenVisitor::GetFullKernel() {
 
   // Emit C tile write
   EmitCBWaitFront(2, 1);
-  EmitLine("uint32_t l1_read_addr = get_read_ptr(CB_C);");
+  EmitLine("uint32_t l1_read_addr = get_read_ptr(cb_out0);");
   EmitLine("noc_async_write_tile(tile_idx, l1_read_addr, dram_addr_c);");
   EmitLine("noc_async_write_barrier();");
   EmitCBPopFront(2, 1);
@@ -113,7 +113,7 @@ void TTWriterCodegenVisitor::EmitPreamble() {
 #endif
   EmitLine("");
   EmitLine("// Circular Buffer Index");
-  EmitLine("constexpr uint32_t CB_C = 2;");
+  EmitLine("constexpr auto cb_out0 = tt::CBIndex::c_16;");
   EmitLine("");
   EmitLine("constexpr uint32_t TILE_SIZE_BYTES = 32 * 32 * sizeof(uint16_t);  // fp16");
   EmitLine("");
@@ -144,13 +144,13 @@ void TTWriterCodegenVisitor::EmitNOCWrite(const Buffer& dst, const std::string& 
 
 void TTWriterCodegenVisitor::EmitCBWaitFront(uint32_t cb_id, uint32_t ntiles) {
   std::ostringstream line;
-  line << "cb_wait_front(CB_C, " << ntiles << ");";
+  line << "cb_wait_front(cb_out0, " << ntiles << ");";
   EmitLine(line.str());
 }
 
 void TTWriterCodegenVisitor::EmitCBPopFront(uint32_t cb_id, uint32_t ntiles) {
   std::ostringstream line;
-  line << "cb_pop_front(CB_C, " << ntiles << ");";
+  line << "cb_pop_front(cb_out0, " << ntiles << ");";
   EmitLine(line.str());
 }
 
