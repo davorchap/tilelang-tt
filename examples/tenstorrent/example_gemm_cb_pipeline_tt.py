@@ -179,18 +179,18 @@ def main():
     checks.append(("Compute: K-loop structure", has_k_loop_compute))
 
     # Proper synchronization (check actual calls, not mock declarations)
-    # Find actual calls by looking for calls with CB arguments
-    wait_pos = compute.find("cb_wait_front(CB_")
-    matmul_pos = compute.find("matmul_tiles(CB_")
-    pop_pos = compute.find("cb_pop_front(CB_")
+    # Find actual calls by looking for calls with CB arguments (correct Metalium format)
+    wait_pos = compute.find("cb_wait_front(cb_")
+    matmul_pos = compute.find("matmul_tiles(cb_")
+    pop_pos = compute.find("cb_pop_front(cb_")
 
     wait_before_matmul = wait_pos > 0 and matmul_pos > 0 and wait_pos < matmul_pos
     pop_after_matmul = matmul_pos > 0 and pop_pos > 0 and matmul_pos < pop_pos
     checks.append(("Compute: wait before matmul", wait_before_matmul))
     checks.append(("Compute: pop after matmul", pop_after_matmul))
 
-    # No deadlock patterns
-    no_double_wait = compute.count("cb_wait_front(CB_A") == compute.count("cb_pop_front(CB_A")
+    # No deadlock patterns (correct Metalium format)
+    no_double_wait = compute.count("cb_wait_front(cb_in0") == compute.count("cb_pop_front(cb_in0")
     checks.append(("Compute: balanced wait/pop (no deadlock)", no_double_wait))
 
     # Print results

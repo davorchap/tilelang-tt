@@ -88,11 +88,11 @@ def main():
     has_k_loop = "for (uint32_t k" in compute
     checks.append(("K-loop structure present", has_k_loop))
 
-    # CB operations
-    has_wait = "cb_wait_front(CB_A" in compute
-    has_pop = "cb_pop_front(CB_A" in compute
-    has_reserve = "cb_reserve_back(CB_C" in compute or "cb_reserve_back(CB_B" in compute
-    has_push = "cb_push_back(CB_C" in compute or "cb_push_back(CB_B" in compute
+    # CB operations (correct Metalium format)
+    has_wait = "cb_wait_front(cb_in0" in compute
+    has_pop = "cb_pop_front(cb_in0" in compute
+    has_reserve = "cb_reserve_back(cb_out0" in compute
+    has_push = "cb_push_back(cb_out0" in compute
     checks.append(("CB operations: cb_wait_front", has_wait))
     checks.append(("CB operations: cb_pop_front", has_pop))
     checks.append(("CB operations: cb_reserve_back", has_reserve))
