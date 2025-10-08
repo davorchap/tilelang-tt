@@ -49,10 +49,12 @@ pip install -e . --no-build-isolation
 
 | Document | Purpose | Status |
 |----------|---------|--------|
-| **[UNIFIED_MATMUL_MVP_PLAN.md](UNIFIED_MATMUL_MVP_PLAN.md)** | Original MVP specification | ✅ Superseded (historical reference) |
-| **[IR_DRIVEN_CODEGEN_PLAN.md](IR_DRIVEN_CODEGEN_PLAN.md)** | IR-driven codegen migration (Tasks 1-6) | ✅ Complete (95 tests passing) |
-| **[METALIUM_INTEGRATION_PLAN.md](METALIUM_INTEGRATION_PLAN.md)** | Weeks 16-18: Metalium API integration | ✅ Complete (conditional compilation) |
-| **[GPU_vs_Tenstorrent.md](GPU_vs_Tenstorrent.md)** | Architecture comparison | 📘 Reference |
+| **[UNIFIED_MATMUL_MVP_PLAN.md](UNIFIED_MATMUL_MVP_PLAN.md)** | Original MVP specification | ✅ Complete (historical reference) |
+| **[IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md)** ⭐ | GPU vs TT lowering pipeline comparison | 📘 Current (2025-10-08) |
+| **[PASS_TABLE.md](PASS_TABLE.md)** ⭐ | Comprehensive pass reference (60+ passes) | 📘 Current (2025-10-08) |
+| **[IR_LOWERING_TASKS.md](IR_LOWERING_TASKS.md)** | Pattern detection implementation tasks | 🚧 Next steps (tensorize_tt extension) |
+| **[IR_LOWERING_VALIDATION.md](IR_LOWERING_VALIDATION.md)** | Tasks 1-8 validation results | ✅ Complete (95/95 tests passing) |
+| **[GPU_vs_Tenstorrent.md](GPU_vs_Tenstorrent.md)** | Architecture comparison | 📘 Reference (older) |
 | **[kernel_authoring_comparison.md](kernel_authoring_comparison.md)** | Kernel development patterns | 📘 Reference |
 | **[TIR_SPECIFICATIONS.md](TIR_SPECIFICATIONS.md)** | TIR transformation specs | 📘 Reference |
 
@@ -71,16 +73,23 @@ pip install -e . --no-build-isolation
 | **`maint/scripts/local_build_and_test_tt.sh`** | Local build & test script | `bash local_build_and_test_tt.sh --with-metalium` |
 | **`maint/scripts/verify_metalium_sdk.sh`** | SDK verification tool | `bash verify_metalium_sdk.sh ~/tt-metal` |
 
-### 📂 Workstream Details (Historical)
+### 📂 Phase-Driven Development (Active)
 
 | Directory | Purpose | Status |
 |-----------|---------|--------|
-| **[workstream1/](workstream1/)** | Target registration & defaults | ✅ Complete (8 tests) |
-| **[workstream2/](workstream2/)** | Metadata inference | ✅ Complete (7 tests) |
-| **[workstream3/](workstream3/)** | Transform pipeline | ✅ Complete (39 tests) |
-| **[workstream4/](workstream4/)** | Compute kernel codegen | ✅ Complete (IR-driven) |
-| **[workstream5/](workstream5/)** | Reader/writer codegen | ✅ Complete (IR-driven) |
-| **[workstream6/](workstream6/)** | Host program codegen | ✅ Complete (conditional compilation) |
+| **[phases/](phases/)** | 6-Phase TileLang→Metalium implementation | 🚧 Phase 1: 37% (1/3 examples) |
+| **[phases/PHASES_STATUS.md](phases/PHASES_STATUS.md)** | Master tracking document | 📊 Overall: 17% complete |
+
+### 📂 Workstream Details (Archived)
+
+| Directory | Purpose | Status |
+|-----------|---------|--------|
+| **[archive/workstream1/](archive/workstream1/)** | Target registration & defaults | ✅ Complete (8 tests) |
+| **[archive/workstream2/](archive/workstream2/)** | Metadata inference | ✅ Complete (7 tests) |
+| **[archive/workstream3/](archive/workstream3/)** | Transform pipeline | ✅ Complete (39 tests) |
+| **[archive/workstream4/](archive/workstream4/)** | Compute kernel codegen | ✅ Complete (IR-driven) |
+| **[archive/workstream5/](archive/workstream5/)** | Reader/writer codegen | ✅ Complete (IR-driven) |
+| **[archive/workstream6/](archive/workstream6/)** | Host program codegen | ✅ Complete (conditional compilation) |
 
 ---
 
