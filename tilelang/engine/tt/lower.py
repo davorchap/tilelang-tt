@@ -15,6 +15,8 @@ from tilelang.engine.param import CompiledArtifact, KernelParam
 from tilelang.engine.phase import LowerAndLegalize
 from tilelang.tt import apply_tt_defaults
 from tilelang.tt.passes import (
+    infer_default_tt_schedule,
+    infer_default_tt_shard,
     grid_to_persistent_tt,
     tt_shard_to_core_map,
     memory_space_lower_tt,
@@ -54,6 +56,8 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     """TT-specific optimization phase.
 
     This phase transforms TIR into TT-ready IR with:
+    - Schedule inference (compute per-core tile ranges)
+    - Sharding inference (DRAM layout descriptors)
     - Persistent loop structure (grid → persistent cores)
     - Core topology mapping (shard → core coordinates)
     - Circular buffer allocations (memory space lowering)
@@ -61,7 +65,7 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     - Tensorization (map to TT intrinsics like matmul_tiles)
     - IR validation (verify TT constraints)
 
-    This integrates WS3 transformation passes.
+    This integrates WS2 and WS3 transformation passes.
 
     Args:
         mod: The TVM IRModule to optimize
@@ -70,6 +74,14 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     Returns:
         Optimized IRModule with TT-specific transforms
     """
+    # WS2 Phase 1: Schedule inference
+    # Compute per-core tile ranges from grid dimensions
+    mod = infer_default_tt_schedule(mod)
+
+    # WS2 Phase 2: Sharding inference
+    # Generate DRAM layout descriptors (tiled, interleaved)
+    mod = infer_default_tt_shard(mod)
+
     # WS3 Phase 1: Grid to persistent transformation
     # Transform GPU-style grid kernel to TT persistent loop model
     mod = grid_to_persistent_tt(mod)
