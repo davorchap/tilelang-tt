@@ -36,6 +36,7 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
+#include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
@@ -728,10 +729,33 @@ Map<String, String> EmitTTArtifacts(const IRModule& mod, const std::string& targ
   return result;
 }
 
+/*!
+ * \brief Build function for Tenstorrent target
+ *
+ * This is the entry point called by TVM's build system when target="tenstorrent".
+ * It generates TT kernel code and returns a runtime module containing the artifacts.
+ *
+ * For now, this is a dry-run implementation that generates code but doesn't compile
+ * for actual hardware (that requires TT-Metalium SDK).
+ */
+runtime::Module BuildTileLangTT(IRModule mod, Target target) {
+  // For now, just return a null module
+  // The actual code generation happens via EmitTTArtifacts which is called
+  // from Python in tilelang/engine/tt/lower.py
+  //
+  // TODO: When TT-Metalium SDK is available, this should:
+  // 1. Generate artifacts via CodegenTT()
+  // 2. Compile with TT-Metalium SDK
+  // 3. Return a proper runtime module for execution
+  return runtime::Module(nullptr);
+}
+
 // Register the function for Python FFI
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tl.codegen.EmitTTArtifacts", EmitTTArtifacts);
+  refl::GlobalDef()
+      .def("tl.codegen.EmitTTArtifacts", EmitTTArtifacts)
+      .def("target.build.tilelang_tt", BuildTileLangTT);
 });
 
 }  // namespace tl
