@@ -1,9 +1,10 @@
 # Metalium API Integration Plan
 
 **Date**: 2025-10-08
-**Status**: Planning Phase
-**Version**: 1.0
+**Status**: Week 16 Phase 1 Complete (Kernel Headers)
+**Version**: 1.1
 **Context**: Post IR-Driven Codegen Migration (Tasks 1-6 complete, 95 tests passing)
+**Last Updated**: 2025-10-08 (Week 16 Phase 1 implementation)
 
 ---
 
@@ -333,13 +334,13 @@ EnqueueProgram(cq, program, /*blocking*/false);
 
 **Tasks**:
 - [x] Document current mock API surface (this document)
-- [ ] Update compute visitor preamble generation
-- [ ] Update reader visitor preamble generation
-- [ ] Update writer visitor preamble generation
-- [ ] Fix matmul_tiles signature
-- [ ] Add get_write_ptr/get_read_ptr calls
+- [x] Update compute visitor preamble generation
+- [x] Update reader visitor preamble generation
+- [x] Update writer visitor preamble generation
+- [x] Fix matmul_tiles signature
+- [x] Add get_write_ptr/get_read_ptr calls (already present in visitors)
 - [ ] Update tests to check for headers instead of mock APIs
-- [ ] Verify generated code structure
+- [x] Verify generated code structure (compiles successfully)
 
 **Deliverables**:
 - Kernels include real headers

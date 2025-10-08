@@ -93,7 +93,11 @@ void TTWriterCodegenVisitor::EmitPreamble() {
   }
   code_ << "\n";
 
-  // Includes and mock APIs
+  // Includes - Real Metalium headers (Week 16 integration)
+#ifdef TL_USE_REAL_METALIUM
+  EmitLine("#include \"dataflow_api.h\"");
+#else
+  // Mock APIs for dry-run (backward compatibility)
   EmitLine("#include <cstdint>");
   EmitLine("");
   EmitLine("// Mock TT intrinsics for dry-run");
@@ -106,6 +110,7 @@ void TTWriterCodegenVisitor::EmitPreamble() {
   EmitLine("inline void noc_async_write_tile(uint32_t tile_idx, uint32_t l1_addr, uint32_t base_addr) {}");
   EmitLine("inline void noc_async_write_barrier() {}");
   EmitLine("inline void cb_pop_front(uint32_t cb_id, uint32_t n_tiles) {}");
+#endif
   EmitLine("");
   EmitLine("// Circular Buffer Index");
   EmitLine("constexpr uint32_t CB_C = 2;");
