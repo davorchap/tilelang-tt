@@ -250,6 +250,10 @@ std::string TTCodegenVisitor::EmitExpr(const PrimExpr& expr) {
     expr_stream << "(" << EmitExpr(div->a) << " / " << EmitExpr(div->b) << ")";
   } else if (auto* mod = expr.as<ModNode>()) {
     expr_stream << "(" << EmitExpr(mod->a) << " % " << EmitExpr(mod->b) << ")";
+  } else if (auto* floor_div = expr.as<FloorDivNode>()) {
+    expr_stream << "(" << EmitExpr(floor_div->a) << " / " << EmitExpr(floor_div->b) << ")";
+  } else if (auto* floor_mod = expr.as<FloorModNode>()) {
+    expr_stream << "(" << EmitExpr(floor_mod->a) << " % " << EmitExpr(floor_mod->b) << ")";
   } else if (auto* lt = expr.as<LTNode>()) {
     expr_stream << "(" << EmitExpr(lt->a) << " < " << EmitExpr(lt->b) << ")";
   } else if (auto* le = expr.as<LENode>()) {
@@ -270,6 +274,19 @@ std::string TTCodegenVisitor::EmitExpr(const PrimExpr& expr) {
       expr_stream << EmitExpr(buf_load->indices[i]);
     }
     expr_stream << "]";
+  } else if (auto* ramp = expr.as<RampNode>()) {
+    // Ramp node represents vectorized index: base + stride * lane_id for each lane
+    // For TT, this should ideally be handled at statement level with tile operations
+    // For now, emit the base (TODO: proper tile operation emission)
+    expr_stream << EmitExpr(ramp->base);
+  } else if (auto* broadcast = expr.as<BroadcastNode>()) {
+    // Broadcast node represents replicating a scalar across vector lanes
+    // For TT, just emit the scalar value
+    expr_stream << EmitExpr(broadcast->value);
+  } else if (auto* cast = expr.as<CastNode>()) {
+    // Cast node for type conversion
+    // Emit C-style cast
+    expr_stream << "((" << cast->dtype << ")" << EmitExpr(cast->value) << ")";
   } else if (auto* call = expr.as<CallNode>()) {
     // Handle function calls
     if (auto* global_var = call->op.as<GlobalVarNode>()) {
