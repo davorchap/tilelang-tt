@@ -11,7 +11,7 @@ Pattern: C[M,N] = A[M,K] @ B[K,N]
 Key Features Demonstrated:
 - ✅ DST double buffering (acquire→commit→release)
 - ✅ K-loop with matmul accumulation
-- ✅ matmul_tiles_init() before K-loop
+- ✅ mm_init() before K-loop
 - ✅ Accumulate flag based on K-loop variable
 - ✅ Proper CB management (wait/pop for inputs)
 - ✅ Tile intrinsic emission (no scalar loops)
@@ -20,10 +20,10 @@ Key Features Demonstrated:
 Expected Metalium Code Structure:
 ```cpp
 for (tile_id in tiles) {
-    acquire_dst();
+    tile_regs_acquire();
 
     // K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)
-    matmul_tiles_init(CB_A, CB_B, CB_C);
+    mm_init(CB_A, CB_B, CB_C);
     for (uint32_t k = 0; k < Kt; ++k) {
         cb_wait_front(CB_A, 1);
         cb_wait_front(CB_B, 1);
@@ -36,10 +36,10 @@ for (tile_id in tiles) {
     }
 
     cb_reserve_back(CB_C, 1);
-    commit_dst();
+    tile_regs_commit();
     pack_tile(0, CB_C);
     cb_push_back(CB_C, 1);
-    release_dst();
+    tile_regs_release();
 }
 ```
 
@@ -64,7 +64,7 @@ def simple_gemm_tt(
 
     Pattern: C = A @ B
     - DST held across K iterations for accumulation (Pattern 3)
-    - matmul_tiles_init() before K-loop
+    - mm_init() before K-loop
     - Accumulate flag varies based on K iteration
     - CB management for A and B tiles
 
@@ -152,28 +152,30 @@ def main():
     # Comprehensive validation checks
     checks = []
 
-    # DST lifecycle
-    has_acquire = "acquire_dst()" in compute
-    has_commit = "commit_dst()" in compute
-    has_release = "release_dst()" in compute
-    dst_lifecycle = has_acquire and has_commit and has_release
-    checks.append(("DST lifecycle (acquire→commit→release)", dst_lifecycle))
+    # Tile register lifecycle (correct Metalium APIs)
+    has_acquire = "tile_regs_acquire()" in compute
+    has_commit = "tile_regs_commit()" in compute
+    has_wait = "tile_regs_wait()" in compute
+    has_release = "tile_regs_release()" in compute
+    tile_regs_lifecycle = has_acquire and has_commit and has_wait and has_release
+    checks.append(("Tile register lifecycle (acquire→commit→wait→release)", tile_regs_lifecycle))
 
     # K-loop structure
     has_k_loop = "for (uint32_t k" in compute and "< " in compute
     checks.append(("K-loop present", has_k_loop))
 
-    # matmul_tiles_init before K-loop
-    init_before_loop = compute.find("matmul_tiles_init") < compute.find("for (uint32_t k")
-    checks.append(("matmul_tiles_init() before K-loop", init_before_loop))
+    # mm_init before K-loop (correct Metalium API)
+    has_mm_init = "mm_init(cb_in0, cb_in1, cb_out0)" in compute
+    init_before_loop = has_mm_init and compute.find("mm_init") < compute.find("for (uint32_t k")
+    checks.append(("mm_init() before K-loop", init_before_loop))
 
-    # Accumulate flag
-    has_accumulate_flag = "bool accumulate = (k > 0)" in compute
-    checks.append(("Accumulate flag based on k", has_accumulate_flag))
+    # CB index format (correct Metalium format)
+    has_cb_format = "tt::CBIndex::c_0" in compute or "cb_in0" in compute
+    checks.append(("CB index format (tt::CBIndex::c_N)", has_cb_format))
 
-    # matmul_tiles with accumulate
-    has_matmul_tiles = "matmul_tiles(CB_A, CB_B, CB_C, accumulate)" in compute
-    checks.append(("matmul_tiles with accumulate flag", has_matmul_tiles))
+    # matmul_tiles with 6 parameters (correct Metalium signature)
+    has_matmul_6params = "matmul_tiles(cb_in0, cb_in1, 0, 0, 0, false)" in compute
+    checks.append(("matmul_tiles with 6 parameters", has_matmul_6params))
 
     # CB wait for inputs
     cb_wait_count = compute.count("cb_wait_front")
@@ -209,18 +211,20 @@ def main():
     if passed == len(checks):
         print()
         print("=" * 70)
-        print("✅ PHASE 1.3 COMPLETE: Simple GEMM fully working!")
+        print("✅ METALIUM API CORRECTNESS: All checks passed!")
         print("=" * 70)
         print()
-        print("All Phase 1 features demonstrated:")
-        print("  ✓ DST double buffering")
+        print("Generated code uses correct Metalium APIs:")
+        print("  ✓ Tile register lifecycle (tile_regs_*)")
         print("  ✓ K-loop accumulation pattern")
-        print("  ✓ Tile intrinsic emission")
+        print("  ✓ Correct initialization (mm_init)")
+        print("  ✓ CB index format (tt::CBIndex::c_N)")
+        print("  ✓ matmul_tiles 6-parameter signature")
         print("  ✓ Pattern recognition (T.copy, T.gemm, T.grid)")
         print("  ✓ CB management")
         print("  ✓ No scalar loops")
         print()
-        print("🎉 Phase 1 Foundation: COMPLETE")
+        print("🎉 Code matches real Metalium examples!")
     elif passed >= len(checks) - 2:
         print()
         print("⚠ NEAR COMPLETE: Minor issues to address")

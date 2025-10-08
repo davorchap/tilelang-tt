@@ -74,21 +74,21 @@ def test_emit_reader_kernel_basic():
     assert "void kernel_main()" in reader_cpp, "kernel_main function missing"
 
     # Verify CB API calls
-    assert "cb_reserve_back(CB_A, 1)" in reader_cpp, "cb_reserve_back missing for CB_A"
-    assert "cb_push_back(CB_A, 1)" in reader_cpp, "cb_push_back missing for CB_A"
-    assert "get_write_ptr(CB_A)" in reader_cpp, "get_write_ptr missing for CB_A"
+    assert "cb_reserve_back(cb_in0, 1)" in reader_cpp, "cb_reserve_back missing for cb_in0"
+    assert "cb_push_back(cb_in0, 1)" in reader_cpp, "cb_push_back missing for cb_in0"
+    assert "get_write_ptr(cb_in0)" in reader_cpp, "get_write_ptr missing for cb_in0"
 
-    assert "cb_reserve_back(CB_B, 1)" in reader_cpp, "cb_reserve_back missing for CB_B"
-    assert "cb_push_back(CB_B, 1)" in reader_cpp, "cb_push_back missing for CB_B"
-    assert "get_write_ptr(CB_B)" in reader_cpp, "get_write_ptr missing for CB_B"
+    assert "cb_reserve_back(cb_in1, 1)" in reader_cpp, "cb_reserve_back missing for cb_in1"
+    assert "cb_push_back(cb_in1, 1)" in reader_cpp, "cb_push_back missing for cb_in1"
+    assert "get_write_ptr(cb_in1)" in reader_cpp, "get_write_ptr missing for cb_in1"
 
     # Verify NOC operations (WS7: uses noc_async_read_tile)
     assert "noc_async_read_tile(" in reader_cpp, "noc_async_read_tile missing"
     assert "noc_async_read_barrier()" in reader_cpp, "noc_async_read_barrier missing"
 
     # Verify CB indices
-    assert "constexpr uint32_t CB_A = 0" in reader_cpp, "CB_A index definition missing"
-    assert "constexpr uint32_t CB_B = 1" in reader_cpp, "CB_B index definition missing"
+    assert "constexpr auto cb_in0 = tt::CBIndex::c_0" in reader_cpp, "cb_in0 index definition missing"
+    assert "constexpr auto cb_in1 = tt::CBIndex::c_1" in reader_cpp, "cb_in1 index definition missing"
 
     print("✓ Test 1 passed: Basic reader kernel generation")
 
@@ -114,16 +114,16 @@ def test_emit_writer_kernel_basic():
     assert "void kernel_main()" in writer_cpp, "kernel_main function missing"
 
     # Verify CB API calls
-    assert "cb_wait_front(CB_C, 1)" in writer_cpp, "cb_wait_front missing for CB_C"
-    assert "cb_pop_front(CB_C, 1)" in writer_cpp, "cb_pop_front missing for CB_C"
-    assert "get_read_ptr(CB_C)" in writer_cpp, "get_read_ptr missing for CB_C"
+    assert "cb_wait_front(cb_out0, 1)" in writer_cpp, "cb_wait_front missing for cb_out0"
+    assert "cb_pop_front(cb_out0, 1)" in writer_cpp, "cb_pop_front missing for cb_out0"
+    assert "get_read_ptr(cb_out0)" in writer_cpp, "get_read_ptr missing for cb_out0"
 
     # Verify NOC operations (WS7: uses noc_async_write_tile)
     assert "noc_async_write_tile(" in writer_cpp, "noc_async_write_tile missing"
     assert "noc_async_write_barrier()" in writer_cpp, "noc_async_write_barrier missing"
 
     # Verify CB index
-    assert "constexpr uint32_t CB_C = 2" in writer_cpp, "CB_C index definition missing"
+    assert "constexpr auto cb_out0 = tt::CBIndex::c_16" in writer_cpp, "cb_out0 index definition missing"
 
     print("✓ Test 2 passed: Basic writer kernel generation")
 
@@ -148,18 +148,18 @@ def test_3_kernel_coordination():
     compute_cpp = artifacts["compute.cpp"]
     writer_cpp = artifacts["writer.cpp"]
 
-    # Verify CB indices match across all kernels
-    # CB_A should appear in reader and compute
-    assert "CB_A = 0" in reader_cpp, "CB_A not defined in reader"
-    assert "CB_A = 0" in compute_cpp, "CB_A not defined in compute"
+    # Verify CB indices match across all kernels (correct Metalium format)
+    # cb_in0 should appear in reader and compute
+    assert "cb_in0 = tt::CBIndex::c_0" in reader_cpp, "cb_in0 not defined in reader"
+    assert "cb_in0 = tt::CBIndex::c_0" in compute_cpp, "cb_in0 not defined in compute"
 
-    # CB_B should appear in reader and compute
-    assert "CB_B = 1" in reader_cpp, "CB_B not defined in reader"
-    assert "CB_B = 1" in compute_cpp, "CB_B not defined in compute"
+    # cb_in1 should appear in reader and compute
+    assert "cb_in1 = tt::CBIndex::c_1" in reader_cpp, "cb_in1 not defined in reader"
+    assert "cb_in1 = tt::CBIndex::c_1" in compute_cpp, "cb_in1 not defined in compute"
 
-    # CB_C should appear in compute and writer
-    assert "CB_C = 2" in compute_cpp, "CB_C not defined in compute"
-    assert "CB_C = 2" in writer_cpp, "CB_C not defined in writer"
+    # cb_out0 should appear in compute and writer
+    assert "cb_out0 = tt::CBIndex::c_16" in compute_cpp, "cb_out0 not defined in compute"
+    assert "cb_out0 = tt::CBIndex::c_16" in writer_cpp, "cb_out0 not defined in writer"
 
     # Verify synchronization pattern in compute kernel (IR-driven)
     # Note: IR-driven generates from actual IR body. Empty body won't have CB ops.

@@ -13,7 +13,7 @@ Pattern: Cast FP32 input to BF16 output
 Expected Metalium Pattern:
 ```cpp
 for (tile in tiles) {
-    acquire_dst();
+    tile_regs_acquire();
 
     cb_wait_front(CB_IN_FP32, 1);
 
@@ -22,12 +22,12 @@ for (tile in tiles) {
     convert_fp32_to_bf16_tiles(CB_IN_FP32, 0, 0);
 
     cb_reserve_back(CB_OUT_BF16, 1);
-    commit_dst();
+    tile_regs_commit();
     pack_tile(0, CB_OUT_BF16);
     cb_push_back(CB_OUT_BF16, 1);
 
     cb_pop_front(CB_IN_FP32, 1);
-    release_dst();
+    tile_regs_release();
 }
 ```
 
@@ -94,12 +94,12 @@ def main():
     checks = []
 
     # DST lifecycle (required for all compute operations)
-    has_acquire = "acquire_dst()" in compute
-    has_commit = "commit_dst()" in compute
-    has_release = "release_dst()" in compute
-    checks.append(("DST lifecycle: acquire_dst()", has_acquire))
-    checks.append(("DST lifecycle: commit_dst()", has_commit))
-    checks.append(("DST lifecycle: release_dst()", has_release))
+    has_acquire = "tile_regs_acquire()" in compute
+    has_commit = "tile_regs_commit()" in compute
+    has_release = "tile_regs_release()" in compute
+    checks.append(("DST lifecycle: tile_regs_acquire()", has_acquire))
+    checks.append(("DST lifecycle: tile_regs_commit()", has_commit))
+    checks.append(("DST lifecycle: tile_regs_release()", has_release))
 
     # CB operations (input and output buffers)
     has_wait_in = "cb_wait_front(CB_A" in compute
@@ -112,9 +112,9 @@ def main():
     checks.append(("CB output: cb_push_back", has_push_out))
 
     # Proper ordering
-    acquire_pos = compute.find("acquire_dst()")
-    commit_pos = compute.find("commit_dst()")
-    release_pos = compute.find("release_dst()")
+    acquire_pos = compute.find("tile_regs_acquire()")
+    commit_pos = compute.find("tile_regs_commit()")
+    release_pos = compute.find("tile_regs_release()")
 
     if acquire_pos > 0 and commit_pos > 0 and release_pos > 0:
         acquire_before_commit = acquire_pos < commit_pos

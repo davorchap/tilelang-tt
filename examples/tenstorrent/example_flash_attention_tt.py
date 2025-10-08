@@ -57,9 +57,9 @@ def main():
 
     # Validation checks
     checks = [
-        ("DST lifecycle: acquire_dst()", "acquire_dst()" in compute),
-        ("DST lifecycle: commit_dst()", "commit_dst()" in compute),
-        ("DST lifecycle: release_dst()", "release_dst()" in compute),
+        ("DST lifecycle: tile_regs_acquire()", "tile_regs_acquire()" in compute),
+        ("DST lifecycle: tile_regs_commit()", "tile_regs_commit()" in compute),
+        ("DST lifecycle: tile_regs_release()", "tile_regs_release()" in compute),
         ("CB operations: cb_wait_front", "cb_wait_front" in compute),
         ("CB operations: cb_pop_front", "cb_pop_front" in compute),
         ("CB operations: cb_reserve_back", "cb_reserve_back" in compute),
