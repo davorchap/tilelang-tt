@@ -153,6 +153,9 @@ class TTComputeCodegenVisitor : public TTCodegenVisitor {
   /*! \brief Track current K-loop iteration for accumulate flag */
   int current_k_iter_;
 
+  /*! \brief Track K-loop variable name for accumulate flag */
+  std::string k_loop_var_;
+
   /*! \brief Track if DST is currently acquired */
   bool dst_acquired_;
 

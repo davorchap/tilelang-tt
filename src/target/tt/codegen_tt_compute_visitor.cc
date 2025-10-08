@@ -38,6 +38,7 @@ TTComputeCodegenVisitor::TTComputeCodegenVisitor(const PrimFunc& func)
     : TTCodegenVisitor(func),
       matmul_init_emitted_(false),
       current_k_iter_(0),
+      k_loop_var_(""),
       dst_acquired_(false),
       loop_depth_(0) {}
 
@@ -162,6 +163,9 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
   // Emit K-loop comment and init if detected
   if (is_k_loop) {
     EmitLine("// K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)");
+
+    // Store K-loop variable name for accumulate flag emission
+    k_loop_var_ = loop_var;
 
     // Emit matmul_tiles_init() before entering K-loop (only once per output tile)
     if (!matmul_init_emitted_) {
@@ -337,13 +341,20 @@ void TTComputeCodegenVisitor::EmitGemmIntrinsic(const CallNode* call) {
   EmitLine("cb_wait_front(CB_B, 1);");
   EmitLine("");
 
-  // Emit matmul operation with accumulation based on K iteration
-  bool accumulate = (current_k_iter_ > 0);
-  if (accumulate) {
-    EmitLine("// Matmul: accumulate");
-    EmitLine("matmul_tiles(CB_A, CB_B, CB_C, true);");
+  // Emit matmul operation with accumulation based on K-loop variable
+  if (!k_loop_var_.empty()) {
+    // Use K-loop variable to determine accumulate flag
+    std::ostringstream matmul_line;
+    matmul_line << "// Matmul: accumulate if " << k_loop_var_ << " > 0";
+    EmitLine(matmul_line.str());
+
+    std::ostringstream accumulate_line;
+    accumulate_line << "bool accumulate = (" << k_loop_var_ << " > 0);";
+    EmitLine(accumulate_line.str());
+    EmitLine("matmul_tiles(CB_A, CB_B, CB_C, accumulate);");
   } else {
-    EmitLine("// Matmul: first K iteration");
+    // Fallback: no K-loop variable, assume no accumulation
+    EmitLine("// Matmul: no accumulation");
     EmitLine("matmul_tiles(CB_A, CB_B, CB_C, false);");
   }
   EmitLine("");
@@ -353,8 +364,6 @@ void TTComputeCodegenVisitor::EmitGemmIntrinsic(const CallNode* call) {
   EmitLine("cb_pop_front(CB_A, 1);");
   EmitLine("cb_pop_front(CB_B, 1);");
   EmitLine("");
-
-  current_k_iter_++;
 }
 
 void TTComputeCodegenVisitor::EmitElementwiseAddIntrinsic(const AttrStmtNode* op) {

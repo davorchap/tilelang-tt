@@ -56,8 +56,9 @@ void MAIN() {
             cb_wait_front(CB_A, 1);
             cb_wait_front(CB_B, 1);
             
-            // Matmul: first K iteration
-            matmul_tiles(CB_A, CB_B, CB_C, false);
+            // Matmul: accumulate if k > 0
+            bool accumulate = (k > 0);
+            matmul_tiles(CB_A, CB_B, CB_C, accumulate);
             
             // Release input tiles
             cb_pop_front(CB_A, 1);
