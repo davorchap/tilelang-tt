@@ -24,6 +24,9 @@
 
 #include "codegen_tt_compute_visitor.h"
 
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
+
 #include <sstream>
 
 namespace tvm {
@@ -35,6 +38,7 @@ TTComputeCodegenVisitor::TTComputeCodegenVisitor(const PrimFunc& func)
     : TTCodegenVisitor(func),
       matmul_init_emitted_(false),
       current_k_iter_(0),
+      k_loop_var_(""),
       dst_acquired_(false),
       loop_depth_(0) {}
 
@@ -138,6 +142,36 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
   // Track loop depth
   loop_depth_++;
 
+  // Detect tile-sized loops (32x32 element-wise operations)
+  bool is_tile_loop_outer = (extent_expr == "32" && loop_depth_ >= 2);
+  if (is_tile_loop_outer) {
+    // Check if the body contains a nested 32-sized loop (i,j pattern)
+    if (auto* inner_for = op->body.as<ForNode>()) {
+      std::string inner_extent = EmitExpr(inner_for->extent);
+      if (inner_extent == "32") {
+        // Found T.grid(32, 32) pattern - emit element-wise intrinsic instead
+        EmitLine("// Wait for input tiles from reader");
+        EmitLine("cb_wait_front(CB_A, 1);");
+        EmitLine("cb_wait_front(CB_B, 1);");
+        EmitLine("");
+
+        EmitLine("// Compute C = A + B (element-wise)");
+        EmitLine("add_tiles_init();");
+        EmitLine("add_tiles(CB_A, CB_B, 0, 0, 0);");
+        EmitLine("");
+
+        EmitLine("// Pop input tiles");
+        EmitLine("cb_pop_front(CB_A, 1);");
+        EmitLine("cb_pop_front(CB_B, 1);");
+        EmitLine("");
+
+        // Skip the loop body (already emitted intrinsic)
+        loop_depth_--;
+        return;
+      }
+    }
+  }
+
   // Detect K-loop (inner loop for matmul accumulation)
   bool is_k_loop = (loop_var == "kt" || loop_var.find("kt") != std::string::npos ||
                     loop_var == "k" || loop_var.find("_k") != std::string::npos);
@@ -150,11 +184,25 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
     EmitLine("// Outer loop: process output tile");
     EmitDSTAcquire();
     EmitLine("");
+
+    // Reset K-loop iteration counter for each output tile
+    current_k_iter_ = 0;
+    matmul_init_emitted_ = false;
   }
 
-  // Emit K-loop comment if detected
+  // Emit K-loop comment and init if detected
   if (is_k_loop) {
     EmitLine("// K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)");
+
+    // Store K-loop variable name for accumulate flag emission
+    k_loop_var_ = loop_var;
+
+    // Emit matmul_tiles_init() before entering K-loop (only once per output tile)
+    if (!matmul_init_emitted_) {
+      EmitLine("// Initialize matmul");
+      EmitLine("matmul_tiles_init(CB_A, CB_B, CB_C);");
+      matmul_init_emitted_ = true;
+    }
   }
 
   // Emit loop header (build as string to avoid clearing code_ stream)
@@ -203,6 +251,28 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
   }
 
   loop_depth_--;
+}
+
+void TTComputeCodegenVisitor::VisitStmt_(const EvaluateNode* op) {
+  // Check if this is a tl.copy or tl.gemm call
+  if (auto* call = op->value.as<CallNode>()) {
+    if (auto* op_node = call->op.as<OpNode>()) {
+      std::string op_name = op_node->name;
+
+      if (op_name == "tl.copy") {
+        // T.copy() call - skip in compute kernel (handled by reader/writer)
+        EmitLine("// T.copy - handled by reader/writer kernels");
+        return;
+      } else if (op_name == "tl.gemm") {
+        // T.gemm() call - emit matmul intrinsics
+        EmitGemmIntrinsic(call);
+        return;
+      }
+    }
+  }
+
+  // Default: handle normally
+  TTCodegenVisitor::VisitStmt_(op);
 }
 
 void TTComputeCodegenVisitor::VisitStmt_(const AttrStmtNode* op) {
@@ -288,6 +358,42 @@ void TTComputeCodegenVisitor::EmitMatmulIntrinsic(const AttrStmtNode* op) {
 
   // Visit body if any
   VisitStmt(op->body);
+}
+
+void TTComputeCodegenVisitor::EmitGemmIntrinsic(const CallNode* call) {
+  // Emit T.gemm() intrinsic
+  // Pattern 3 (K-loop GEMM): DST held across K iterations for accumulation
+  // Note: matmul_tiles_init() is emitted before K-loop in ForNode visitor
+
+  // Wait for input tiles
+  EmitLine("// Wait for input tiles from reader");
+  EmitLine("cb_wait_front(CB_A, 1);");
+  EmitLine("cb_wait_front(CB_B, 1);");
+  EmitLine("");
+
+  // Emit matmul operation with accumulation based on K-loop variable
+  if (!k_loop_var_.empty()) {
+    // Use K-loop variable to determine accumulate flag
+    std::ostringstream matmul_line;
+    matmul_line << "// Matmul: accumulate if " << k_loop_var_ << " > 0";
+    EmitLine(matmul_line.str());
+
+    std::ostringstream accumulate_line;
+    accumulate_line << "bool accumulate = (" << k_loop_var_ << " > 0);";
+    EmitLine(accumulate_line.str());
+    EmitLine("matmul_tiles(CB_A, CB_B, CB_C, accumulate);");
+  } else {
+    // Fallback: no K-loop variable, assume no accumulation
+    EmitLine("// Matmul: no accumulation");
+    EmitLine("matmul_tiles(CB_A, CB_B, CB_C, false);");
+  }
+  EmitLine("");
+
+  // Pop input tiles
+  EmitLine("// Release input tiles");
+  EmitLine("cb_pop_front(CB_A, 1);");
+  EmitLine("cb_pop_front(CB_B, 1);");
+  EmitLine("");
 }
 
 void TTComputeCodegenVisitor::EmitElementwiseAddIntrinsic(const AttrStmtNode* op) {

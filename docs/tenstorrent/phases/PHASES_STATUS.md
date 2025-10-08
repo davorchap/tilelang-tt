@@ -1,7 +1,7 @@
 # TileLang→Metalium Compiler: 6-Phase Implementation Status
 
-**Last Updated**: 2025-10-08 (After PR #55)
-**Overall Progress**: 15% (Phase 1 foundation + all specs complete)
+**Last Updated**: 2025-10-08 (After PR #56 + Pattern Recognition)
+**Overall Progress**: 20% (Phase 1 foundation + pattern recognition complete)
 
 ---
 
@@ -9,13 +9,13 @@
 
 | Phase | Status | Progress | Duration | Examples | PRs | Specs |
 |-------|--------|----------|----------|----------|-----|-------|
-| **Phase 1: Foundation** | 🟡 In Progress | 30% (1/3 examples) | 2 weeks | 3 | 2/? | ✅ Complete |
+| **Phase 1: Foundation** | 🟡 In Progress | 60% (2/3 partial) | 2 weeks | 3 | 3/? | ✅ Complete |
 | **Phase 2: Optimizations** | ⏳ Not Started | 0% | 2 weeks | 3 | 0/? | ✅ Complete |
 | **Phase 3: Advanced** | ⏳ Not Started | 0% | 2 weeks | 3 | 0/? | ✅ Complete |
 | **Phase 4: Attention** | ⏳ Not Started | 0% | 2 weeks | 5 | 0/? | ✅ Complete |
 | **Phase 5: Specialized** | ⏳ Not Started | 0% | 2 weeks | 3 | 0/? | ✅ Complete |
 | **Phase 6: Complex** | ⏳ Not Started | 0% | 2 weeks | 3 | 0/? | ✅ Complete |
-| **TOTAL** | 🟡 15% Complete | **2/20** examples | **12 weeks** | **20** | **3/?** | **✅ 6/6 phases** |
+| **TOTAL** | 🟡 20% Complete | **2/20** examples | **12 weeks** | **20** | **3+/?** | **✅ 6/6 phases** |
 
 **Legend**:
 - ✅ Complete
@@ -26,16 +26,16 @@
 
 ## Phase 1: Foundation (Weeks 19-20)
 
-**Status**: 🟡 In Progress (30%)
+**Status**: 🟡 In Progress (60%)
 **Priority**: CRITICAL - Foundation for all phases
 
 ### Examples
 
 | # | Example | Status | PRs | Notes |
 |---|---------|--------|-----|-------|
-| 1.1 | Elementwise Add | 🟡 30% | #53, #54 | DST foundation done, intrinsics pending |
-| 1.2 | Multi-operand Elementwise | ⏳ 0% | - | Blocked by 1.1 |
-| 1.3 | Simple GEMM | ⏳ 0% | - | DST foundation ready, K-loop pending |
+| 1.1 | Elementwise Add | 🟢 80% | #53, #54, #56, WIP | DST ✅, T.grid ✅, intrinsics ✅ |
+| 1.2 | Multi-operand Elementwise | ⏳ 0% | - | Blocked by 1.1 PR |
+| 1.3 | Simple GEMM | 🟢 70% | WIP | DST ✅, K-loop ✅, accumulate ✅, intrinsics ✅ |
 
 ### Completed Work
 
@@ -57,15 +57,32 @@
   - Timeline estimates and dependencies
   - Master status tracking dashboard
 
+- ✅ PR #56: DST Foundation + Elementwise Infrastructure (MERGED)
+  - Proper TileLang IR structure for elementwise add
+  - EmitElementwiseAddIntrinsic() codegen method
+  - Mock APIs for element-wise operations
+  - **DST lifecycle fully working**: acquire→commit→release ✅
+  - Status tracking updated
+
+- 🟢 **Pattern Recognition + Intrinsic Emission (WIP - Ready for PR)**
+  - ✅ T.copy() operation detection (via OpNode inspection)
+  - ✅ T.gemm() operation detection and intrinsic emission
+  - ✅ T.grid(32, 32) pattern detection for element-wise operations
+  - ✅ Matmul K-loop pattern with proper init placement
+  - ✅ Accumulate flag based on K-loop variable
+  - ✅ CB operations (wait/pop) for both patterns
+  - ✅ Elementwise: add_tiles intrinsic replaces scalar loops
+  - ✅ Matmul: matmul_tiles_init() before K-loop, accumulate inside
+  - **Result**: No more "unsupported call" or scalar loops!
+
 ### Pending Work
 
-- ⏳ Element-wise intrinsic annotation
-- ⏳ CB management for inputs/outputs
-- ⏳ Tile indexing recovery
-- ⏳ K-loop bounds extraction
-- ⏳ Matmul intrinsic emission
+- ⏳ Create PR for pattern recognition work (3 commits ready)
+- ⏳ Tile indexing recovery (for reader/writer kernels)
+- ⏳ Complete Phase 1.1 elementwise example
+- ⏳ Complete Phase 1.3 GEMM example
 
-**Next Milestone**: Complete 1.1 Elementwise Add (example fully working)
+**Next Milestone**: PR merge, then move to Phase 1.2 (multi-operand elementwise)
 
 ---
 

@@ -68,6 +68,11 @@ class TTComputeCodegenVisitor : public TTCodegenVisitor {
   void VisitStmt_(const ForNode* op) override;
 
   /*!
+   * \brief Visit evaluate node (detect T.copy, T.gemm calls)
+   */
+  void VisitStmt_(const EvaluateNode* op) override;
+
+  /*!
    * \brief Visit attribute statement (detect matmul intrinsic, copy ops)
    */
   void VisitStmt_(const AttrStmtNode* op) override;
@@ -89,6 +94,12 @@ class TTComputeCodegenVisitor : public TTCodegenVisitor {
    * \param op The attribute statement containing elementwise_add annotation
    */
   void EmitElementwiseAddIntrinsic(const AttrStmtNode* op);
+
+  /*!
+   * \brief Emit T.gemm() intrinsic operation
+   * \param call The call node containing T.gemm() call
+   */
+  void EmitGemmIntrinsic(const CallNode* call);
 
   /*!
    * \brief Emit CB wait operation
@@ -141,6 +152,9 @@ class TTComputeCodegenVisitor : public TTCodegenVisitor {
 
   /*! \brief Track current K-loop iteration for accumulate flag */
   int current_k_iter_;
+
+  /*! \brief Track K-loop variable name for accumulate flag */
+  std::string k_loop_var_;
 
   /*! \brief Track if DST is currently acquired */
   bool dst_acquired_;
