@@ -32,7 +32,11 @@ namespace tl {
 using namespace tir;
 
 TTComputeCodegenVisitor::TTComputeCodegenVisitor(const PrimFunc& func)
-    : TTCodegenVisitor(func), matmul_init_emitted_(false), current_k_iter_(0) {}
+    : TTCodegenVisitor(func),
+      matmul_init_emitted_(false),
+      current_k_iter_(0),
+      dst_acquired_(false),
+      loop_depth_(0) {}
 
 std::string TTComputeCodegenVisitor::GetFullKernel() {
   // Start fresh
@@ -83,6 +87,10 @@ void TTComputeCodegenVisitor::EmitPreamble() {
   // Includes - Real Metalium headers (Week 16 integration)
 #ifdef TL_USE_REAL_METALIUM
   EmitLine("#include \"ckernel_include.h\"");
+  EmitLine("#include \"ckernel_defs.h\"");
+  EmitLine("#include \"compute_kernel_api/common.h\"");
+  EmitLine("#include \"compute_kernel_api/tile_move_copy.h\"");
+  EmitLine("#include \"compute_kernel_api/eltwise_binary.h\"");
   EmitLine("#include \"compute_kernel_api/matmul.h\"");
 #else
   // Mock APIs for dry-run (backward compatibility)
@@ -101,6 +109,17 @@ void TTComputeCodegenVisitor::EmitPreamble() {
   EmitLine("// Mock TT matmul compute APIs for dry-run");
   EmitLine("inline void matmul_tiles_init(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c) {}");
   EmitLine("inline void matmul_tiles(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c, bool accumulate) {}");
+  EmitLine("");
+  EmitLine("// Mock TT DST register double buffering APIs for dry-run");
+  EmitLine("inline void acquire_dst() {}");
+  EmitLine("inline void commit_dst() {}");
+  EmitLine("inline void wait_for_tile() {}");
+  EmitLine("inline void release_dst() {}");
+  EmitLine("");
+  EmitLine("// Mock TT element-wise compute APIs for dry-run");
+  EmitLine("inline void add_tiles_init() {}");
+  EmitLine("inline void add_tiles(uint32_t cb_a, uint32_t cb_b, uint32_t idx_a, uint32_t idx_b, uint32_t idx_dst) {}");
+  EmitLine("inline void pack_tile(uint32_t idx_dst, uint32_t cb_out) {}");
 #endif
   EmitLine("");
   EmitLine("// Circular Buffer Indices");
@@ -116,9 +135,25 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
   std::string min_expr = EmitExpr(op->min);
   std::string extent_expr = EmitExpr(op->extent);
 
-  // Check if this is a K-loop (kt variable)
-  if (loop_var == "kt" || loop_var.find("kt") != std::string::npos ||
-      loop_var == "k" || loop_var.find("_k") != std::string::npos) {
+  // Track loop depth
+  loop_depth_++;
+
+  // Detect K-loop (inner loop for matmul accumulation)
+  bool is_k_loop = (loop_var == "kt" || loop_var.find("kt") != std::string::npos ||
+                    loop_var == "k" || loop_var.find("_k") != std::string::npos);
+
+  // Detect outer tile loop (persistent loop)
+  bool is_outer_loop = (loop_depth_ == 1);
+
+  // For outer tile loop in matmul pattern: acquire DST before K-loop
+  if (is_outer_loop && !dst_acquired_) {
+    EmitLine("// Outer loop: process output tile");
+    EmitDSTAcquire();
+    EmitLine("");
+  }
+
+  // Emit K-loop comment if detected
+  if (is_k_loop) {
     EmitLine("// K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)");
   }
 
@@ -141,6 +176,20 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
 
   DecIndent();
   EmitLine("}");
+
+  // After K-loop completes: commit and release DST
+  if (is_k_loop && dst_acquired_) {
+    EmitLine("");
+    EmitLine("// After K-loop: pack result");
+    EmitLine("cb_reserve_back(CB_C, 1);");
+    EmitDSTCommit();
+    EmitLine("pack_tile(0, CB_C);");
+    EmitLine("cb_push_back(CB_C, 1);");
+    EmitDSTRelease();
+    EmitLine("");
+  }
+
+  loop_depth_--;
 }
 
 void TTComputeCodegenVisitor::VisitStmt_(const AttrStmtNode* op) {
@@ -248,6 +297,29 @@ int TTComputeCodegenVisitor::GetMatmulId(const PrimExpr& value) {
     return static_cast<int>(int_imm->value);
   }
   return 0;
+}
+
+void TTComputeCodegenVisitor::EmitDSTAcquire() {
+  if (!dst_acquired_) {
+    EmitLine("// DST: Acquire registers for computation");
+    EmitLine("acquire_dst();");
+    dst_acquired_ = true;
+  }
+}
+
+void TTComputeCodegenVisitor::EmitDSTCommit() {
+  if (dst_acquired_) {
+    EmitLine("// DST: Commit computation complete");
+    EmitLine("commit_dst();");
+  }
+}
+
+void TTComputeCodegenVisitor::EmitDSTRelease() {
+  if (dst_acquired_) {
+    EmitLine("// DST: Release registers");
+    EmitLine("release_dst();");
+    dst_acquired_ = false;
+  }
 }
 
 }  // namespace tl

@@ -112,11 +112,35 @@ class TTComputeCodegenVisitor : public TTCodegenVisitor {
    */
   int GetMatmulId(const PrimExpr& value);
 
+  /*!
+   * \brief Emit DST register acquire operation
+   * Reserves DST registers for computation (FPU access)
+   */
+  void EmitDSTAcquire();
+
+  /*!
+   * \brief Emit DST register commit operation
+   * Signals computation complete, DST ready for packer
+   */
+  void EmitDSTCommit();
+
+  /*!
+   * \brief Emit DST register release operation
+   * Frees DST registers back to pool
+   */
+  void EmitDSTRelease();
+
   /*! \brief Track if matmul_init has been emitted */
   bool matmul_init_emitted_;
 
   /*! \brief Track current K-loop iteration for accumulate flag */
   int current_k_iter_;
+
+  /*! \brief Track if DST is currently acquired */
+  bool dst_acquired_;
+
+  /*! \brief Track loop nesting depth */
+  int loop_depth_;
 };
 
 }  // namespace tl
