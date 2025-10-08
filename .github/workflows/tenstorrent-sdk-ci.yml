@@ -179,60 +179,60 @@ jobs:
         run: |
           export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
 
-          python3 << 'EOF'
-import tilelang.tt as tt
-import tvm
-from tvm import tir
+          python3 -c '
+          import tilelang.tt as tt
+          import tvm
+          from tvm import tir
 
-print("=== Verifying Real Metalium API Usage ===")
+          print("=== Verifying Real Metalium API Usage ===")
 
-# Create simple test module
-A = tir.decl_buffer((256, 256), 'float16', name='A')
-B = tir.decl_buffer((256, 256), 'float16', name='B')
-C = tir.decl_buffer((256, 256), 'float16', name='C')
+          # Create simple test module
+          A = tir.decl_buffer((256, 256), "float16", name="A")
+          B = tir.decl_buffer((256, 256), "float16", name="B")
+          C = tir.decl_buffer((256, 256), "float16", name="C")
 
-func = tir.PrimFunc(params=[A, B, C], body=tir.Evaluate(0))
-func = func.with_attrs({
-    'global_symbol': 'main',
-    'tt_grid_x': 8,
-    'tt_grid_y': 8,
-    'tt_num_cores': 64,
-})
+          func = tir.PrimFunc(params=[A, B, C], body=tir.Evaluate(0))
+          func = func.with_attrs({
+              "global_symbol": "main",
+              "tt_grid_x": 8,
+              "tt_grid_y": 8,
+              "tt_num_cores": 64,
+          })
 
-mod = tvm.IRModule({'main': func})
+          mod = tvm.IRModule({"main": func})
 
-# Apply TT defaults and generate code
-mod = tt.apply_default_schedule(mod)
-artifacts = tt.emit_tt_artifacts(mod)
+          # Apply TT defaults and generate code
+          mod = tt.apply_default_schedule(mod)
+          artifacts = tt.emit_tt_artifacts(mod)
 
-# Verify main.cpp uses real Metalium headers (not mock)
-main_cpp = artifacts.get('main.cpp', '')
+          # Verify main.cpp uses real Metalium headers (not mock)
+          main_cpp = artifacts.get("main.cpp", "")
 
-# Check for real API includes
-real_api_markers = [
-    '#include "tt_metal/host_api.hpp"',
-    'distributed::MeshDevice',
-    'distributed::MeshBuffer',
-]
+          # Check for real API includes
+          real_api_markers = [
+              "#include \"tt_metal/host_api.hpp\"",
+              "distributed::MeshDevice",
+              "distributed::MeshBuffer",
+          ]
 
-missing = []
-for marker in real_api_markers:
-    if marker not in main_cpp:
-        missing.append(marker)
+          missing = []
+          for marker in real_api_markers:
+              if marker not in main_cpp:
+                  missing.append(marker)
 
-if missing:
-    print(f"❌ Missing real Metalium API markers: {missing}")
-    print("\nGenerated code snippet:")
-    print(main_cpp[:500])
-    exit(1)
-else:
-    print("✅ Generated code uses real Metalium APIs")
-    print("  - Found tt_metal/host_api.hpp include")
-    print("  - Found distributed::MeshDevice usage")
-    print("  - Found distributed::MeshBuffer usage")
+          if missing:
+              print(f"❌ Missing real Metalium API markers: {missing}")
+              print("\nGenerated code snippet:")
+              print(main_cpp[:500])
+              exit(1)
+          else:
+              print("✅ Generated code uses real Metalium APIs")
+              print("  - Found tt_metal/host_api.hpp include")
+              print("  - Found distributed::MeshDevice usage")
+              print("  - Found distributed::MeshBuffer usage")
 
-print("\n=== Verification Complete ===")
-EOF
+          print("\n=== Verification Complete ===")
+          '
 
       - name: Test build script with --with-metalium flag
         run: |
