@@ -41,7 +41,10 @@ TTComputeCodegenVisitor::TTComputeCodegenVisitor(const PrimFunc& func)
       current_k_iter_(0),
       k_loop_var_(""),
       dst_acquired_(false),
-      loop_depth_(0) {}
+      loop_depth_(0),
+      current_pattern_(ComputePattern::UNKNOWN),
+      reduction_init_emitted_(false),
+      gemv_init_emitted_(false) {}
 
 std::string TTComputeCodegenVisitor::GetFullKernel() {
   // Start fresh
@@ -499,6 +502,81 @@ void TTComputeCodegenVisitor::EmitTileRegsRelease() {
     EmitLine("tile_regs_release();");
     dst_acquired_ = false;
   }
+}
+
+// ==========================
+// PatternDetector Implementation
+// ==========================
+
+ComputePattern PatternDetector::DetectPattern(const ForNode* loop) {
+  if (!loop || !loop->body.defined()) {
+    return ComputePattern::UNKNOWN;
+  }
+
+  // Check for T.gemm() call (matmul pattern)
+  if (HasGemmCall(loop->body)) {
+    return ComputePattern::MATMUL;
+  }
+
+  // TODO: Implement additional pattern detection
+  // For now, all other patterns return UNKNOWN
+  // This allows incremental implementation without breaking existing code
+
+  return ComputePattern::UNKNOWN;
+}
+
+bool PatternDetector::HasGemmCall(const Stmt& body) {
+  // Visitor to detect T.gemm() calls in the statement tree
+  class GemmDetector : public StmtExprVisitor {
+   public:
+    bool found_gemm = false;
+
+    // Make VisitStmt public so we can call it
+    using StmtExprVisitor::VisitStmt;
+
+    void VisitStmt_(const AttrStmtNode* op) final {
+      // Check for gemm_intrinsic annotation
+      if (op->attr_key == "gemm_intrinsic" || op->attr_key == "pragma_gemm" ||
+          op->attr_key == "matmul_intrinsic") {
+        found_gemm = true;
+      }
+      StmtExprVisitor::VisitStmt_(op);
+    }
+
+    void VisitExpr_(const CallNode* op) final {
+      // Check for tl.gemm or similar call names
+      if (op->op.as<OpNode>()) {
+        std::string call_name = op->op.as<OpNode>()->name;
+        if (call_name.find("gemm") != std::string::npos ||
+            call_name.find("matmul") != std::string::npos) {
+          found_gemm = true;
+        }
+      }
+      StmtExprVisitor::VisitExpr_(op);
+    }
+  };
+
+  GemmDetector detector;
+  detector.VisitStmt(body);
+  return detector.found_gemm;
+}
+
+bool PatternDetector::HasReductionPattern(const Stmt& body) {
+  // TODO: Implement reduction pattern detection
+  // Look for accumulation pattern: var[i] = var[i] + expr
+  return false;
+}
+
+bool PatternDetector::HasElementwisePattern(const Stmt& body) {
+  // TODO: Implement element-wise pattern detection
+  // Look for independent tile operations
+  return false;
+}
+
+bool PatternDetector::HasGemvPattern(const Stmt& body) {
+  // TODO: Implement GEMV pattern detection
+  // Look for matrix-vector multiply pattern
+  return false;
 }
 
 }  // namespace tl
