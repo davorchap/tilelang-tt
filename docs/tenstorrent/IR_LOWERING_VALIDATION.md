@@ -308,7 +308,7 @@ The IR lowering pipeline for Tenstorrent is:
 - Refactor into unified backend architecture
 - Create clean abstraction for backend hooks
 - Enable easier addition of new backends
-- See: `docs/tenstorrent/IR_LOWERING_TASKS.md`
+- See: `tilelang/engine/BACKEND_INTERFACE.md`
 
 ## Test Execution Log
 

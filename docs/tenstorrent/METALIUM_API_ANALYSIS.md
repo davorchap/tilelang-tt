@@ -469,4 +469,4 @@ Update validation in example files:
 
 ## 11. Implementation Plan
 
-See `METALIUM_FIX_PLAN.md` for detailed task breakdown and timeline.
+See `METALIUM_INTEGRATION_PLAN.md` and `CODEGEN_FIX_PLAN.md` for implementation details.
