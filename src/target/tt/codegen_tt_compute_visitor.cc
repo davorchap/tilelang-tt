@@ -80,7 +80,12 @@ void TTComputeCodegenVisitor::EmitPreamble() {
   }
   code_ << "\n";
 
-  // Includes and mock APIs
+  // Includes - Real Metalium headers (Week 16 integration)
+#ifdef TL_USE_REAL_METALIUM
+  EmitLine("#include \"ckernel_include.h\"");
+  EmitLine("#include \"compute_kernel_api/matmul.h\"");
+#else
+  // Mock APIs for dry-run (backward compatibility)
   EmitLine("#include <cstdint>");
   EmitLine("");
   EmitLine("// Mock TT intrinsics for dry-run");
@@ -96,6 +101,7 @@ void TTComputeCodegenVisitor::EmitPreamble() {
   EmitLine("// Mock TT matmul compute APIs for dry-run");
   EmitLine("inline void matmul_tiles_init(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c) {}");
   EmitLine("inline void matmul_tiles(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c, bool accumulate) {}");
+#endif
   EmitLine("");
   EmitLine("// Circular Buffer Indices");
   EmitLine("constexpr uint32_t CB_A = 0;");
@@ -190,7 +196,13 @@ void TTComputeCodegenVisitor::EmitMatmulIntrinsic(const AttrStmtNode* op) {
   EmitLine("");
 
   // Emit matmul operation
-  // Accumulate if not the first K iteration
+  // Real Metalium signature: matmul_tiles(cb_a, cb_b, cb_c, ntiles, transpose)
+  // Note: Real API automatically accumulates; mock used bool accumulate parameter
+#ifdef TL_USE_REAL_METALIUM
+  EmitLine("// Matmul: process tile (accumulation handled by API)");
+  EmitLine("matmul_tiles(CB_A, CB_B, CB_C, /*ntiles*/1, /*transpose*/false);");
+#else
+  // Mock API uses bool accumulate parameter
   bool accumulate = (current_k_iter_ > 0);
   if (accumulate) {
     EmitLine("// Matmul: accumulate");
@@ -199,6 +211,7 @@ void TTComputeCodegenVisitor::EmitMatmulIntrinsic(const AttrStmtNode* op) {
     EmitLine("// Matmul: first K iteration");
     EmitLine("matmul_tiles(CB_A, CB_B, CB_C, false);");
   }
+#endif
   EmitLine("");
 
   // Pop input tiles
