@@ -474,11 +474,42 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
 
   // Real Metalium: Create kernels
   code << "    // 5. Create kernels (Real Metalium)\n";
-  code << "    // TODO: Load actual kernel sources from generated reader.cpp, compute.cpp, writer.cpp\n";
-  code << "    // auto reader_kernel = CreateKernel(program, \"reader.cpp\", core, DataMovementConfig{...});\n";
-  code << "    // auto compute_kernel = CreateKernel(program, \"compute.cpp\", core, ComputeConfig{...});\n";
-  code << "    // auto writer_kernel = CreateKernel(program, \"writer.cpp\", core, DataMovementConfig{...});\n";
-  code << "    std::cout << \"Kernels created (placeholder - need actual sources)\" << std::endl;\n\n";
+  code << "    std::cout << \"Creating kernels...\" << std::endl;\n\n";
+
+  code << "    // Reader kernel (DataMovement)\n";
+  code << "    auto reader_kernel = CreateKernel(\n";
+  code << "        program,\n";
+  code << "        \"reader.cpp\",\n";
+  code << "        core,\n";
+  code << "        DataMovementConfig{\n";
+  code << "            .processor = DataMovementProcessor::RISCV_0,\n";
+  code << "            .noc = NOC::RISCV_0_default\n";
+  code << "        }\n";
+  code << "    );\n\n";
+
+  code << "    // Compute kernel\n";
+  code << "    auto compute_kernel = CreateKernel(\n";
+  code << "        program,\n";
+  code << "        \"compute.cpp\",\n";
+  code << "        core,\n";
+  code << "        ComputeConfig{\n";
+  code << "            .math_fidelity = MathFidelity::HiFi4,\n";
+  code << "            .fp32_dest_acc_en = false,\n";
+  code << "            .math_approx_mode = false\n";
+  code << "        }\n";
+  code << "    );\n\n";
+
+  code << "    // Writer kernel (DataMovement)\n";
+  code << "    auto writer_kernel = CreateKernel(\n";
+  code << "        program,\n";
+  code << "        \"writer.cpp\",\n";
+  code << "        core,\n";
+  code << "        DataMovementConfig{\n";
+  code << "            .processor = DataMovementProcessor::RISCV_1,\n";
+  code << "            .noc = NOC::RISCV_1_default\n";
+  code << "        }\n";
+  code << "    );\n";
+  code << "    std::cout << \"Kernels created successfully\" << std::endl;\n\n";
 #else
   // Mock: Circular buffers and program
   code << "    // 3. Circular buffer configuration (Mock)\n";
@@ -491,9 +522,16 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   code << "    Program program;\n";
   code << "    std::cout << \"Program created (Mock)\" << std::endl;\n\n";
 
-  code << "    // 5. Load kernels (Mock - placeholder)\n";
+  code << "    // 5. Create kernels (Mock)\n";
+  code << "    std::cout << \"Creating kernels (Mock)...\" << std::endl;\n";
+  code << "    // Mock kernel creation - simulating reader, compute, writer kernels\n";
+  code << "    // In real mode, these would be CreateKernel() calls with actual .cpp files\n";
+  code << "    struct MockKernel { std::string name; };\n";
+  code << "    MockKernel reader_kernel{\"reader.cpp\"};\n";
+  code << "    MockKernel compute_kernel{\"compute.cpp\"};\n";
+  code << "    MockKernel writer_kernel{\"writer.cpp\"};\n";
   code << "    program.Build();\n";
-  code << "    std::cout << \"Kernels loaded and built (Mock)\" << std::endl;\n\n";
+  code << "    std::cout << \"Kernels created successfully (Mock)\" << std::endl;\n\n";
 #endif
 
   // 6. Allocate DRAM buffers
@@ -555,20 +593,73 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   code << "    uint32_t num_out_tiles_per_core = NUM_OUTPUT_TILES;\n\n";
 
 #ifdef TL_USE_REAL_METALIUM
-  code << "    // SetRuntimeArgs (Real Metalium - TODO: Implement when kernels available)\n";
-  code << "    // std::vector<uint32_t> reader_args = {...};\n";
-  code << "    // std::vector<uint32_t> compute_args = {out_tile_start_id, num_out_tiles_per_core, Kt};\n";
-  code << "    // std::vector<uint32_t> writer_args = {...};\n";
-  code << "    // SetRuntimeArgs(program, reader_kernel, core, reader_args);\n";
-  code << "    // SetRuntimeArgs(program, compute_kernel, core, compute_args);\n";
-  code << "    // SetRuntimeArgs(program, writer_kernel, core, writer_args);\n";
-  code << "    std::cout << \"Runtime args configured (placeholder)\" << std::endl;\n\n";
+  code << "    // SetRuntimeArgs (Real Metalium)\n";
+  code << "    std::cout << \"Setting runtime arguments...\" << std::endl;\n\n";
+
+  code << "    // Reader kernel args: {dram_addr_a, dram_addr_b, Mt, Kt, Nt, start_tile_id, num_tiles}\n";
+  code << "    std::vector<uint32_t> reader_args = {\n";
+  code << "        reinterpret_cast<uint32_t>(buffer_a->address()),\n";
+  code << "        reinterpret_cast<uint32_t>(buffer_b->address()),\n";
+  code << "        Mt, Kt, Nt,\n";
+  code << "        out_tile_start_id,\n";
+  code << "        num_out_tiles_per_core\n";
+  code << "    };\n";
+  code << "    SetRuntimeArgs(program, reader_kernel, core, reader_args);\n\n";
+
+  code << "    // Compute kernel args: {start_tile_id, num_output_tiles, Kt}\n";
+  code << "    std::vector<uint32_t> compute_args = {\n";
+  code << "        out_tile_start_id,\n";
+  code << "        num_out_tiles_per_core,\n";
+  code << "        Kt\n";
+  code << "    };\n";
+  code << "    SetRuntimeArgs(program, compute_kernel, core, compute_args);\n\n";
+
+  code << "    // Writer kernel args: {dram_addr_c, start_tile_id, num_tiles, Nt}\n";
+  code << "    std::vector<uint32_t> writer_args = {\n";
+  code << "        reinterpret_cast<uint32_t>(buffer_c->address()),\n";
+  code << "        out_tile_start_id,\n";
+  code << "        num_out_tiles_per_core,\n";
+  code << "        Nt\n";
+  code << "    };\n";
+  code << "    SetRuntimeArgs(program, writer_kernel, core, writer_args);\n";
+  code << "    std::cout << \"Runtime arguments configured successfully\" << std::endl;\n\n";
 #else
-  code << "    // SetRuntimeArgs pattern (Mock for dry-run):\n";
-  code << "    // Reader: {dram_a, dram_b, Mt, Kt, Nt, start_tile_id, num_tiles}\n";
-  code << "    // Compute: {start_tile_id, num_output_tiles, Kt}\n";
-  code << "    // Writer: {dram_c, start_tile_id, num_tiles, Nt}\n";
-  code << "    std::cout << \"Runtime args: \" << NUM_OUTPUT_TILES << \" tiles, Kt=\" << Kt << \" (Mock)\" << std::endl;\n\n";
+  code << "    // SetRuntimeArgs (Mock)\n";
+  code << "    std::cout << \"Setting runtime arguments (Mock)...\" << std::endl;\n\n";
+
+  code << "    // Mock SetRuntimeArgs function\n";
+  code << "    auto SetRuntimeArgs = [](auto& prog, auto& kernel, const std::vector<uint32_t>& args) {\n";
+  code << "        // Mock implementation - in real mode, this would configure kernel args\n";
+  code << "    };\n\n";
+
+  code << "    // Reader kernel args: {dram_addr_a, dram_addr_b, Mt, Kt, Nt, start_tile_id, num_tiles}\n";
+  code << "    std::vector<uint32_t> reader_args = {\n";
+  code << "        reinterpret_cast<uint32_t>(dram_a.data()),\n";
+  code << "        reinterpret_cast<uint32_t>(dram_b.data()),\n";
+  code << "        Mt, Kt, Nt,\n";
+  code << "        out_tile_start_id,\n";
+  code << "        num_out_tiles_per_core\n";
+  code << "    };\n";
+  code << "    SetRuntimeArgs(program, reader_kernel, reader_args);\n\n";
+
+  code << "    // Compute kernel args: {start_tile_id, num_output_tiles, Kt}\n";
+  code << "    std::vector<uint32_t> compute_args = {\n";
+  code << "        out_tile_start_id,\n";
+  code << "        num_out_tiles_per_core,\n";
+  code << "        Kt\n";
+  code << "    };\n";
+  code << "    SetRuntimeArgs(program, compute_kernel, compute_args);\n\n";
+
+  code << "    // Writer kernel args: {dram_addr_c, start_tile_id, num_tiles, Nt}\n";
+  code << "    std::vector<uint32_t> writer_args = {\n";
+  code << "        reinterpret_cast<uint32_t>(dram_c.data()),\n";
+  code << "        out_tile_start_id,\n";
+  code << "        num_out_tiles_per_core,\n";
+  code << "        Nt\n";
+  code << "    };\n";
+  code << "    SetRuntimeArgs(program, writer_kernel, writer_args);\n\n";
+
+  code << "    std::cout << \"Runtime args configured: \" << NUM_OUTPUT_TILES << \" tiles, Kt=\" << Kt << \" (Mock)\" << std::endl;\n\n";
 #endif
 
   // 8. Launch program
