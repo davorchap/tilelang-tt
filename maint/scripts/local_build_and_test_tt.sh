@@ -20,6 +20,7 @@
 #   --skip-tests      Skip running tests
 #   --clean           Clean build directory before building
 #   --jobs N          Number of parallel build jobs (default: 2)
+#   --with-metalium   Build with real TT-Metalium SDK (requires TT_METAL_HOME)
 #   --help            Show this help message
 
 set -e  # Exit on error
@@ -36,6 +37,7 @@ SKIP_BUILD=false
 SKIP_TESTS=false
 CLEAN_BUILD=false
 BUILD_JOBS=2
+WITH_METALIUM=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -59,8 +61,12 @@ while [[ $# -gt 0 ]]; do
             BUILD_JOBS="$2"
             shift 2
             ;;
+        --with-metalium)
+            WITH_METALIUM=true
+            shift
+            ;;
         --help)
-            head -n 23 "$0"
+            head -n 24 "$0"
             exit 0
             ;;
         *)
@@ -158,7 +164,43 @@ echo ""
 
 # Step 3: Build TileLang with LLVM
 if [ "$SKIP_BUILD" = false ]; then
-    echo -e "${GREEN}[3/5] Building TileLang with LLVM backend...${NC}"
+    if [ "$WITH_METALIUM" = true ]; then
+        echo -e "${GREEN}[3/5] Building TileLang with LLVM backend + REAL TT-Metalium SDK...${NC}"
+
+        # Validate TT_METAL_HOME is set
+        if [ -z "$TT_METAL_HOME" ]; then
+            echo -e "${RED}Error: TT_METAL_HOME environment variable not set${NC}"
+            echo -e "${YELLOW}Please export TT_METAL_HOME=/path/to/tt-metal${NC}"
+            echo -e "${YELLOW}Example: export TT_METAL_HOME=~/tt-metal${NC}"
+            echo ""
+            echo -e "${YELLOW}To install TT-Metalium SDK:${NC}"
+            echo -e "  git clone https://github.com/tenstorrent/tt-metal.git ~/tt-metal"
+            echo -e "  cd ~/tt-metal && cmake -B build && cmake --build build"
+            echo -e "  export TT_METAL_HOME=~/tt-metal"
+            echo ""
+            exit 1
+        fi
+
+        # Check SDK exists
+        if [ ! -f "$TT_METAL_HOME/tt_metal/host_api.hpp" ]; then
+            echo -e "${RED}Error: TT-Metalium SDK not found at $TT_METAL_HOME${NC}"
+            echo -e "${YELLOW}Expected file: $TT_METAL_HOME/tt_metal/host_api.hpp${NC}"
+            echo -e "${YELLOW}Please verify TT_METAL_HOME points to a valid tt-metal installation${NC}"
+            exit 1
+        fi
+
+        # Check libraries exist
+        if [ ! -f "$TT_METAL_HOME/build/lib/libtt_metal.so" ]; then
+            echo -e "${RED}Error: TT-Metalium libraries not built${NC}"
+            echo -e "${YELLOW}Please build tt-metal first:${NC}"
+            echo -e "  cd $TT_METAL_HOME && cmake -B build && cmake --build build"
+            exit 1
+        fi
+
+        echo -e "${GREEN}TT-Metalium SDK found at: $TT_METAL_HOME${NC}"
+    else
+        echo -e "${GREEN}[3/5] Building TileLang with LLVM backend (MOCK TT-Metalium)...${NC}"
+    fi
 
     if [ "$CLEAN_BUILD" = true ]; then
         echo -e "${YELLOW}Cleaning build directory...${NC}"
@@ -175,12 +217,23 @@ if [ "$SKIP_BUILD" = false ]; then
 
     # Configure with CMake
     echo -e "${YELLOW}Running CMake configuration...${NC}"
-    cmake .. \
-        -G Ninja \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-        -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-        -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+    if [ "$WITH_METALIUM" = true ]; then
+        cmake .. \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DUSE_REAL_METALIUM=ON \
+            -DCMAKE_PREFIX_PATH="$TT_METAL_HOME/build"
+    else
+        cmake .. \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+    fi
 
     # Build
     echo -e "${YELLOW}Building TileLang (using $BUILD_JOBS parallel jobs)...${NC}"
