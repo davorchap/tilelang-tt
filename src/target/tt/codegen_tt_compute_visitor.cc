@@ -177,16 +177,29 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
   DecIndent();
   EmitLine("}");
 
-  // After K-loop completes: commit and release DST
-  if (is_k_loop && dst_acquired_) {
-    EmitLine("");
-    EmitLine("// After K-loop: pack result");
-    EmitLine("cb_reserve_back(CB_C, 1);");
-    EmitDSTCommit();
-    EmitLine("pack_tile(0, CB_C);");
-    EmitLine("cb_push_back(CB_C, 1);");
-    EmitDSTRelease();
-    EmitLine("");
+  // After loop completes: commit and release DST
+  if (dst_acquired_) {
+    if (is_k_loop) {
+      // K-loop pattern: emit pack/commit/release after K-loop
+      EmitLine("");
+      EmitLine("// After K-loop: pack result");
+      EmitLine("cb_reserve_back(CB_C, 1);");
+      EmitDSTCommit();
+      EmitLine("pack_tile(0, CB_C);");
+      EmitLine("cb_push_back(CB_C, 1);");
+      EmitDSTRelease();
+      EmitLine("");
+    } else if (is_outer_loop) {
+      // Element-wise pattern: emit pack/commit/release after outer loop
+      EmitLine("");
+      EmitLine("// After tile processing: pack result");
+      EmitLine("cb_reserve_back(CB_C, 1);");
+      EmitDSTCommit();
+      EmitLine("pack_tile(0, CB_C);");
+      EmitLine("cb_push_back(CB_C, 1);");
+      EmitDSTRelease();
+      EmitLine("");
+    }
   }
 
   loop_depth_--;
