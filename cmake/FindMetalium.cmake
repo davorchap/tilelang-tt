@@ -98,10 +98,24 @@ mark_as_advanced(
     Metalium_LIBRARY_DEVICE
 )
 
+# Create imported target TT::Metalium (matches official package)
+if(Metalium_FOUND AND NOT TARGET TT::Metalium)
+    add_library(TT::Metalium INTERFACE IMPORTED)
+    set_target_properties(TT::Metalium PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${Metalium_INCLUDE_DIRS}"
+        INTERFACE_LINK_LIBRARIES "${Metalium_LIBRARIES}"
+    )
+
+    if(NOT Metalium_FIND_QUIETLY)
+        message(STATUS "Created TT::Metalium imported target")
+    endif()
+endif()
+
 # Print summary if found
 if(Metalium_FOUND AND NOT Metalium_FIND_QUIETLY)
     message(STATUS "Metalium SDK Configuration:")
     message(STATUS "  Version: ${Metalium_VERSION}")
     message(STATUS "  Include dirs: ${Metalium_INCLUDE_DIRS}")
     message(STATUS "  Libraries: ${Metalium_LIBRARIES}")
+    message(STATUS "  Target: TT::Metalium")
 endif()

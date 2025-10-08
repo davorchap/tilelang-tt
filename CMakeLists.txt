@@ -213,31 +213,44 @@ endif(USE_ROCM)
 option(USE_REAL_METALIUM "Use real TT-Metalium APIs instead of mock APIs" OFF)
 
 if(USE_REAL_METALIUM)
-  find_package(Metalium)
+  # Try to find tt-metal package (uses their package config if installed)
+  # Falls back to our custom FindMetalium.cmake if not
+  find_package(TT-Metalium QUIET)
 
-  if(Metalium_FOUND)
+  if(NOT TT-Metalium_FOUND)
+    # Try legacy FindMetalium.cmake (for custom SDK locations)
+    find_package(Metalium QUIET)
+  endif()
+
+  if(TT-Metalium_FOUND OR TARGET TT::Metalium)
     message(STATUS "Building with REAL TT-Metalium APIs")
-    message(STATUS "Metalium version: ${Metalium_VERSION}")
-    message(STATUS "Metalium includes: ${Metalium_INCLUDE_DIRS}")
-    message(STATUS "Metalium libraries: ${Metalium_LIBRARIES}")
-
-    # Add Metalium include directories
-    list(APPEND TILE_LANG_INCLUDES ${Metalium_INCLUDE_DIRS})
+    if(TT-Metalium_DIR)
+      message(STATUS "Found TT-Metalium package config: ${TT-Metalium_DIR}")
+    endif()
 
     # Add compile definition to enable real Metalium code paths
     add_compile_definitions(TL_USE_REAL_METALIUM)
 
-    # Store Metalium libraries for linking
-    set(METALIUM_LINK_LIBRARIES ${Metalium_LIBRARIES})
+    # Set flag for linking (TT::Metalium target will be linked later)
+    set(METALIUM_FOUND TRUE)
   else()
     message(WARNING "USE_REAL_METALIUM is ON but Metalium SDK not found.")
-    message(WARNING "TT_METAL_HOME environment variable not set or SDK not installed.")
+    message(WARNING "")
+    message(WARNING "To install TT-Metalium SDK:")
+    message(WARNING "  1. git clone https://github.com/tenstorrent/tt-metal.git ~/tt-metal")
+    message(WARNING "  2. cd ~/tt-metal && cmake -B build && cmake --build build")
+    message(WARNING "  3. export CMAKE_PREFIX_PATH=~/tt-metal/build")
+    message(WARNING "")
+    message(WARNING "Or set TT_METAL_HOME environment variable to SDK location.")
+    message(WARNING "See docs/tenstorrent/METALIUM_SETUP_GUIDE.md for details.")
+    message(WARNING "")
     message(WARNING "Falling back to MOCK Metalium APIs (dry-run only).")
     set(USE_REAL_METALIUM OFF CACHE BOOL "Use real TT-Metalium APIs" FORCE)
   endif()
 else()
   message(STATUS "Building with MOCK TT-Metalium APIs (dry-run only)")
   message(STATUS "To enable real Metalium: cmake -DUSE_REAL_METALIUM=ON")
+  message(STATUS "See docs/tenstorrent/METALIUM_SETUP_GUIDE.md for setup instructions.")
 endif()
 
 # Define compile-time macros
@@ -257,9 +270,10 @@ add_library(tilelang SHARED $<TARGET_OBJECTS:tilelang_objs>)
 target_link_libraries(tilelang PUBLIC tvm_runtime)
 
 # Link Metalium libraries if available
-if(METALIUM_LINK_LIBRARIES)
-  target_link_libraries(tilelang PRIVATE ${METALIUM_LINK_LIBRARIES})
-  target_link_libraries(tilelang_static PRIVATE ${METALIUM_LINK_LIBRARIES})
+if(METALIUM_FOUND AND TARGET TT::Metalium)
+  target_link_libraries(tilelang PRIVATE TT::Metalium)
+  target_link_libraries(tilelang_static PRIVATE TT::Metalium)
+  message(STATUS "Linked TileLang against TT::Metalium target")
 endif()
 
 # Static library

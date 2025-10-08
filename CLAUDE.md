@@ -30,6 +30,12 @@ This repository (`tilelang-tt`) is a **public fork** focused on adding first-cla
 - ✅ Week 18: CMake build system integration
 - ⚠️ Weeks 19-22: SDK validation (blocked - needs SDK access)
 
+**✅ External SDK Implementation Complete**
+- ✅ CMake: find_package(TT-Metalium) with TT::Metalium target
+- ✅ Local build: --with-metalium flag for local_build_and_test_tt.sh
+- ✅ CI workflow: tenstorrent-sdk-ci.yml (manual/weekly triggers)
+- ✅ SDK verification: verify_metalium_sdk.sh script
+
 **Total: 95 tests passing**
 
 **Key Documents:**
@@ -126,14 +132,20 @@ gh pr create --repo davorchap/tilelang-tt --base main --head feature-branch-name
 
 **Quick start - Automated local build (recommended for Tenstorrent development):**
 ```bash
-# Builds with LLVM backend, runs tests, ~1 minute with ccache
+# Mock mode (default) - Builds with LLVM backend, runs tests, ~1 minute with ccache
 bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4
+
+# Real SDK mode - Builds with TT-Metalium SDK integration
+export TT_METAL_HOME=/path/to/tt-metal
+bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs 4
 ```
 
 The automated script:
 - Automatically initializes git submodules if needed
 - Sets up Python virtual environment (`.venv`)
 - Builds with LLVM backend (required for Tenstorrent)
+- Supports `--with-metalium` flag for real SDK integration
+- Validates SDK installation when using `--with-metalium`
 - Installs TVM and TileLang in editable mode
 - Runs Tenstorrent backend tests with proper environment
 - See `docs/tenstorrent/local_build_guide.md` for full documentation
@@ -158,13 +170,18 @@ USE_ROCM=true pip install -e .
 ```bash
 # See docs/tenstorrent/METALIUM_SETUP_GUIDE.md for SDK installation
 
-# Set environment (after installing tt-metal)
+# Option 1: Automated build script (recommended)
 export TT_METAL_HOME=/path/to/tt-metal
+bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs 4
 
-# Build with real Metalium APIs
-cmake -B build -DUSE_LLVM=true -DUSE_REAL_METALIUM=ON
+# Option 2: Manual CMake build
+export TT_METAL_HOME=/path/to/tt-metal
+cmake -B build -DUSE_LLVM=true -DUSE_REAL_METALIUM=ON -DCMAKE_PREFIX_PATH="$TT_METAL_HOME/build"
 cmake --build build -j$(nproc)
 pip install -e . --no-build-isolation
+
+# Verify SDK installation
+bash maint/scripts/verify_metalium_sdk.sh $TT_METAL_HOME
 ```
 
 The build system:
@@ -340,7 +357,7 @@ tilelang-tt/
 
 ### Workflows
 
-1. **`tenstorrent-ci.yml`** - Tenstorrent backend CI:
+1. **`tenstorrent-ci.yml`** - Tenstorrent backend CI (mock mode):
    - Triggers on PRs modifying `tilelang/engine/tt/`, `testing/python/tt/`, or workflow files
    - Runs on GitHub-hosted runners (Ubuntu + Python 3.10)
    - Uses LLVM backend (not CUDA) for lightweight CPU-only tests
@@ -349,13 +366,23 @@ tilelang-tt/
      - ccache (keyed by CMakeLists.txt) - fast incremental compilation
      - pip packages (keyed by requirements files)
    - Jobs: lint-and-format, build-and-test, static-analysis (mypy)
-   - Tests currently `continue-on-error: true` (backend incomplete)
+   - All 95 tests passing ✅
 
-2. **`ci.yml`** - Main CI:
+2. **`tenstorrent-sdk-ci.yml`** - Tenstorrent SDK integration CI (real mode):
+   - Triggers on manual dispatch (`workflow_dispatch`) or weekly schedule
+   - Builds with real TT-Metalium SDK (`-DUSE_REAL_METALIUM=ON`)
+   - **SDK caching strategy:**
+     - tt-metal SDK cache (~1.5GB, keyed by TT_METAL_VERSION)
+     - First run: ~20 min (clone + build SDK)
+     - Cached runs: ~5 min (SDK cached, only build TileLang)
+   - Verifies generated code uses real Metalium APIs
+   - Tests SDK integration workflow
+
+3. **`ci.yml`** - Main CI:
    - Self-hosted NVIDIA runners
    - Full CUDA build and test suite
 
-3. **`amd_ci.yml`** - AMD ROCm CI
+4. **`amd_ci.yml`** - AMD ROCm CI
 
 ### Running CI Locally
 
@@ -363,7 +390,14 @@ tilelang-tt/
 # Lint and format
 bash format.sh
 
-# Build and test (mimics Tenstorrent CI)
+# Build and test - Mock mode (mimics tenstorrent-ci.yml)
+bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4
+
+# Build and test - Real SDK mode (mimics tenstorrent-sdk-ci.yml)
+export TT_METAL_HOME=/path/to/tt-metal
+bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs 4
+
+# Manual build and test (alternative)
 USE_LLVM=true pip install -e .
 LD_LIBRARY_PATH=build/tvm pytest testing/python/tt/ -v
 ```
@@ -396,8 +430,11 @@ LD_LIBRARY_PATH=build/tvm pytest testing/python/tt/ -v
 4. **Key files for SDK validation:**
    - `src/target/tt/codegen_tt.cc` - Host program EmitTTHostProgram()
    - `src/target/tt/codegen_tt_*_visitor.cc` - Kernel generation visitors
-   - `cmake/FindMetalium.cmake` - SDK detection
-   - `CMakeLists.txt` - Build configuration
+   - `cmake/FindMetalium.cmake` - SDK detection (fallback for TT_METAL_HOME)
+   - `CMakeLists.txt` - Build configuration (find_package(TT-Metalium))
+   - `maint/scripts/local_build_and_test_tt.sh` - Local build script with --with-metalium flag
+   - `maint/scripts/verify_metalium_sdk.sh` - SDK verification tool
+   - `.github/workflows/tenstorrent-sdk-ci.yml` - Real SDK CI workflow
 
 5. **Testing strategy:**
    - Mock mode: 95 tests passing ✅
@@ -846,6 +883,8 @@ This allows existing GPU-style kernels to run on TT with minimal changes (subjec
 - [CI Documentation](docs/tenstorrent/CI.md)
 - [Local Build Guide](docs/tenstorrent/local_build_guide.md)
 - [Installation Guide](docs/get_started/Installation.md)
+- [External SDK Implementation Plan](docs/tenstorrent/EXTERNAL_SDK_IMPLEMENTATION_PLAN.md) - Complete External SDK integration
+- [Metalium Setup Guide](docs/tenstorrent/METALIUM_SETUP_GUIDE.md) - SDK installation and configuration
 
 ### Workstream Status (Historical - See Unified Plan for Current Status)
 - [WS1 Status](docs/tenstorrent/workstream1/WS1_STATUS.md) ✅ Complete

@@ -97,7 +97,10 @@ source ~/.bashrc
 **Verify Installation**:
 
 ```bash
-# Check environment variable
+# Option 1: Use verification script (recommended)
+bash /path/to/tilelang-tt/maint/scripts/verify_metalium_sdk.sh
+
+# Option 2: Manual verification
 echo $TT_METAL_HOME
 # Should output: /home/youruser/tt-metal
 
@@ -105,6 +108,8 @@ echo $TT_METAL_HOME
 ls -la $TT_METAL_HOME/build/lib/libtt_metal.so
 ls -la $TT_METAL_HOME/build/lib/libdevice.so
 ```
+
+**Note**: The verification script (`verify_metalium_sdk.sh`) performs comprehensive checks including headers, libraries, and CMake package configuration.
 
 ---
 
@@ -143,8 +148,22 @@ export TT_METAL_HOME="/usr/local"
 
 Once TT-Metalium SDK is installed:
 
-### Quick Build (Automated Script)
+### Quick Build (Automated Script - Recommended)
 
+**Option 1: Using local_build_and_test_tt.sh script**:
+```bash
+cd /path/to/tilelang-tt
+
+# Set TT_METAL_HOME
+export TT_METAL_HOME="$HOME/tt-metal"
+
+# Build and test with real Metalium SDK
+bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs 4
+
+# ✅ Automatically handles build configuration, SDK validation, and testing
+```
+
+**Option 2: Manual CMake commands**:
 ```bash
 cd /path/to/tilelang-tt
 
@@ -155,6 +174,7 @@ export TT_METAL_HOME="$HOME/tt-metal"
 cmake -B build \
     -DUSE_LLVM=true \
     -DUSE_REAL_METALIUM=ON \
+    -DCMAKE_PREFIX_PATH="$TT_METAL_HOME/build" \
     -G Ninja
 
 cmake --build build -j$(nproc)

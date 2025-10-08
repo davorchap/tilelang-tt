@@ -62,6 +62,14 @@ pip install -e . --no-build-isolation
 |----------|---------|--------|
 | **[METALIUM_SETUP_GUIDE.md](METALIUM_SETUP_GUIDE.md)** ⭐ | SDK installation & build guide | ✅ Current (external SDK approach) |
 | **[METALIUM_SDK_VALIDATION_PLAN.md](METALIUM_SDK_VALIDATION_PLAN.md)** | API validation phases 1-3 | ⚠️ Next steps (blocked by SDK access) |
+| **[EXTERNAL_SDK_IMPLEMENTATION_PLAN.md](EXTERNAL_SDK_IMPLEMENTATION_PLAN.md)** | External SDK implementation plan | ✅ Complete (Tasks 1-7) |
+
+### 🛠️ Tools & Scripts
+
+| Tool | Purpose | Usage |
+|------|---------|-------|
+| **`maint/scripts/local_build_and_test_tt.sh`** | Local build & test script | `bash local_build_and_test_tt.sh --with-metalium` |
+| **`maint/scripts/verify_metalium_sdk.sh`** | SDK verification tool | `bash verify_metalium_sdk.sh ~/tt-metal` |
 
 ### 📂 Workstream Details (Historical)
 
@@ -95,6 +103,12 @@ pip install -e . --no-build-isolation
 - ✅ Week 17: Host program generation (real/mock modes)
 - ✅ Week 18: CMake build system integration
 - ✅ FindMetalium.cmake module (external SDK detection)
+
+**External SDK Implementation** (Complete):
+- ✅ CMake: find_package(TT-Metalium) with TT::Metalium target
+- ✅ Local build: `--with-metalium` flag for local_build_and_test_tt.sh
+- ✅ CI workflow: `.github/workflows/tenstorrent-sdk-ci.yml` (manual/weekly)
+- ✅ SDK verification: `verify_metalium_sdk.sh` script
 
 ### ⚠️ Next Steps (Blocked by SDK Access)
 
