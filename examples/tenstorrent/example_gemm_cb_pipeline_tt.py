@@ -178,9 +178,14 @@ def main():
     checks.append(("Reader: K-loop structure", has_k_loop_reader))
     checks.append(("Compute: K-loop structure", has_k_loop_compute))
 
-    # Proper synchronization
-    wait_before_matmul = compute.find("cb_wait_front") < compute.find("matmul_tiles")
-    pop_after_matmul = compute.find("matmul_tiles") < compute.find("cb_pop_front")
+    # Proper synchronization (check actual calls, not mock declarations)
+    # Find actual calls by looking for calls with CB arguments
+    wait_pos = compute.find("cb_wait_front(CB_")
+    matmul_pos = compute.find("matmul_tiles(CB_")
+    pop_pos = compute.find("cb_pop_front(CB_")
+
+    wait_before_matmul = wait_pos > 0 and matmul_pos > 0 and wait_pos < matmul_pos
+    pop_after_matmul = matmul_pos > 0 and pop_pos > 0 and matmul_pos < pop_pos
     checks.append(("Compute: wait before matmul", wait_before_matmul))
     checks.append(("Compute: pop after matmul", pop_after_matmul))
 
