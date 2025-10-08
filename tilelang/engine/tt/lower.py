@@ -12,14 +12,25 @@ from tvm.target import Target
 
 from tilelang import tvm as tvm
 from tilelang.engine.param import CompiledArtifact, KernelParam
+from tilelang.engine.phase import LowerAndLegalize
 from tilelang.tt import apply_tt_defaults
 
 
 def LowerAndLegalizeTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     """Frontend lowering phase - shared with CUDA backend.
 
-    This will call the shared LowerAndLegalize pipeline in Task 2.
-    For now, it's a placeholder that will be implemented properly.
+    This calls the shared LowerAndLegalize pipeline which applies:
+    - LetInline
+    - AddWrapperForSingleBufStore
+    - InjectAssumes
+    - Simplify
+    - LayoutReducer
+    - LayoutInference
+    - LowerTileOp
+    - LowerL2Persistent
+    - LegalizeVectorizedLoop
+    - LegalizeSafeMemoryAccess
+    - LoopVectorizeDynamic
 
     Args:
         mod: The TVM IRModule to lower
@@ -28,12 +39,7 @@ def LowerAndLegalizeTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     Returns:
         Lowered and legalized IRModule
     """
-    # TODO Task 2: Import and call shared LowerAndLegalize from engine.phase
-    # from tilelang.engine.phase import LowerAndLegalize
-    # return LowerAndLegalize(mod, target)
-
-    # Placeholder - just return mod for now
-    return mod
+    return LowerAndLegalize(mod, target)
 
 
 def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
@@ -132,8 +138,19 @@ def lower(
         raise ValueError(f"Tenstorrent lowering called with invalid target: {target_kind}. "
                          f"Expected: {TENSTORRENT_TARGET}")
 
-    # Convert target to Target object if it's a string
+    # Convert target to Target object if it's a string and create composite target
+    # This matches CUDA backend behavior and provides proper target context for passes
     if isinstance(target, str):
+        target = tvm.target.Target(target)
+
+    # Create composite target with host (matches CUDA backend)
+    # This is needed for passes like LayoutInference that query target information
+    if target_host is not None:
+        if isinstance(target_host, str):
+            target_host = tvm.target.Target(target_host)
+        target = tvm.target.Target(target, target_host)
+    else:
+        # Use target directly if no host target specified
         target = tvm.target.Target(target)
 
     # === Phase 1: Apply TT defaults (WS1) ===
@@ -142,8 +159,9 @@ def lower(
     mod = apply_tt_defaults(mod)
 
     # === Phase 2: Frontend lowering (shared with CUDA) ===
-    # TODO Task 2: Uncomment when LowerAndLegalize is enabled
-    # mod = LowerAndLegalizeTT(mod, target)
+    # Wrap in target context for passes that need it (e.g., LayoutInference)
+    with target:
+        mod = LowerAndLegalizeTT(mod, target)
 
     # === Phase 3: TT-specific optimizations ===
     # TODO Task 3-4: Uncomment when OptimizeForTargetTT is implemented

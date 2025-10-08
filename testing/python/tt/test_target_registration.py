@@ -48,19 +48,41 @@ def test_determine_target_raises_when_backend_disabled(toggle_tt_backend):
         _target_mod.determine_target(_target_mod.TENSTORRENT_TARGET)
 
 
-def test_tenstorrent_engine_lower_raises_not_implemented(toggle_tt_backend):
+def test_tenstorrent_engine_lower_returns_compiled_artifact(toggle_tt_backend):
+    """Test that TT lowering returns a CompiledArtifact (Task 1+2 complete)."""
     toggle_tt_backend(True)
-    with pytest.raises(
-            NotImplementedError, match="Tenstorrent backend lowering is not yet implemented"):
-        _tt_lower.lower(
-            tvm.IRModule(),
-            params=None,
-            target=_target_mod.TENSTORRENT_TARGET,
-            target_host=None,
-            runtime_only=False,
-            enable_host_codegen=False,
-            enable_device_compile=False,
-        )
+
+    # Use TileLang DSL to create a proper kernel
+    import tilelang.language as T
+
+    @T.prim_func
+    def simple_copy(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16")):
+        with T.Kernel(1, 1) as (bx, by):
+            for i, j in T.Parallel(32, 32):
+                B[i, j] = A[i, j]
+
+    # Create IRModule
+    mod = tvm.IRModule({"main": simple_copy})
+
+    # Call lowering
+    result = _tt_lower.lower(
+        mod,
+        params=None,
+        target=_target_mod.TENSTORRENT_TARGET,
+        target_host=None,
+        runtime_only=False,
+        enable_host_codegen=False,
+        enable_device_compile=False,
+    )
+
+    # Verify result is a CompiledArtifact with expected attributes
+    assert isinstance(result, CompiledArtifact)
+    assert hasattr(result, 'host_mod')
+    assert hasattr(result, 'device_mod')
+    assert hasattr(result, 'params')
+    assert hasattr(result, 'kernel_source')
+    assert isinstance(result.host_mod, tvm.IRModule)
+    assert isinstance(result.device_mod, tvm.IRModule)
 
 
 def test_tenstorrent_engine_lower_validates_target(toggle_tt_backend):
