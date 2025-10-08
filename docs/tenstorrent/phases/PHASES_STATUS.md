@@ -33,9 +33,9 @@
 
 | # | Example | Status | PRs | Notes |
 |---|---------|--------|-----|-------|
-| 1.1 | Elementwise Add | 🟡 30% | #53, #54 | DST foundation done, intrinsics pending |
+| 1.1 | Elementwise Add | 🟡 40% | #53, #54, #56 | DST ✅, intrinsics ⏳ |
 | 1.2 | Multi-operand Elementwise | ⏳ 0% | - | Blocked by 1.1 |
-| 1.3 | Simple GEMM | ⏳ 0% | - | DST foundation ready, K-loop pending |
+| 1.3 | Simple GEMM | 🟡 30% | - | DST ✅, K-loop ✅, intrinsics ⏳ |
 
 ### Completed Work
 
@@ -57,15 +57,21 @@
   - Timeline estimates and dependencies
   - Master status tracking dashboard
 
+- ✅ PR #56: DST Foundation + Elementwise Infrastructure (MERGED)
+  - Proper TileLang IR structure for elementwise add
+  - EmitElementwiseAddIntrinsic() codegen method
+  - Mock APIs for element-wise operations
+  - **DST lifecycle fully working**: acquire→commit→release ✅
+  - Status tracking updated
+
 ### Pending Work
 
-- ⏳ Element-wise intrinsic annotation
-- ⏳ CB management for inputs/outputs
+- ⏳ Pattern recognition for T.copy and T.gemm operations
+- ⏳ Intrinsic emission for element-wise and matmul
+- ⏳ CB management for inputs (wait/pop)
 - ⏳ Tile indexing recovery
-- ⏳ K-loop bounds extraction
-- ⏳ Matmul intrinsic emission
 
-**Next Milestone**: Complete 1.1 Elementwise Add (example fully working)
+**Next Milestone**: Complete intrinsic emission (replace "unsupported call" with actual intrinsics)
 
 ---
 
