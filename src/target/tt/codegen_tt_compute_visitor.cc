@@ -142,6 +142,36 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
   // Track loop depth
   loop_depth_++;
 
+  // Detect tile-sized loops (32x32 element-wise operations)
+  bool is_tile_loop_outer = (extent_expr == "32" && loop_depth_ >= 2);
+  if (is_tile_loop_outer) {
+    // Check if the body contains a nested 32-sized loop (i,j pattern)
+    if (auto* inner_for = op->body.as<ForNode>()) {
+      std::string inner_extent = EmitExpr(inner_for->extent);
+      if (inner_extent == "32") {
+        // Found T.grid(32, 32) pattern - emit element-wise intrinsic instead
+        EmitLine("// Wait for input tiles from reader");
+        EmitLine("cb_wait_front(CB_A, 1);");
+        EmitLine("cb_wait_front(CB_B, 1);");
+        EmitLine("");
+
+        EmitLine("// Compute C = A + B (element-wise)");
+        EmitLine("add_tiles_init();");
+        EmitLine("add_tiles(CB_A, CB_B, 0, 0, 0);");
+        EmitLine("");
+
+        EmitLine("// Pop input tiles");
+        EmitLine("cb_pop_front(CB_A, 1);");
+        EmitLine("cb_pop_front(CB_B, 1);");
+        EmitLine("");
+
+        // Skip the loop body (already emitted intrinsic)
+        loop_depth_--;
+        return;
+      }
+    }
+  }
+
   // Detect K-loop (inner loop for matmul accumulation)
   bool is_k_loop = (loop_var == "kt" || loop_var.find("kt") != std::string::npos ||
                     loop_var == "k" || loop_var.find("_k") != std::string::npos);
