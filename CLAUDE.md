@@ -12,33 +12,40 @@ This repository (`tilelang-tt`) is a **public fork** focused on adding first-cla
 
 **⭐ AUTHORITATIVE PLAN:** **[docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md)** (Version 2.0 FINAL)
 
-The unified plan clearly separates:
-- **MVP Phase 1** (Current): Template-based dry-run matmul - **23 tests passing**
-- **MVP Phase 2** (Future): IR-driven production backend - Target 50+ tests
+**Current Status (2025-10-08):**
 
-**Key Documents:**
-- 📋 **Main Plan**: `UNIFIED_MATMUL_MVP_PLAN.md` - Complete MVP specification
-- 🔍 **TIR Specs**: `TIR_SPECIFICATIONS.md` - Detailed IR transformations
-- 💡 **POC Example**: `examples/tenstorrent/example_matmul_tt_poc.py` - Complete workflow demo
-
-**Current Status (2025-10-07):**
+**✅ IR-Driven Backend Complete (95 tests passing)**
 - ✅ WS1: Target registration (8 tests)
 - ✅ WS2: Metadata inference (7 tests)
-- ✅ WS3: GridToPersistentTT foundation (3 tests)
-- ⚠️ WS4-6: Template-based codegen (5 tests) - **Matmul-only, mock APIs**
-- **Total: 23 tests passing**
+- ✅ WS3-Extended: Full transform pipeline (39 tests)
+  - GridToPersistentTT, TTShardToCoreMap, MemorySpaceLowerTT
+  - TilePadTT, TensorizeTT, VerifyTTIR
+- ✅ IR-Driven Codegen: Complete visitor infrastructure (41 tests)
+  - Base visitor, Compute visitor, Reader/Writer visitors
+  - Full WS4-6 integration
 
-**Phase 1 Limitations (By Design):**
-- ⚠️ Template-based codegen (not IR-driven)
-- ⚠️ Matmul-only (hardcoded patterns)
-- ⚠️ Mock Metalium APIs (dry-run only)
-- ⚠️ No hardware execution
+**✅ Metalium API Integration (Weeks 16-18 Complete)**
+- ✅ Week 16: Kernel headers with conditional compilation
+- ✅ Week 17: Host program generation (real/mock modes)
+- ✅ Week 18: CMake build system integration
+- ⚠️ Weeks 19-22: SDK validation (blocked - needs SDK access)
 
-**Phase 2 Will Address:**
-- IR-walking codegen for arbitrary kernels
-- Real Metalium API integration
-- Hardware execution
-- 5 deferred WS3 transforms
+**Total: 95 tests passing**
+
+**Key Documents:**
+- 📋 **MVP Plan** (Historical): `UNIFIED_MATMUL_MVP_PLAN.md` - Original MVP spec
+- 🔍 **IR Codegen Plan** (Completed): `IR_DRIVEN_CODEGEN_PLAN.md` - Tasks 1-6
+- 🔧 **Metalium Integration** (Current): `METALIUM_INTEGRATION_PLAN.md` - Weeks 16-18
+- ✅ **SDK Validation Plan** (Next): `METALIUM_SDK_VALIDATION_PLAN.md` - API gaps & testing
+- 💡 **POC Example**: `examples/tenstorrent/example_matmul_tt_poc.py` - Workflow demo
+
+**Build Modes:**
+- **Mock mode** (default): All tests pass, dry-run code generation
+- **Real mode**: `cmake -DUSE_REAL_METALIUM=ON` (requires TT_METAL_HOME)
+
+**Next Steps:**
+- Obtain TT-Metalium SDK access for validation
+- See `METALIUM_SDK_VALIDATION_PLAN.md` for detailed roadmap
 
 ## Repository Information
 
@@ -213,15 +220,16 @@ The format script will show diffs; manually apply changes or use auto-formatting
 
 **Key concept:** Users write grid-style kernels with `T.Kernel(grid_x, grid_y)` using block indices `(bx, by)`. The backend generates a **persistent outer loop** for each core that iterates over assigned tiles, recovering `(bx, by)` from a static schedule.
 
-**Current Status (2025-10-07):**
-- ✅ **WS1-3 Complete (60%)** - Target registration, metadata inference, basic transforms
-- 🚧 **WS4-6 In Progress (40%)** - Codegen needs API correctness fixes (see UNIFIED_MATMUL_MVP_PLAN.md)
+**Current Status (2025-10-08):**
+- ✅ **IR-Driven Backend Complete (100%)** - All transforms and codegen operational
+- ✅ **Metalium Integration Complete** - Weeks 16-18 (conditional compilation ready)
+- ⚠️ **SDK Validation Pending** - Weeks 19-22 (blocked by SDK access)
 
-**Architecture Details:** See [docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md) for:
-- Complete IR flow (TileLang → WS1 → WS2 → WS3 → WS4-6)
-- TT vs CUDA stack comparison
-- Matmul IR with TT extensions (detailed examples)
-- Generated kernel structure (compute, reader, writer, host)
+**Architecture Details:** See documentation for:
+- **IR Flow**: `IR_DRIVEN_CODEGEN_PLAN.md` - Complete visitor-based codegen
+- **Metalium Integration**: `METALIUM_INTEGRATION_PLAN.md` - Real/mock API conditional compilation
+- **SDK Validation**: `METALIUM_SDK_VALIDATION_PLAN.md` - API gaps & validation phases
+- **Original MVP**: `UNIFIED_MATMUL_MVP_PLAN.md` - Historical reference
 
 **Components:**
 
@@ -238,19 +246,26 @@ The format script will show diffs; manually apply changes or use auto-formatting
    - `tilelang/tt/passes.py` - Python bindings
    - 7 tests passing
 
-3. **WS3: TIR Transform Pipeline (Foundation)** ✅ FOUNDATION COMPLETE
-   - `src/transform/tt/grid_to_persistent_tt.cc` - GridToPersistentTT implemented
-   - **Deferred to post-MVP:** TTShardToCoreMap, MemorySpaceLowerTT, TilePadTT, TensorizeTT, VerifyTTIR
-   - 3 tests passing
+3. **WS3: TIR Transform Pipeline** ✅ COMPLETE (Extended)
+   - `src/transform/tt/grid_to_persistent_tt.cc` - GridToPersistentTT
+   - `src/transform/tt/tt_shard_to_core_map.cc` - TTShardToCoreMap
+   - `src/transform/tt/memory_space_lower_tt.cc` - MemorySpaceLowerTT
+   - `src/transform/tt/tile_pad_tt.cc` - TilePadTT
+   - `src/transform/tt/tensorize_tt.cc` - TensorizeTT
+   - `src/transform/tt/verify_tt_ir.cc` - VerifyTTIR
+   - 39 tests passing
 
-4. **WS4-6: Code Generation** 🚧 40% COMPLETE - NEEDS API FIXES
-   - `src/target/tt/codegen_tt.cc` - Codegen implementation exists
-   - **Critical gaps (see UNIFIED_MATMUL_MVP_PLAN.md):**
-     - ❌ Compute kernel missing K-loop (not real matmul)
-     - ❌ Reader/writer wrong tile indexing
-     - ❌ Mock APIs instead of real Metalium
-     - ❌ Hardcoded dimensions instead of reading from IR
-   - Tests exist but need updates after fixes
+4. **WS4-6: Code Generation** ✅ COMPLETE (IR-Driven)
+   - `src/target/tt/codegen_tt.cc` - Base codegen framework
+   - `src/target/tt/codegen_tt_visitor_base.cc` - IR walking infrastructure
+   - `src/target/tt/codegen_tt_compute_visitor.cc` - Compute kernel generation
+   - `src/target/tt/codegen_tt_reader_visitor.cc` - Reader kernel generation
+   - `src/target/tt/codegen_tt_writer_visitor.cc` - Writer kernel generation
+   - **Metalium Integration (Weeks 16-18):**
+     - ✅ Conditional compilation (real/mock modes)
+     - ✅ Real Metalium headers in generated code
+     - ⚠️ SDK validation pending (needs hardware access)
+   - 41 tests passing
 
 ### Directory Structure
 
@@ -342,33 +357,42 @@ LD_LIBRARY_PATH=build/tvm pytest testing/python/tt/ -v
 
 ### For Tenstorrent Backend Development
 
-**Primary Reference:** [docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md)
+**Primary Reference:** [docs/tenstorrent/METALIUM_SDK_VALIDATION_PLAN.md](docs/tenstorrent/METALIUM_SDK_VALIDATION_PLAN.md)
 
-1. **Current Priority:** Complete WS4-6 (Code Generation)
-   - Fix compute kernel K-loop (matmul accumulation)
-   - Fix reader/writer tile indexing (A[m,k], B[k,n] pattern)
-   - Replace mock APIs with real Metalium structure
-   - Extract buffer dimensions from IR
-   - Update runtime args to match Metalium examples
+1. **Current Status:** IR-Driven Backend Complete (95 tests)
+   - ✅ All transforms implemented and tested
+   - ✅ IR-driven codegen with visitor pattern
+   - ✅ Metalium API integration (conditional compilation)
+   - ⚠️ SDK validation pending (blocked by SDK access)
 
-2. **Branch naming:** Use `ws<N>-*` prefix for workstream tasks
+2. **Current Priority:** SDK Validation (Weeks 19-22)
+   - **Phase 1:** Dry-run compilation with real SDK
+     - Fix include paths and namespace issues
+     - Verify API signatures match documentation
+   - **Phase 2:** Complete missing APIs
+     - Implement EnqueueWriteBuffer/ReadBuffer
+     - Complete SetRuntimeArgs implementation
+   - **Phase 3:** Hardware execution
+     - Run matmul on Grayskull/Wormhole
+     - Validate correctness and performance
 
-3. **Key files to modify:**
-   - `src/target/tt/codegen_tt.cc` - Main codegen (EmitTTComputeKernel, EmitTTReaderKernel, EmitTTWriterKernel, EmitTTHostProgram)
-   - `testing/python/tt/test_ws4_codegen.py` - Compute kernel tests
-   - `testing/python/tt/test_ws5_reader_writer.py` - Reader/writer tests
-   - `testing/python/tt/test_ws6_host_program.py` - Host program tests
-   - `testing/python/tt/test_mvp_acceptance.py` - End-to-end MVP test
+3. **Branch naming:** Use `phase<N>-*` or `sdk-*` prefix for validation tasks
 
-4. **Testing strategy:**
-   - WS1-3: 18 tests passing ✅
-   - WS4-6: ~20 tests exist, need updates after API fixes
-   - Target: 40+ tests passing for MVP completion
+4. **Key files for SDK validation:**
+   - `src/target/tt/codegen_tt.cc` - Host program EmitTTHostProgram()
+   - `src/target/tt/codegen_tt_*_visitor.cc` - Kernel generation visitors
+   - `cmake/FindMetalium.cmake` - SDK detection
+   - `CMakeLists.txt` - Build configuration
 
-5. **Documentation:**
-   - Update workstream STATUS.md files after completion
-   - Update UNIFIED_MATMUL_MVP_PLAN.md with progress
-   - Add inline comments for complex codegen logic
+5. **Testing strategy:**
+   - Mock mode: 95 tests passing ✅
+   - Real mode: Pending SDK access
+   - Hardware tests: Pending Phase 3
+
+6. **Documentation:**
+   - See METALIUM_SDK_VALIDATION_PLAN.md for complete roadmap
+   - Update status after each validation phase
+   - Document any API discrepancies discovered
 
 ## Autonomous Workstream Execution Framework
 
