@@ -42,12 +42,37 @@ namespace tl {
 
 using namespace tir;
 
-// Helper function to extract grid dimensions from function body
-// Returns (grid_x, grid_y, grid_z) by analyzing blockIdx launch threads
+// Helper function to extract grid dimensions from function attributes or body
+// Returns (grid_x, grid_y, grid_z) by checking attributes first, then analyzing blockIdx
 std::tuple<int, int, int> ExtractGridDimensions(const PrimFunc& f) {
   int grid_x = 1, grid_y = 1, grid_z = 1;
 
-  // Visitor to find blockIdx thread extents
+  // First, check if grid dimensions are already in function attributes
+  // This supports both tl.grid_x (TileLang convention) and tt_grid_x (TT backend)
+  if (auto gx = f->attrs.GetAttr<Integer>("tl.grid_x")) {
+    grid_x = static_cast<int>(gx.value()->value);
+  } else if (auto gx = f->attrs.GetAttr<Integer>("tt_grid_x")) {
+    grid_x = static_cast<int>(gx.value()->value);
+  }
+
+  if (auto gy = f->attrs.GetAttr<Integer>("tl.grid_y")) {
+    grid_y = static_cast<int>(gy.value()->value);
+  } else if (auto gy = f->attrs.GetAttr<Integer>("tt_grid_y")) {
+    grid_y = static_cast<int>(gy.value()->value);
+  }
+
+  if (auto gz = f->attrs.GetAttr<Integer>("tl.grid_z")) {
+    grid_z = static_cast<int>(gz.value()->value);
+  } else if (auto gz = f->attrs.GetAttr<Integer>("tt_grid_z")) {
+    grid_z = static_cast<int>(gz.value()->value);
+  }
+
+  // If attributes found, return them
+  if (grid_x > 1 || grid_y > 1 || grid_z > 1) {
+    return {grid_x, grid_y, grid_z};
+  }
+
+  // Otherwise, fall back to extracting from IR body (blockIdx thread extents)
   class GridExtractor : public StmtVisitor {
    public:
     int grid_x = 1, grid_y = 1, grid_z = 1;
