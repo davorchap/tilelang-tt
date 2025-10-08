@@ -24,6 +24,9 @@
 
 #include "codegen_tt_compute_visitor.h"
 
+#include <tvm/tir/expr.h>
+#include <tvm/tir/op.h>
+
 #include <sstream>
 
 namespace tvm {
@@ -205,6 +208,28 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
   loop_depth_--;
 }
 
+void TTComputeCodegenVisitor::VisitStmt_(const EvaluateNode* op) {
+  // Check if this is a tl.copy or tl.gemm call
+  if (auto* call = op->value.as<CallNode>()) {
+    if (auto* op_node = call->op.as<OpNode>()) {
+      std::string op_name = op_node->name;
+
+      if (op_name == "tl.copy") {
+        // T.copy() call - skip in compute kernel (handled by reader/writer)
+        EmitLine("// T.copy - handled by reader/writer kernels");
+        return;
+      } else if (op_name == "tl.gemm") {
+        // T.gemm() call - emit matmul intrinsics
+        EmitGemmIntrinsic(call);
+        return;
+      }
+    }
+  }
+
+  // Default: handle normally
+  TTCodegenVisitor::VisitStmt_(op);
+}
+
 void TTComputeCodegenVisitor::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == "tt.matmul_intrinsic") {
     // Found matmul intrinsic annotation
@@ -288,6 +313,43 @@ void TTComputeCodegenVisitor::EmitMatmulIntrinsic(const AttrStmtNode* op) {
 
   // Visit body if any
   VisitStmt(op->body);
+}
+
+void TTComputeCodegenVisitor::EmitGemmIntrinsic(const CallNode* call) {
+  // Emit T.gemm() intrinsic
+  // Pattern 3 (K-loop GEMM): DST held across K iterations for accumulation
+
+  if (!matmul_init_emitted_) {
+    // First matmul: emit init
+    EmitLine("// Initialize matmul");
+    EmitLine("matmul_tiles_init(CB_A, CB_B, CB_C);");
+    matmul_init_emitted_ = true;
+  }
+
+  // Wait for input tiles
+  EmitLine("// Wait for input tiles from reader");
+  EmitLine("cb_wait_front(CB_A, 1);");
+  EmitLine("cb_wait_front(CB_B, 1);");
+  EmitLine("");
+
+  // Emit matmul operation
+  bool accumulate = (current_k_iter_ > 0);
+  if (accumulate) {
+    EmitLine("// Matmul: accumulate");
+    EmitLine("matmul_tiles(CB_A, CB_B, CB_C, true);");
+  } else {
+    EmitLine("// Matmul: first K iteration");
+    EmitLine("matmul_tiles(CB_A, CB_B, CB_C, false);");
+  }
+  EmitLine("");
+
+  // Pop input tiles
+  EmitLine("// Release input tiles");
+  EmitLine("cb_pop_front(CB_A, 1);");
+  EmitLine("cb_pop_front(CB_B, 1);");
+  EmitLine("");
+
+  current_k_iter_++;
 }
 
 void TTComputeCodegenVisitor::EmitElementwiseAddIntrinsic(const AttrStmtNode* op) {

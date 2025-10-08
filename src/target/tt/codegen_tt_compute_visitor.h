@@ -68,6 +68,11 @@ class TTComputeCodegenVisitor : public TTCodegenVisitor {
   void VisitStmt_(const ForNode* op) override;
 
   /*!
+   * \brief Visit evaluate node (detect T.copy, T.gemm calls)
+   */
+  void VisitStmt_(const EvaluateNode* op) override;
+
+  /*!
    * \brief Visit attribute statement (detect matmul intrinsic, copy ops)
    */
   void VisitStmt_(const AttrStmtNode* op) override;
@@ -89,6 +94,12 @@ class TTComputeCodegenVisitor : public TTCodegenVisitor {
    * \param op The attribute statement containing elementwise_add annotation
    */
   void EmitElementwiseAddIntrinsic(const AttrStmtNode* op);
+
+  /*!
+   * \brief Emit T.gemm() intrinsic operation
+   * \param call The call node containing T.gemm() call
+   */
+  void EmitGemmIntrinsic(const CallNode* call);
 
   /*!
    * \brief Emit CB wait operation
