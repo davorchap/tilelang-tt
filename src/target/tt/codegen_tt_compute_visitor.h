@@ -37,14 +37,74 @@ namespace tvm {
 namespace tl {
 
 /*!
+ * \brief Compute pattern types for code generation
+ *
+ * Identifies the type of computation being performed to emit
+ * appropriate initialization and compute APIs.
+ */
+enum class ComputePattern {
+  UNKNOWN,      //!< Pattern not yet determined
+  MATMUL,       //!< Matrix multiplication (T.gemm) - mm_init/matmul_tiles
+  REDUCTION,    //!< Sum reduction - reduce_tiles_init/reduce_tiles
+  ELEMENTWISE,  //!< Element-wise ops (add, mul) - binary_op_init_common/add_tiles
+  GEMV,         //!< Matrix-vector multiply - gemv_init/gemv_tiles
+  CUSTOM        //!< User-defined or composite patterns
+};
+
+/*!
+ * \brief Pattern detector for analyzing loop bodies
+ *
+ * Traverses IR to identify computation patterns before code generation.
+ * This enables emitting correct initialization APIs and compute intrinsics.
+ */
+class PatternDetector {
+ public:
+  /*!
+   * \brief Detect computation pattern in a loop body
+   * \param loop The for loop to analyze
+   * \return Detected pattern type
+   */
+  static ComputePattern DetectPattern(const ForNode* loop);
+
+ private:
+  /*!
+   * \brief Check if loop body contains T.gemm() call
+   * \param body The statement to analyze
+   * \return True if T.gemm() is present
+   */
+  static bool HasGemmCall(const Stmt& body);
+
+  /*!
+   * \brief Check if loop body has reduction pattern (accumulation into same variable)
+   * \param body The statement to analyze
+   * \return True if reduction pattern detected
+   */
+  static bool HasReductionPattern(const Stmt& body);
+
+  /*!
+   * \brief Check if loop body has element-wise operations (independent tile ops)
+   * \param body The statement to analyze
+   * \return True if element-wise pattern detected
+   */
+  static bool HasElementwisePattern(const Stmt& body);
+
+  /*!
+   * \brief Check if loop body has GEMV pattern (matrix-vector multiply)
+   * \param body The statement to analyze
+   * \return True if GEMV pattern detected
+   */
+  static bool HasGemvPattern(const Stmt& body);
+};
+
+/*!
  * \brief Compute kernel visitor for TT backend
  *
  * Generates MAIN() function that processes output tiles with:
  * - Runtime argument extraction (start_tile_id, num_tiles, Kt)
  * - Persistent loop over assigned tiles
- * - K-loop for matmul accumulation
+ * - K-loop for matmul/reduction/other accumulation patterns
  * - Circular buffer operations (wait, pop, push)
- * - Matmul tile intrinsics
+ * - Pattern-specific tile intrinsics
  */
 class TTComputeCodegenVisitor : public TTCodegenVisitor {
  public:
@@ -170,6 +230,18 @@ class TTComputeCodegenVisitor : public TTCodegenVisitor {
 
   /*! \brief Track loop nesting depth */
   int loop_depth_;
+
+  /*! \brief Pattern detection: map loop nodes to detected patterns */
+  std::map<const ForNode*, ComputePattern> loop_patterns_;
+
+  /*! \brief Pattern detection: currently active pattern */
+  ComputePattern current_pattern_;
+
+  /*! \brief Track if reduction init has been emitted */
+  bool reduction_init_emitted_;
+
+  /*! \brief Track if GEMV init has been emitted */
+  bool gemv_init_emitted_;
 };
 
 }  // namespace tl
