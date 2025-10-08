@@ -63,6 +63,7 @@ else()
 endif()
 
 # include cmake modules
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CheckCXXCompilerFlag)
 
 # Enable static runtime build if required
@@ -208,6 +209,37 @@ if(USE_ROCM)
   list(APPEND TILE_LANG_INCLUDES ${ROCM_INCLUDE_DIRS})
 endif(USE_ROCM)
 
+# Find TT-Metalium SDK (optional, for Tenstorrent hardware support)
+option(USE_REAL_METALIUM "Use real TT-Metalium APIs instead of mock APIs" OFF)
+
+if(USE_REAL_METALIUM)
+  find_package(Metalium)
+
+  if(Metalium_FOUND)
+    message(STATUS "Building with REAL TT-Metalium APIs")
+    message(STATUS "Metalium version: ${Metalium_VERSION}")
+    message(STATUS "Metalium includes: ${Metalium_INCLUDE_DIRS}")
+    message(STATUS "Metalium libraries: ${Metalium_LIBRARIES}")
+
+    # Add Metalium include directories
+    list(APPEND TILE_LANG_INCLUDES ${Metalium_INCLUDE_DIRS})
+
+    # Add compile definition to enable real Metalium code paths
+    add_compile_definitions(TL_USE_REAL_METALIUM)
+
+    # Store Metalium libraries for linking
+    set(METALIUM_LINK_LIBRARIES ${Metalium_LIBRARIES})
+  else()
+    message(WARNING "USE_REAL_METALIUM is ON but Metalium SDK not found.")
+    message(WARNING "TT_METAL_HOME environment variable not set or SDK not installed.")
+    message(WARNING "Falling back to MOCK Metalium APIs (dry-run only).")
+    set(USE_REAL_METALIUM OFF CACHE BOOL "Use real TT-Metalium APIs" FORCE)
+  endif()
+else()
+  message(STATUS "Building with MOCK TT-Metalium APIs (dry-run only)")
+  message(STATUS "To enable real Metalium: cmake -DUSE_REAL_METALIUM=ON")
+endif()
+
 # Define compile-time macros
 set(TILE_LANG_COMPILE_DEFS
   DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>
@@ -223,6 +255,12 @@ target_compile_definitions(tilelang_objs PRIVATE -DTILE_LANG_EXPORTS)
 # Shared library
 add_library(tilelang SHARED $<TARGET_OBJECTS:tilelang_objs>)
 target_link_libraries(tilelang PUBLIC tvm_runtime)
+
+# Link Metalium libraries if available
+if(METALIUM_LINK_LIBRARIES)
+  target_link_libraries(tilelang PRIVATE ${METALIUM_LINK_LIBRARIES})
+  target_link_libraries(tilelang_static PRIVATE ${METALIUM_LINK_LIBRARIES})
+endif()
 
 # Static library
 add_library(tilelang_static STATIC $<TARGET_OBJECTS:tilelang_objs>)
