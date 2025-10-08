@@ -153,11 +153,22 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
     EmitLine("// Outer loop: process output tile");
     EmitDSTAcquire();
     EmitLine("");
+
+    // Reset K-loop iteration counter for each output tile
+    current_k_iter_ = 0;
+    matmul_init_emitted_ = false;
   }
 
-  // Emit K-loop comment if detected
+  // Emit K-loop comment and init if detected
   if (is_k_loop) {
     EmitLine("// K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)");
+
+    // Emit matmul_tiles_init() before entering K-loop (only once per output tile)
+    if (!matmul_init_emitted_) {
+      EmitLine("// Initialize matmul");
+      EmitLine("matmul_tiles_init(CB_A, CB_B, CB_C);");
+      matmul_init_emitted_ = true;
+    }
   }
 
   // Emit loop header (build as string to avoid clearing code_ stream)
@@ -318,13 +329,7 @@ void TTComputeCodegenVisitor::EmitMatmulIntrinsic(const AttrStmtNode* op) {
 void TTComputeCodegenVisitor::EmitGemmIntrinsic(const CallNode* call) {
   // Emit T.gemm() intrinsic
   // Pattern 3 (K-loop GEMM): DST held across K iterations for accumulation
-
-  if (!matmul_init_emitted_) {
-    // First matmul: emit init
-    EmitLine("// Initialize matmul");
-    EmitLine("matmul_tiles_init(CB_A, CB_B, CB_C);");
-    matmul_init_emitted_ = true;
-  }
+  // Note: matmul_tiles_init() is emitted before K-loop in ForNode visitor
 
   // Wait for input tiles
   EmitLine("// Wait for input tiles from reader");
@@ -332,7 +337,7 @@ void TTComputeCodegenVisitor::EmitGemmIntrinsic(const CallNode* call) {
   EmitLine("cb_wait_front(CB_B, 1);");
   EmitLine("");
 
-  // Emit matmul operation
+  // Emit matmul operation with accumulation based on K iteration
   bool accumulate = (current_k_iter_ > 0);
   if (accumulate) {
     EmitLine("// Matmul: accumulate");

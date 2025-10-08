@@ -47,11 +47,11 @@ void MAIN() {
     for (uint32_t i = 0; i < tt_count; ++i) {
         /* unsupported call */;
         // K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)
+        // Initialize matmul
+        matmul_tiles_init(CB_A, CB_B, CB_C);
         for (uint32_t k = 0; k < 8; ++k) {
             // T.copy - handled by reader/writer kernels
             // T.copy - handled by reader/writer kernels
-            // Initialize matmul
-            matmul_tiles_init(CB_A, CB_B, CB_C);
             // Wait for input tiles from reader
             cb_wait_front(CB_A, 1);
             cb_wait_front(CB_B, 1);
