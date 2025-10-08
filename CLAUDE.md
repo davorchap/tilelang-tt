@@ -36,6 +36,7 @@ This repository (`tilelang-tt`) is a **public fork** focused on adding first-cla
 - 📋 **MVP Plan** (Historical): `UNIFIED_MATMUL_MVP_PLAN.md` - Original MVP spec
 - 🔍 **IR Codegen Plan** (Completed): `IR_DRIVEN_CODEGEN_PLAN.md` - Tasks 1-6
 - 🔧 **Metalium Integration** (Current): `METALIUM_INTEGRATION_PLAN.md` - Weeks 16-18
+- ⚙️ **Metalium Setup Guide**: `METALIUM_SETUP_GUIDE.md` - SDK installation & build instructions
 - ✅ **SDK Validation Plan** (Next): `METALIUM_SDK_VALIDATION_PLAN.md` - API gaps & testing
 - 💡 **POC Example**: `examples/tenstorrent/example_matmul_tt_poc.py` - Workflow demo
 
@@ -116,6 +117,7 @@ gh pr create --repo davorchap/tilelang-tt --base main --head feature-branch-name
 - `USE_LLVM=true` - Enable LLVM backend (CPU-only builds, required for Tenstorrent CI)
 - `USE_ROCM=true` - Enable AMD ROCm backend (requires `ROCM_HOME`)
 - `USE_CUDA=true` - Default; requires `CUDA_HOME` (automatically detected)
+- `USE_REAL_METALIUM=true` - Enable real TT-Metalium SDK integration (requires `TT_METAL_HOME`)
 - `DEBUG_MODE=true` - Build with debug symbols and logging
 - `WITH_COMMITID=true` - Include git commit ID in wheel filename (default for non-PyPI builds)
 - `PYPI_BUILD=true` - Build for PyPI distribution (clean version strings)
@@ -142,7 +144,7 @@ python setup.py build_ext --inplace
 pip install -e .
 ```
 
-**LLVM-only build (for CPU/Tenstorrent development):**
+**LLVM-only build (for CPU/Tenstorrent development - mock mode):**
 ```bash
 USE_LLVM=true pip install -e .
 ```
@@ -150,6 +152,19 @@ USE_LLVM=true pip install -e .
 **ROCm build:**
 ```bash
 USE_ROCM=true pip install -e .
+```
+
+**Tenstorrent with Real Metalium SDK:**
+```bash
+# See docs/tenstorrent/METALIUM_SETUP_GUIDE.md for SDK installation
+
+# Set environment (after installing tt-metal)
+export TT_METAL_HOME=/path/to/tt-metal
+
+# Build with real Metalium APIs
+cmake -B build -DUSE_LLVM=true -DUSE_REAL_METALIUM=ON
+cmake --build build -j$(nproc)
+pip install -e . --no-build-isolation
 ```
 
 The build system:
