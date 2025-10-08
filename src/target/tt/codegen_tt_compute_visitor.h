@@ -85,6 +85,12 @@ class TTComputeCodegenVisitor : public TTCodegenVisitor {
   void EmitMatmulIntrinsic(const AttrStmtNode* op);
 
   /*!
+   * \brief Emit element-wise add intrinsic operation
+   * \param op The attribute statement containing elementwise_add annotation
+   */
+  void EmitElementwiseAddIntrinsic(const AttrStmtNode* op);
+
+  /*!
    * \brief Emit CB wait operation
    * \param cb_id Circular buffer ID
    * \param ntiles Number of tiles to wait for
