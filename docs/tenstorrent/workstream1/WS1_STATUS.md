@@ -23,7 +23,7 @@ Workstream 1 focuses on enabling TileLang to recognize `target="tenstorrent"`, s
 
 ## Completed
 
-### ✅ Target Registration (`ws1_target_registration.md`)
+### ✅ Target Registration
 **Status:** Complete
 **Merged:** PR #19
 **Location:** `tilelang/utils/target.py`
@@ -42,7 +42,7 @@ Workstream 1 focuses on enabling TileLang to recognize `target="tenstorrent"`, s
 
 ---
 
-### ✅ Engine Adapter (`ws1_engine_adapter.md`)
+### ✅ Engine Adapter
 **Status:** Complete
 **Merged:** PR #19
 **Location:** `tilelang/engine/tt/`
@@ -59,7 +59,7 @@ Workstream 1 focuses on enabling TileLang to recognize `target="tenstorrent"`, s
 
 ---
 
-### ✅ Target Registration Tests (`ws1_target_registration_test.md`)
+### ✅ Target Registration Tests
 **Status:** Complete
 **Merged:** PR #19
 **Location:** `testing/python/tt/test_target_registration.py`
@@ -92,7 +92,7 @@ Workstream 1 focuses on enabling TileLang to recognize `target="tenstorrent"`, s
 
 ---
 
-### ✅ Default Annotation Helper (`ws1_default_annotation_helper.md`)
+### ✅ Default Annotation Helper
 **Status:** Complete
 **Location:** `tilelang/tt/target.py`
 
@@ -111,7 +111,7 @@ Workstream 1 focuses on enabling TileLang to recognize `target="tenstorrent"`, s
 **What it does:**
 Allows existing GPU-style kernels to run on TT with minimal changes by providing sensible defaults when users don't specify TT-specific annotations.
 
-### ✅ Lower Hook (`ws1_lower_hook.md`)
+### ✅ Lower Hook
 **Status:** Complete
 **Location:** `tilelang/engine/tt/lower.py`
 
@@ -233,14 +233,12 @@ Once WS1 is complete, WS2 will focus on:
 
 - [Unified MVP Plan](../UNIFIED_MATMUL_MVP_PLAN.md) - Overall TT backend MVP plan
 - [Local Build Guide](../local_build_guide.md) - Build and test instructions
-- [WS1 Target Registration](ws1_target_registration.md) - Detailed task breakdown
-- [WS1 Engine Adapter](ws1_engine_adapter.md) - Engine implementation details
-- [WS1 Target Registration Test](ws1_target_registration_test.md) - Test specification
+- [CI Documentation](../CI.md) - Continuous integration setup
 
 ---
 
 ## Questions or Issues?
 
 - Check the [CLAUDE.md](../../CLAUDE.md) for development workflow
-- Review individual task `.md` files in this directory for detailed specs
+- See implementation details in source files listed above
 - Run the build script for automated setup and testing
