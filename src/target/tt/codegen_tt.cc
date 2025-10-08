@@ -95,14 +95,8 @@ MatmulDims ExtractMatmulDims(const PrimFunc& func) {
 }
 
 // =============================================================================
-// IR-Driven Codegen (New - Task 5)
+// IR-Driven Codegen
 // =============================================================================
-
-/*!
- * \brief Feature flag: Use IR-driven codegen instead of template-based
- * Set to false to use legacy template-based codegen for comparison
- */
-constexpr bool USE_IR_DRIVEN_CODEGEN = true;
 
 /*!
  * \brief Generate TT compute kernel using IR-driven visitor
@@ -126,219 +120,6 @@ std::string EmitTTReaderKernelIRDriven(const PrimFunc& func) {
 std::string EmitTTWriterKernelIRDriven(const PrimFunc& func) {
   TTWriterCodegenVisitor visitor(func);
   return visitor.GetFullKernel();
-}
-
-// =============================================================================
-// Template-Based Codegen (Legacy)
-// =============================================================================
-
-/*!
- * \brief Generate TT compute kernel C++ source (template-based)
- */
-std::string EmitTTComputeKernel(const PrimFunc& func) {
-  std::ostringstream code;
-
-  // Read metadata
-  auto grid_x = func->attrs.GetAttr<Integer>("tt_grid_x");
-  auto grid_y = func->attrs.GetAttr<Integer>("tt_grid_y");
-  auto num_cores = func->attrs.GetAttr<Integer>("tt_num_cores");
-
-  if (!grid_x.defined() || !grid_y.defined()) {
-    LOG(FATAL) << "Missing TT grid metadata for codegen";
-  }
-
-  // Generate kernel header
-  code << "// Generated TT Compute Kernel\n";
-  code << "// Grid: " << grid_x.value()->value << "x" << grid_y.value()->value << "\n";
-  code << "// Cores: " << (num_cores.defined() ? std::to_string(num_cores.value()->value) : "64")
-       << "\n\n";
-
-  code << "#include <cstdint>\n\n";
-
-  code << "// Mock TT intrinsics for dry-run\n";
-  code << "template<typename T>\n";
-  code << "inline T get_arg_val(uint32_t idx) { return T(); }\n\n";
-
-  code << "// Mock TT circular buffer APIs for dry-run\n";
-  code << "inline void cb_wait_front(uint32_t cb_id, uint32_t n_tiles) {}\n";
-  code << "inline void cb_reserve_back(uint32_t cb_id, uint32_t n_tiles) {}\n";
-  code << "inline void cb_pop_front(uint32_t cb_id, uint32_t n_tiles) {}\n";
-  code << "inline void cb_push_back(uint32_t cb_id, uint32_t n_tiles) {}\n\n";
-
-  code << "// Mock TT matmul compute APIs for dry-run\n";
-  code << "inline void matmul_tiles_init(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c) {}\n";
-  code << "inline void matmul_tiles(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c, bool accumulate) {}\n\n";
-
-  code << "// Circular Buffer Indices\n";
-  code << "constexpr uint32_t CB_A = 0;\n";
-  code << "constexpr uint32_t CB_B = 1;\n";
-  code << "constexpr uint32_t CB_C = 2;\n\n";
-
-  // Generate MAIN function
-  code << "void MAIN() {\n";
-  code << "    // Runtime arguments\n";
-  code << "    uint32_t out_tile_start_id = get_arg_val<uint32_t>(0);\n";
-  code << "    uint32_t num_output_tiles = get_arg_val<uint32_t>(1);\n";
-  code << "    uint32_t Kt = get_arg_val<uint32_t>(2);\n\n";
-
-  code << "    // Initialize matmul\n";
-  code << "    matmul_tiles_init(CB_A, CB_B, CB_C);\n\n";
-
-  code << "    // Process output tiles\n";
-  code << "    for (uint32_t out_tile = 0; out_tile < num_output_tiles; ++out_tile) {\n";
-  code << "        // K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)\n";
-  code << "        for (uint32_t kt = 0; kt < Kt; ++kt) {\n";
-  code << "            // Wait for input tiles from reader\n";
-  code << "            cb_wait_front(CB_A, 1);\n";
-  code << "            cb_wait_front(CB_B, 1);\n\n";
-
-  code << "            // Matmul: accumulate if not first K iteration\n";
-  code << "            matmul_tiles(CB_A, CB_B, CB_C, /* accumulate */ kt > 0);\n\n";
-
-  code << "            // Release input tiles\n";
-  code << "            cb_pop_front(CB_A, 1);\n";
-  code << "            cb_pop_front(CB_B, 1);\n";
-  code << "        }\n\n";
-
-  code << "        // Push computed output tile to writer\n";
-  code << "        cb_push_back(CB_C, 1);\n";
-  code << "    }\n";
-  code << "}\n";
-
-  return code.str();
-}
-
-/*!
- * \brief Generate TT reader kernel (DRAM → L1 circular buffers)
- */
-std::string EmitTTReaderKernel(const PrimFunc& func) {
-  std::ostringstream code;
-
-  // Extract matmul dimensions
-  MatmulDims dims = ExtractMatmulDims(func);
-  int Mt = dims.Mt;
-  int Kt = dims.Kt;
-  int Nt = dims.Nt;
-
-  // Generate reader kernel header
-  code << "// Generated TT Reader Kernel (DRAM → L1)\n";
-  code << "// Matmul Reader: Loads A[m,k] and B[k,n] tiles\n\n";
-
-  code << "#include <cstdint>\n\n";
-
-  code << "// Mock TT intrinsics for dry-run\n";
-  code << "template<typename T>\n";
-  code << "inline T get_arg_val(uint32_t idx) { return T(); }\n\n";
-
-  code << "// Mock TT circular buffer APIs for dry-run\n";
-  code << "inline void cb_reserve_back(uint32_t cb_id, uint32_t n_tiles) {}\n";
-  code << "inline uint32_t get_write_ptr(uint32_t cb_id) { return 0; }\n";
-  code << "inline void noc_async_read_tile(uint32_t tile_idx, uint32_t base_addr, uint32_t l1_addr) {}\n";
-  code << "inline void noc_async_read_barrier() {}\n";
-  code << "inline void cb_push_back(uint32_t cb_id, uint32_t n_tiles) {}\n\n";
-
-  // CB indices
-  code << "// Circular Buffer Indices\n";
-  code << "constexpr uint32_t CB_A = 0;\n";
-  code << "constexpr uint32_t CB_B = 1;\n\n";
-
-  code << "constexpr uint32_t TILE_SIZE_BYTES = 32 * 32 * sizeof(uint16_t);  // fp16\n\n";
-
-  // Main reader kernel
-  code << "void kernel_main() {\n";
-  code << "    // Runtime arguments\n";
-  code << "    uint32_t dram_addr_a = get_arg_val<uint32_t>(0);\n";
-  code << "    uint32_t dram_addr_b = get_arg_val<uint32_t>(1);\n";
-  code << "    uint32_t Mt = get_arg_val<uint32_t>(2);\n";
-  code << "    uint32_t Kt = get_arg_val<uint32_t>(3);\n";
-  code << "    uint32_t Nt = get_arg_val<uint32_t>(4);\n";
-  code << "    uint32_t out_tile_start_id = get_arg_val<uint32_t>(5);\n";
-  code << "    uint32_t num_out_tiles = get_arg_val<uint32_t>(6);\n\n";
-
-  code << "    // Process output tiles\n";
-  code << "    for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile) {\n";
-  code << "        uint32_t current_tile_id = out_tile_start_id + out_tile;\n";
-  code << "        uint32_t out_m = current_tile_id / Nt;\n";
-  code << "        uint32_t out_n = current_tile_id % Nt;\n\n";
-
-  code << "        // Load tiles for this output: A[out_m,:] and B[:,out_n]\n";
-  code << "        for (uint32_t kt = 0; kt < Kt; ++kt) {\n";
-  code << "            // Read A[out_m, kt]\n";
-  code << "            uint32_t tile_a_idx = out_m * Kt + kt;\n";
-  code << "            cb_reserve_back(CB_A, 1);\n";
-  code << "            uint32_t l1_write_addr_a = get_write_ptr(CB_A);\n";
-  code << "            noc_async_read_tile(tile_a_idx, dram_addr_a, l1_write_addr_a);\n";
-  code << "            noc_async_read_barrier();\n";
-  code << "            cb_push_back(CB_A, 1);\n\n";
-
-  code << "            // Read B[kt, out_n]\n";
-  code << "            uint32_t tile_b_idx = kt * Nt + out_n;\n";
-  code << "            cb_reserve_back(CB_B, 1);\n";
-  code << "            uint32_t l1_write_addr_b = get_write_ptr(CB_B);\n";
-  code << "            noc_async_read_tile(tile_b_idx, dram_addr_b, l1_write_addr_b);\n";
-  code << "            noc_async_read_barrier();\n";
-  code << "            cb_push_back(CB_B, 1);\n";
-  code << "        }\n";
-  code << "    }\n";
-  code << "}\n";
-
-  return code.str();
-}
-
-/*!
- * \brief Generate TT writer kernel (L1 circular buffers → DRAM)
- */
-std::string EmitTTWriterKernel(const PrimFunc& func) {
-  std::ostringstream code;
-
-  // Extract matmul dimensions
-  MatmulDims dims = ExtractMatmulDims(func);
-  int Nt = dims.Nt;
-
-  // Generate writer kernel header
-  code << "// Generated TT Writer Kernel (L1 → DRAM)\n";
-  code << "// Matmul Writer: Writes C[m,n] output tiles\n\n";
-
-  code << "#include <cstdint>\n\n";
-
-  code << "// Mock TT intrinsics for dry-run\n";
-  code << "template<typename T>\n";
-  code << "inline T get_arg_val(uint32_t idx) { return T(); }\n\n";
-
-  code << "// Mock TT circular buffer APIs for dry-run\n";
-  code << "inline void cb_wait_front(uint32_t cb_id, uint32_t n_tiles) {}\n";
-  code << "inline uint32_t get_read_ptr(uint32_t cb_id) { return 0; }\n";
-  code << "inline void noc_async_write_tile(uint32_t tile_idx, uint32_t l1_addr, uint32_t base_addr) {}\n";
-  code << "inline void noc_async_write_barrier() {}\n";
-  code << "inline void cb_pop_front(uint32_t cb_id, uint32_t n_tiles) {}\n\n";
-
-  // CB index
-  code << "// Circular Buffer Index\n";
-  code << "constexpr uint32_t CB_C = 2;\n\n";
-
-  code << "constexpr uint32_t TILE_SIZE_BYTES = 32 * 32 * sizeof(uint16_t);  // fp16\n\n";
-
-  // Main writer kernel
-  code << "void kernel_main() {\n";
-  code << "    // Runtime arguments\n";
-  code << "    uint32_t dram_addr_c = get_arg_val<uint32_t>(0);\n";
-  code << "    uint32_t out_tile_start_id = get_arg_val<uint32_t>(1);\n";
-  code << "    uint32_t num_out_tiles = get_arg_val<uint32_t>(2);\n";
-  code << "    uint32_t Nt = get_arg_val<uint32_t>(3);\n\n";
-
-  code << "    // Write output tiles\n";
-  code << "    for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile) {\n";
-  code << "        uint32_t tile_idx = out_tile_start_id + out_tile;\n\n";
-
-  code << "        cb_wait_front(CB_C, 1);\n";
-  code << "        uint32_t l1_read_addr = get_read_ptr(CB_C);\n";
-  code << "        noc_async_write_tile(tile_idx, l1_read_addr, dram_addr_c);\n";
-  code << "        noc_async_write_barrier();\n";
-  code << "        cb_pop_front(CB_C, 1);\n";
-  code << "    }\n";
-  code << "}\n";
-
-  return code.str();
 }
 
 /*!
@@ -784,17 +565,10 @@ std::unordered_map<std::string, std::string> CodegenTT(const IRModule& mod, cons
     LOG(FATAL) << "No main function found in module";
   }
 
-  // Generate all 3 kernels (reader, compute, writer)
-  // Use IR-driven or template-based codegen based on feature flag
-  if (USE_IR_DRIVEN_CODEGEN) {
-    artifacts["reader.cpp"] = EmitTTReaderKernelIRDriven(main_func);
-    artifacts["compute.cpp"] = EmitTTComputeKernelIRDriven(main_func);
-    artifacts["writer.cpp"] = EmitTTWriterKernelIRDriven(main_func);
-  } else {
-    artifacts["reader.cpp"] = EmitTTReaderKernel(main_func);
-    artifacts["compute.cpp"] = EmitTTComputeKernel(main_func);
-    artifacts["writer.cpp"] = EmitTTWriterKernel(main_func);
-  }
+  // Generate all 3 kernels using IR-driven codegen
+  artifacts["reader.cpp"] = EmitTTReaderKernelIRDriven(main_func);
+  artifacts["compute.cpp"] = EmitTTComputeKernelIRDriven(main_func);
+  artifacts["writer.cpp"] = EmitTTWriterKernelIRDriven(main_func);
 
   // Generate host program (same for both modes)
   artifacts["main.cpp"] = EmitTTHostProgram(main_func);
