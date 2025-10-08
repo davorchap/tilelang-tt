@@ -36,8 +36,8 @@ for (out_tile in tiles) {
 **Compute Kernel** (With proper synchronization):
 ```cpp
 for (tile in tiles) {
-    acquire_dst();
-    matmul_tiles_init(CB_A, CB_B, CB_C);
+    tile_regs_acquire();
+    mm_init(CB_A, CB_B, CB_C);
 
     for (k in Kt) {
         cb_wait_front(CB_A, 1);  // Wait for data
@@ -51,10 +51,10 @@ for (tile in tiles) {
     }
 
     cb_reserve_back(CB_C, 1);
-    commit_dst();
+    tile_regs_commit();
     pack_tile(0, CB_C);
     cb_push_back(CB_C, 1);
-    release_dst();
+    tile_regs_release();
 }
 ```
 

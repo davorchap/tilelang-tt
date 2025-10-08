@@ -11,7 +11,7 @@ Pattern: D = A + B + C (three-operand element-wise)
 Expected Metalium Code Structure:
 ```cpp
 for (tile_id in tiles) {
-    acquire_dst();
+    tile_regs_acquire();
 
     // Load three input tiles
     cb_wait_front(CB_A, 1);
@@ -26,7 +26,7 @@ for (tile_id in tiles) {
     add_tiles(0, CB_C, 0, 0, 0);
 
     cb_reserve_back(CB_D, 1);
-    commit_dst();
+    tile_regs_commit();
     pack_tile(0, CB_D);
     cb_push_back(CB_D, 1);
 
@@ -35,7 +35,7 @@ for (tile_id in tiles) {
     cb_pop_front(CB_B, 1);
     cb_pop_front(CB_C, 1);
 
-    release_dst();
+    tile_regs_release();
 }
 ```
 
@@ -150,7 +150,7 @@ def main():
     # Check for proper multi-operand pattern
     has_multi_cb_wait = compute.count("cb_wait_front") >= 3
     has_chained_adds = compute.count("add_tiles") >= 2
-    has_dst_lifecycle = "acquire_dst()" in compute and "release_dst()" in compute
+    has_dst_lifecycle = "tile_regs_acquire()" in compute and "tile_regs_release()" in compute
 
     print(f"  CB wait for 3+ inputs: {'✓' if has_multi_cb_wait else '✗'} {'Found' if has_multi_cb_wait else 'Missing'}")
     print(f"  Chained add_tiles:     {'✓' if has_chained_adds else '✗'} {'Found' if has_chained_adds else 'Missing'}")

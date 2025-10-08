@@ -13,18 +13,18 @@ This example demonstrates Pattern 1 (Element-wise) from DST_DOUBLE_BUFFERING_SPE
 Expected generated compute kernel structure:
 ```
 for (tile_id in tiles) {
-    acquire_dst();
+    tile_regs_acquire();
     cb_wait_front(CB_A, 1);
     cb_wait_front(CB_B, 1);
     add_tiles_init();
     add_tiles(CB_A, CB_B, 0, 0, 0);
     cb_reserve_back(CB_C, 1);
-    commit_dst();
+    tile_regs_commit();
     pack_tile(0, CB_C);
     cb_push_back(CB_C, 1);
     cb_pop_front(CB_A, 1);
     cb_pop_front(CB_B, 1);
-    release_dst();
+    tile_regs_release();
 }
 ```
 """
@@ -115,15 +115,15 @@ def main():
 
     # Check for DST usage in compute kernel
     compute = artifacts.get("compute.cpp", "")
-    has_acquire = "acquire_dst();" in compute
-    has_commit = "commit_dst();" in compute
-    has_release = "release_dst();" in compute
+    has_acquire = "tile_regs_acquire();" in compute
+    has_commit = "tile_regs_commit();" in compute
+    has_release = "tile_regs_release();" in compute
 
     print("-" * 70)
     print("DST Double Buffering Status:")
-    print(f"  acquire_dst(): {'✓ Found' if has_acquire else '✗ Missing'}")
-    print(f"  commit_dst():  {'✓ Found' if has_commit else '✗ Missing'}")
-    print(f"  release_dst(): {'✓ Found' if has_release else '✗ Missing'}")
+    print(f"  tile_regs_acquire(): {'✓ Found' if has_acquire else '✗ Missing'}")
+    print(f"  tile_regs_commit():  {'✓ Found' if has_commit else '✗ Missing'}")
+    print(f"  tile_regs_release(): {'✓ Found' if has_release else '✗ Missing'}")
     print()
 
     if has_acquire and has_commit and has_release:
