@@ -10,6 +10,7 @@ from typing import List, Optional, Union, Tuple
 
 from tvm.target import Target
 
+import tilelang
 from tilelang import tvm as tvm
 from tilelang.engine.param import CompiledArtifact, KernelParam
 from tilelang.engine.phase import LowerAndLegalize
@@ -63,9 +64,11 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     - Circular buffer allocations (memory space lowering)
     - Tile padding (align buffers to 32×32 tiles)
     - Tensorization (map to TT intrinsics like matmul_tiles)
+    - Common optimizations (buffer flattening, loop unrolling, etc.)
     - IR validation (verify TT constraints)
 
-    This integrates WS2 and WS3 transformation passes.
+    This integrates WS2 and WS3 transformation passes, plus common
+    backend-agnostic optimizations shared with CUDA.
 
     Args:
         mod: The TVM IRModule to optimize
@@ -74,6 +77,7 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     Returns:
         Optimized IRModule with TT-specific transforms
     """
+    # === WS2: Schedule and Sharding Inference ===
     # WS2 Phase 1: Schedule inference
     # Compute per-core tile ranges from grid dimensions
     mod = infer_default_tt_schedule(mod)
@@ -82,6 +86,7 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     # Generate DRAM layout descriptors (tiled, interleaved)
     mod = infer_default_tt_shard(mod)
 
+    # === WS3: TT-Specific TIR Transformations ===
     # WS3 Phase 1: Grid to persistent transformation
     # Transform GPU-style grid kernel to TT persistent loop model
     mod = grid_to_persistent_tt(mod)
@@ -100,8 +105,52 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     # Map high-level ops (gemm, etc.) to TT intrinsics (matmul_tiles, etc.)
     mod = tensorize_tt(mod)
 
-    # WS3 Phase 4: Validation
-    # Verify TT IR constraints (grid size, CB counts, etc.)
+    # === Common Optimizations (Shared with CUDA) ===
+    # These are backend-agnostic passes that work on TIR
+
+    # Flatten multi-dimensional buffers to 1D for easier codegen
+    mod = tilelang.transform.FlattenBuffer()(mod)
+
+    # Optimize index computation bitwidth (must come after FlattenBuffer)
+    mod = tilelang.transform.ConfigIndexBitwidth()(mod)
+
+    # Simplify expressions after transformations
+    mod = tvm.tir.transform.Simplify()(mod)
+
+    # Vectorize loops where possible
+    # TT supports vectorization with 32-element tiles
+    pass_ctx = tilelang.transform.get_pass_context()
+    from tilelang.engine.phase import allow_vectorize
+    mod = tilelang.transform.VectorizeLoop(
+        enable_vectorize=allow_vectorize(pass_ctx=pass_ctx))(mod)
+
+    # Rewrite storage allocations for better memory usage
+    # Should work with TT's circular buffer model
+    mod = tilelang.transform.StorageRewrite()(mod)
+
+    # Unroll loops for better performance
+    mod = tvm.tir.transform.UnrollLoop()(mod)
+
+    # Normalize split patterns after unrolling
+    mod = tvm.tir.transform.RenormalizeSplitPattern()(mod)
+
+    # Simplify again after optimizations
+    mod = tvm.tir.transform.Simplify()(mod)
+
+    # Remove no-op statements
+    mod = tvm.tir.transform.RemoveNoOp()(mod)
+
+    # Rewrite unsafe select operations
+    mod = tvm.tir.transform.RewriteUnsafeSelect()(mod)
+
+    # Hoist if-then-else out of loops
+    mod = tvm.tir.transform.HoistIfThenElse()(mod)
+
+    # === Verification ===
+    # Verify memory accesses are correct
+    mod = tvm.tir.transform.VerifyMemory()(mod)
+
+    # TT-specific IR verification (grid size, CB counts, etc.)
     mod = verify_tt_ir(mod)
 
     return mod
