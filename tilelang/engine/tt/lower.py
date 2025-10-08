@@ -277,9 +277,13 @@ def lower(
     device_mod, host_mod = SplitTTKernels(mod)
 
     # === Phase 5: Generate kernel source ===
-    # For now, generate a placeholder source string
-    # TODO: Integrate with emit_tt_artifacts when codegen is ready
-    kernel_source = "// TT kernel placeholder - codegen integration pending\n"
+    # Use emit_tt_artifacts to generate reader/compute/writer kernels
+    import tilelang.tt as tt
+    artifacts = tt.emit_tt_artifacts(device_mod)
+
+    # Convert artifacts dict to JSON string for kernel_source field
+    import json
+    kernel_source = json.dumps(artifacts)
 
     # === Phase 6: Create CompiledArtifact ===
     return CompiledArtifact(
