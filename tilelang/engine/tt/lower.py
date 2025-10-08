@@ -157,22 +157,45 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
 
 
 def SplitTTKernels(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
-    """Split TT module into device kernels and host wrapper.
+    """Prepare TT module for 3-kernel codegen (reader/compute/writer).
 
-    This will implement 3-kernel architecture in Task 6.
-    For now, it's a placeholder that returns mod for both device and host.
+    Unlike CUDA's SplitHostDevice which splits into separate IR functions,
+    TT's 3-kernel architecture is implemented during **codegen** (WS4-6).
+    This function prepares the module by:
+    1. Annotating device regions (marks device code)
+    2. Keeping the module intact for codegen to process
+
+    The actual split into reader/compute/writer happens in:
+    - TTReaderCodegenVisitor (WS5): Generates reader kernel
+    - TTComputeCodegenVisitor (WS4): Generates compute kernel
+    - TTWriterCodegenVisitor (WS5): Generates writer kernel
+    - EmitTTHostProgram (WS6): Generates host wrapper
 
     Args:
-        mod: The TVM IRModule to split
+        mod: The TVM IRModule to prepare for codegen
 
     Returns:
-        Tuple of (device_mod, host_mod)
-    """
-    # TODO Task 6: Implement 3-kernel splitting
-    # - Create reader/compute/writer kernels
-    # - Create host wrapper
+        Tuple of (device_mod, host_mod):
+        - device_mod: Module with annotated device regions for codegen
+        - host_mod: Same module (host wrapper generated during codegen)
 
-    # Placeholder - return same mod for both device and host
+    See Also:
+        - docs/tenstorrent/workstream4/WS4_STATUS.md (compute kernel)
+        - docs/tenstorrent/workstream5/WS5_STATUS.md (reader/writer kernels)
+        - docs/tenstorrent/workstream6/WS6_STATUS.md (host program)
+    """
+    # Annotate device regions (marks code that runs on device)
+    # This is similar to what CUDA does before SplitHostDevice
+    mod = tilelang.transform.AnnotateDeviceRegions()(mod)
+
+    # NOTE: We do NOT call SplitHostDevice here!
+    # TT's 3-kernel split happens during codegen, not IR transformation.
+    # The codegen visitors (reader/compute/writer) will generate 3 separate
+    # kernel files from this single module.
+
+    # Return the same module for both device and host
+    # - device_mod: Will be processed by codegen visitors (WS4-6)
+    # - host_mod: Will be used to generate host wrapper (WS6)
     return mod, mod
 
 
@@ -245,16 +268,13 @@ def lower(
         mod = LowerAndLegalizeTT(mod, target)
 
     # === Phase 3: TT-specific optimizations ===
-    # Apply WS3 transformation passes
+    # Apply WS2/WS3 transformation passes + common optimizations
     mod = OptimizeForTargetTT(mod, target)
 
     # === Phase 4: Device splitting (3-kernel architecture) ===
-    # TODO Task 6: Uncomment when SplitTTKernels is implemented
-    # device_mod, host_mod = SplitTTKernels(mod)
-
-    # Placeholder - use mod for both device and host
-    device_mod = mod
-    host_mod = mod
+    # Annotate device regions and prepare for 3-kernel codegen
+    # Note: Actual split into reader/compute/writer happens during codegen (WS4-6)
+    device_mod, host_mod = SplitTTKernels(mod)
 
     # === Phase 5: Generate kernel source ===
     # For now, generate a placeholder source string
