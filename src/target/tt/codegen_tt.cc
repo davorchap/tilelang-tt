@@ -365,8 +365,21 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
 
   code << "#include <cstdint>\n";
   code << "#include <vector>\n";
-  code << "#include <iostream>\n\n";
+  code << "#include <iostream>\n";
+  code << "#include <memory>\n\n";
 
+#ifdef TL_USE_REAL_METALIUM
+  // Real Metalium APIs
+  code << "// Real TT-Metalium APIs\n";
+  code << "#include \"tt_metal/host_api.hpp\"\n";
+  code << "#include \"tt_metal/impl/device/device.hpp\"\n";
+  code << "#include \"tt_metal/impl/device/mesh_device.hpp\"\n";
+  code << "#include \"tt_metal/impl/buffers/buffer.hpp\"\n";
+  code << "#include \"tt_metal/impl/buffers/mesh_buffer.hpp\"\n";
+  code << "#include \"tt_metal/impl/program/program.hpp\"\n";
+  code << "#include \"tt_metal/impl/program/mesh_program.hpp\"\n\n";
+  code << "using namespace tt::tt_metal;\n\n";
+#else
   // Mock TT device APIs for dry-run
   code << "// Mock TT device APIs for dry-run compilation\n";
   code << "class Device {\n";
@@ -388,46 +401,102 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
 
   code << "class CircularBufferConfig {\n";
   code << "public:\n";
-  code << "    CircularBufferConfig(uint32_t cb_id, uint32_t tile_size, uint32_t num_pages) {}\n";
+  code << "    CircularBufferConfig(uint32_t cb_id, uint32_t tile_size, uint32_t num_pages) {\n";
+  code << "        std::cout << \"  CB\" << cb_id << \": \" << num_pages << \" pages x \" << tile_size << \" bytes\\n\";\n";
+  code << "    }\n";
   code << "};\n\n";
+#endif
 
   // Main function
   code << "int main() {\n";
-  code << "    std::cout << \"TT Host Program - Dry Run\" << std::endl;\n\n";
+#ifdef TL_USE_REAL_METALIUM
+  code << "    std::cout << \"TT Host Program - Real Metalium\" << std::endl;\n\n";
 
-  // 1. Device setup
-  code << "    // 1. Device setup\\n\";\n";
+  // 1. Device setup (Real Metalium)
+  code << "    // 1. Device setup (Real Metalium)\n";
+  code << "    auto device = MeshDevice::create_unit_mesh(/*device_id*/0);\n";
+  code << "    CommandQueue& cq = device->mesh_command_queue(/*cq_id*/0);\n";
+  code << "    std::cout << \"Device initialized (Mesh)\" << std::endl;\n\n";
+#else
+  code << "    std::cout << \"TT Host Program - Mock (Dry Run)\" << std::endl;\n\n";
+
+  // 1. Device setup (Mock)
+  code << "    // 1. Device setup (Mock)\n";
   code << "    Device* device = Device::Instance();\n";
-  code << "    std::cout << \"Device initialized\" << std::endl;\n\n";
+  code << "    std::cout << \"Device initialized (Mock)\" << std::endl;\n\n";
+#endif
 
-  // 2. Circular buffer configuration
-  code << "    // 2. Circular buffer configuration\\n\";\n";
+  // 2. Common tile configuration
+  code << "    // 2. Tile configuration\n";
   code << "    constexpr uint32_t TILE_H = 32;\n";
   code << "    constexpr uint32_t TILE_W = 32;\n";
   code << "    constexpr uint32_t TILE_SIZE_FP16 = TILE_H * TILE_W * sizeof(uint16_t);\n";
   code << "    constexpr uint32_t CB_NUM_PAGES = 2;  // Double buffering\n\n";
 
+#ifdef TL_USE_REAL_METALIUM
+  // Real Metalium: Create program first, then CBs
+  code << "    // 3. Create program (Real Metalium)\n";
+  code << "    Program program = CreateProgram();\n";
+  code << "    std::cout << \"Program created\" << std::endl;\n\n";
+
+  code << "    // 4. Create circular buffers (Real Metalium)\n";
+  code << "    CoreCoord core{0, 0};  // Single core for MVP\n\n";
+
+  code << "    constexpr uint32_t cb_in0_index = 0;\n";
+  code << "    constexpr uint32_t cb_in1_index = 1;\n";
+  code << "    constexpr uint32_t cb_out0_index = 2;\n\n";
+
+  code << "    auto cb_in0 = CreateCircularBuffer(\n";
+  code << "        program, core,\n";
+  code << "        CircularBufferConfig(\n";
+  code << "            CB_NUM_PAGES * TILE_SIZE_FP16,\n";
+  code << "            {{cb_in0_index, tt::DataFormat::Float16_b}})\n";
+  code << "        .set_page_size(cb_in0_index, TILE_SIZE_FP16)\n";
+  code << "    );\n\n";
+
+  code << "    auto cb_in1 = CreateCircularBuffer(\n";
+  code << "        program, core,\n";
+  code << "        CircularBufferConfig(\n";
+  code << "            CB_NUM_PAGES * TILE_SIZE_FP16,\n";
+  code << "            {{cb_in1_index, tt::DataFormat::Float16_b}})\n";
+  code << "        .set_page_size(cb_in1_index, TILE_SIZE_FP16)\n";
+  code << "    );\n\n";
+
+  code << "    auto cb_out0 = CreateCircularBuffer(\n";
+  code << "        program, core,\n";
+  code << "        CircularBufferConfig(\n";
+  code << "            CB_NUM_PAGES * TILE_SIZE_FP16,\n";
+  code << "            {{cb_out0_index, tt::DataFormat::Float16_b}})\n";
+  code << "        .set_page_size(cb_out0_index, TILE_SIZE_FP16)\n";
+  code << "    );\n";
+  code << "    std::cout << \"Circular buffers created\" << std::endl;\n\n";
+
+  // Real Metalium: Create kernels
+  code << "    // 5. Create kernels (Real Metalium)\n";
+  code << "    // TODO: Load actual kernel sources from generated reader.cpp, compute.cpp, writer.cpp\n";
+  code << "    // auto reader_kernel = CreateKernel(program, \"reader.cpp\", core, DataMovementConfig{...});\n";
+  code << "    // auto compute_kernel = CreateKernel(program, \"compute.cpp\", core, ComputeConfig{...});\n";
+  code << "    // auto writer_kernel = CreateKernel(program, \"writer.cpp\", core, DataMovementConfig{...});\n";
+  code << "    std::cout << \"Kernels created (placeholder - need actual sources)\" << std::endl;\n\n";
+#else
+  // Mock: Circular buffers and program
+  code << "    // 3. Circular buffer configuration (Mock)\n";
   code << "    CircularBufferConfig cb_a(0, TILE_SIZE_FP16, CB_NUM_PAGES);\n";
   code << "    CircularBufferConfig cb_b(1, TILE_SIZE_FP16, CB_NUM_PAGES);\n";
   code << "    CircularBufferConfig cb_c(2, TILE_SIZE_FP16, CB_NUM_PAGES);\n";
-  code << "    std::cout << \"Circular buffers configured\" << std::endl;\n\n";
+  code << "    std::cout << \"Circular buffers configured (Mock)\" << std::endl;\n\n";
 
-  // 3. Create program
-  code << "    // 3. Create program\\n\";\n";
+  code << "    // 4. Create program (Mock)\n";
   code << "    Program program;\n";
-  code << "    std::cout << \"Program created\" << std::endl;\n\n";
+  code << "    std::cout << \"Program created (Mock)\" << std::endl;\n\n";
 
-  // 4. Load kernels (placeholder - actual sources would be loaded)
-  code << "    // 4. Load kernels (mock - actual sources in separate files)\\n\";\n";
-  code << "    // program.AddKernel(\"reader_kernel_A\", reader_kernel_source);\n";
-  code << "    // program.AddKernel(\"reader_kernel_B\", reader_kernel_source);\n";
-  code << "    // program.AddKernel(\"compute_kernel\", compute_kernel_source);\n";
-  code << "    // program.AddKernel(\"writer_kernel_C\", writer_kernel_source);\n";
+  code << "    // 5. Load kernels (Mock - placeholder)\n";
   code << "    program.Build();\n";
-  code << "    std::cout << \"Kernels loaded and built\" << std::endl;\n\n";
+  code << "    std::cout << \"Kernels loaded and built (Mock)\" << std::endl;\n\n";
+#endif
 
-  // 5. Allocate DRAM buffers
-  code << "    // 5. Allocate DRAM buffers\\n\";\n";
+  // 6. Allocate DRAM buffers
+  code << "    // 6. Allocate DRAM buffers\n";
   code << "    constexpr uint32_t M = " << M << ";\n";
   code << "    constexpr uint32_t N = " << N << ";\n";
   code << "    constexpr uint32_t K = " << K << ";\n";
@@ -435,6 +504,32 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   code << "    constexpr uint32_t Kt = " << Kt << ";\n";
   code << "    constexpr uint32_t Nt = " << Nt << ";\n\n";
 
+#ifdef TL_USE_REAL_METALIUM
+  // Real Metalium buffer allocation
+  code << "    // Real Metalium buffer allocation\n";
+  code << "    constexpr uint32_t single_tile_size = TILE_H * TILE_W * sizeof(uint16_t);\n\n";
+
+  code << "    DeviceLocalBufferConfig dram_config{\n";
+  code << "        .page_size = single_tile_size,\n";
+  code << "        .buffer_type = BufferType::DRAM\n";
+  code << "    };\n\n";
+
+  code << "    ReplicatedBufferConfig buffer_config_a{.size = Mt * Kt * single_tile_size};\n";
+  code << "    ReplicatedBufferConfig buffer_config_b{.size = Kt * Nt * single_tile_size};\n";
+  code << "    ReplicatedBufferConfig buffer_config_c{.size = Mt * Nt * single_tile_size};\n\n";
+
+  code << "    auto buffer_a = MeshBuffer::create(buffer_config_a, dram_config, device.get());\n";
+  code << "    auto buffer_b = MeshBuffer::create(buffer_config_b, dram_config, device.get());\n";
+  code << "    auto buffer_c = MeshBuffer::create(buffer_config_c, dram_config, device.get());\n\n";
+
+  code << "    // Initialize input buffers (host-side vectors)\n";
+  code << "    std::vector<uint16_t> host_a(M * K);\n";
+  code << "    std::vector<uint16_t> host_b(K * N);\n";
+  code << "    for (size_t i = 0; i < host_a.size(); ++i) host_a[i] = static_cast<uint16_t>(i % 256);\n";
+  code << "    for (size_t i = 0; i < host_b.size(); ++i) host_b[i] = static_cast<uint16_t>(i % 256);\n";
+  code << "    std::cout << \"Mesh buffers allocated and host data initialized\" << std::endl;\n\n";
+#else
+  // Mock buffer allocation
   code << "    std::vector<uint16_t> dram_a(M * K);\n";
   code << "    std::vector<uint16_t> dram_b(K * N);\n";
   code << "    std::vector<uint16_t> dram_c(M * N);\n\n";
@@ -446,10 +541,11 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   code << "    for (size_t i = 0; i < dram_b.size(); ++i) {\n";
   code << "        dram_b[i] = static_cast<uint16_t>(i % 256);\n";
   code << "    }\n";
-  code << "    std::cout << \"DRAM buffers allocated and initialized\" << std::endl;\n\n";
+  code << "    std::cout << \"DRAM buffers allocated and initialized (Mock)\" << std::endl;\n\n";
+#endif
 
-  // 6. Runtime arguments
-  code << "    // 6. SetRuntimeArgs for kernels (Metalium API)\\n\";\n";
+  // 7. Runtime arguments
+  code << "    // 7. SetRuntimeArgs for kernels\n";
   code << "    constexpr uint32_t NUM_OUTPUT_TILES = " << total_tiles << ";\n";
   code << "    constexpr uint32_t NUM_CORES = " << (num_cores.defined() ? num_cores.value()->value : 1) << ";\n\n";
 
@@ -457,27 +553,58 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   code << "    uint32_t out_tile_start_id = 0;\n";
   code << "    uint32_t num_out_tiles_per_core = NUM_OUTPUT_TILES;\n\n";
 
-  code << "    // SetRuntimeArgs pattern (mock for dry-run):\n";
+#ifdef TL_USE_REAL_METALIUM
+  code << "    // SetRuntimeArgs (Real Metalium - TODO: Implement when kernels available)\n";
+  code << "    // std::vector<uint32_t> reader_args = {...};\n";
+  code << "    // std::vector<uint32_t> compute_args = {out_tile_start_id, num_out_tiles_per_core, Kt};\n";
+  code << "    // std::vector<uint32_t> writer_args = {...};\n";
+  code << "    // SetRuntimeArgs(program, reader_kernel, core, reader_args);\n";
+  code << "    // SetRuntimeArgs(program, compute_kernel, core, compute_args);\n";
+  code << "    // SetRuntimeArgs(program, writer_kernel, core, writer_args);\n";
+  code << "    std::cout << \"Runtime args configured (placeholder)\" << std::endl;\n\n";
+#else
+  code << "    // SetRuntimeArgs pattern (Mock for dry-run):\n";
   code << "    // Reader: {dram_a, dram_b, Mt, Kt, Nt, start_tile_id, num_tiles}\n";
   code << "    // Compute: {start_tile_id, num_output_tiles, Kt}\n";
   code << "    // Writer: {dram_c, start_tile_id, num_tiles, Nt}\n";
-  code << "    std::cout << \"Runtime args: \" << NUM_OUTPUT_TILES << \" tiles, Kt=\" << Kt << std::endl;\n\n";
+  code << "    std::cout << \"Runtime args: \" << NUM_OUTPUT_TILES << \" tiles, Kt=\" << Kt << \" (Mock)\" << std::endl;\n\n";
+#endif
 
-  // 7. Launch program
-  code << "    // 7. Launch program\\n\";\n";
+  // 8. Launch program
+  code << "    // 8. Launch program\n";
+#ifdef TL_USE_REAL_METALIUM
+  code << "    EnqueueProgram(cq, program, /*blocking*/false);\n";
+  code << "    Finish(cq);\n";
+  code << "    std::cout << \"Program execution complete (Real Metalium)\" << std::endl;\n\n";
+#else
   code << "    CommandQueue cq;\n";
   code << "    cq.EnqueueProgram(&program, true);\n";
   code << "    cq.Finish();\n";
-  code << "    std::cout << \"Program execution complete\" << std::endl;\n\n";
+  code << "    std::cout << \"Program execution complete (Mock)\" << std::endl;\n\n";
+#endif
 
-  // 8. Verify results (placeholder)
-  code << "    // 8. Verify results\\n\";\n";
+  // 9. Verify results (placeholder)
+  code << "    // 9. Verify results\n";
+#ifdef TL_USE_REAL_METALIUM
+  code << "    std::vector<uint16_t> result(M * N);\n";
+  code << "    // Read results back from device (Real Metalium)\n";
+  code << "    // EnqueueReadBuffer(cq, buffer_c, result.data(), /*blocking*/true);\n";
+  code << "    std::cout << \"Results ready for verification (placeholder)\" << std::endl;\n\n";
+#else
   code << "    std::cout << \"Results in dram_c (\" << dram_c.size() << \" elements)\" << std::endl;\n";
   code << "    std::cout << \"First 10 elements: \";\n";
   code << "    for (size_t i = 0; i < std::min(size_t(10), dram_c.size()); ++i) {\n";
   code << "        std::cout << dram_c[i] << \" \";\n";
   code << "    }\n";
   code << "    std::cout << std::endl;\n\n";
+#endif
+
+  // 10. Cleanup
+#ifdef TL_USE_REAL_METALIUM
+  code << "    // 10. Cleanup (Real Metalium)\n";
+  code << "    device->close();\n";
+  code << "    std::cout << \"Device closed\" << std::endl;\n\n";
+#endif
 
   code << "    return 0;\n";
   code << "}\n";
