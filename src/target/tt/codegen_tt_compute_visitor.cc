@@ -116,18 +116,17 @@ void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
     EmitLine("// K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)");
   }
 
-  // Emit loop header
-  code_.str("");  // Clear for building line
-  code_ << "for (uint32_t " << loop_var << " = " << min_expr << "; ";
-  code_ << loop_var << " < ";
+  // Emit loop header (build as string to avoid clearing code_ stream)
+  std::ostringstream loop_line;
+  loop_line << "for (uint32_t " << loop_var << " = " << min_expr << "; ";
+  loop_line << loop_var << " < ";
   if (min_expr == "0") {
-    code_ << extent_expr;
+    loop_line << extent_expr;
   } else {
-    code_ << min_expr << " + " << extent_expr;
+    loop_line << min_expr << " + " << extent_expr;
   }
-  code_ << "; ++" << loop_var << ") {";
-  EmitLine(code_.str());
-  code_.str("");  // Reset stream
+  loop_line << "; ++" << loop_var << ") {";
+  EmitLine(loop_line.str());
 
   IncIndent();
 

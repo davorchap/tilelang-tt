@@ -24,6 +24,11 @@
  * This module generates Metalium-compatible C++ kernels and metadata
  * for dry-run execution on the Tenstorrent backend.
  *
+ * Supports two modes:
+ * - Template-based codegen (legacy): Emits fixed hardcoded patterns
+ * - IR-driven codegen: Uses visitor pattern to walk actual IR structure
+ *
+ * See: docs/tenstorrent/IR_DRIVEN_CODEGEN_PLAN.md
  * See: docs/tenstorrent/workstream4/WS4_STATUS.md
  */
 
@@ -38,6 +43,11 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+
+// IR-driven codegen visitors
+#include "codegen_tt_compute_visitor.h"
+#include "codegen_tt_reader_visitor.h"
+#include "codegen_tt_writer_visitor.h"
 
 namespace tvm {
 namespace tl {
@@ -83,8 +93,46 @@ MatmulDims ExtractMatmulDims(const PrimFunc& func) {
   return dims;
 }
 
+// =============================================================================
+// IR-Driven Codegen (New - Task 5)
+// =============================================================================
+
 /*!
- * \brief Generate TT compute kernel C++ source
+ * \brief Feature flag: Use IR-driven codegen instead of template-based
+ * Set to false to use legacy template-based codegen for comparison
+ */
+constexpr bool USE_IR_DRIVEN_CODEGEN = true;
+
+/*!
+ * \brief Generate TT compute kernel using IR-driven visitor
+ */
+std::string EmitTTComputeKernelIRDriven(const PrimFunc& func) {
+  TTComputeCodegenVisitor visitor(func);
+  return visitor.GetFullKernel();
+}
+
+/*!
+ * \brief Generate TT reader kernel using IR-driven visitor
+ */
+std::string EmitTTReaderKernelIRDriven(const PrimFunc& func) {
+  TTReaderCodegenVisitor visitor(func);
+  return visitor.GetFullKernel();
+}
+
+/*!
+ * \brief Generate TT writer kernel using IR-driven visitor
+ */
+std::string EmitTTWriterKernelIRDriven(const PrimFunc& func) {
+  TTWriterCodegenVisitor visitor(func);
+  return visitor.GetFullKernel();
+}
+
+// =============================================================================
+// Template-Based Codegen (Legacy)
+// =============================================================================
+
+/*!
+ * \brief Generate TT compute kernel C++ source (template-based)
  */
 std::string EmitTTComputeKernel(const PrimFunc& func) {
   std::ostringstream code;
@@ -518,14 +566,21 @@ std::unordered_map<std::string, std::string> CodegenTT(const IRModule& mod, cons
   }
 
   // Generate all 3 kernels (reader, compute, writer)
-  artifacts["reader.cpp"] = EmitTTReaderKernel(main_func);
-  artifacts["compute.cpp"] = EmitTTComputeKernel(main_func);
-  artifacts["writer.cpp"] = EmitTTWriterKernel(main_func);
+  // Use IR-driven or template-based codegen based on feature flag
+  if (USE_IR_DRIVEN_CODEGEN) {
+    artifacts["reader.cpp"] = EmitTTReaderKernelIRDriven(main_func);
+    artifacts["compute.cpp"] = EmitTTComputeKernelIRDriven(main_func);
+    artifacts["writer.cpp"] = EmitTTWriterKernelIRDriven(main_func);
+  } else {
+    artifacts["reader.cpp"] = EmitTTReaderKernel(main_func);
+    artifacts["compute.cpp"] = EmitTTComputeKernel(main_func);
+    artifacts["writer.cpp"] = EmitTTWriterKernel(main_func);
+  }
 
-  // Generate host program
+  // Generate host program (same for both modes)
   artifacts["main.cpp"] = EmitTTHostProgram(main_func);
 
-  // Generate plan JSON
+  // Generate plan JSON (same for both modes)
   artifacts["tt.plan.json"] = EmitTTPlanJSON(main_func);
 
   return artifacts;
