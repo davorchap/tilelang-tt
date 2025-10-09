@@ -305,7 +305,7 @@ if (call->op == "tvm_mma_sync") {
 **Location:** `tilelang/engine/tt/lower.py` → `apply_tt_defaults()`
 
 ```python
-# Apply default TT annotations (WS1)
+# Apply default TT annotations (Target Registration)
 # - Schedule: policy="contiguous", order="row_major"
 # - Layout: DRAM interleaved, 32×32 tiles
 mod = apply_tt_defaults(mod)
@@ -329,11 +329,11 @@ with target:
 
 ```python
 def OptimizeForTargetTT(mod: IRModule, target: Target) -> IRModule:
-    # === WS2: Schedule and Sharding Inference ===
+    # === Metadata Inference: Schedule and Sharding Inference ===
     mod = infer_default_tt_schedule(mod)  # Compute per-core tile ranges
     mod = infer_default_tt_shard(mod)     # DRAM layout descriptors
 
-    # === WS3: TT-Specific TIR Transformations ===
+    # === Transform Pipeline: TT-Specific TIR Transformations ===
     mod = grid_to_persistent_tt(mod)      # Grid → persistent loop
     mod = tt_shard_to_core_map(mod)       # Shard → core (x, y)
     mod = memory_space_lower_tt(mod)      # DRAM → L1 circular buffers

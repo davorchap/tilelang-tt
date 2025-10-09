@@ -8,51 +8,47 @@ TileLang is a domain-specific language for developing high-performance GPU/CPU k
 
 This repository (`tilelang-tt`) is a **public fork** focused on adding first-class **Tenstorrent TT-Metalium backend** support alongside existing NVIDIA CUDA, AMD ROCm, and Huawei Ascend targets.
 
-### Unified MVP Plan (Updated 2025-10-07)
-
-**⭐ AUTHORITATIVE PLAN:** **[docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md)** (Version 2.0 FINAL)
-
-**Current Status (2025-10-08):**
+### Current Status (2025-10-08)
 
 **✅ IR-Driven Backend Complete (95 tests passing)**
-- ✅ WS1: Target registration (8 tests)
-- ✅ WS2: Metadata inference (7 tests)
-- ✅ WS3-Extended: Full transform pipeline (39 tests)
-  - GridToPersistentTT, TTShardToCoreMap, MemorySpaceLowerTT
-  - TilePadTT, TensorizeTT, VerifyTTIR
-- ✅ IR-Driven Codegen: Complete visitor infrastructure (41 tests)
-  - Base visitor, Compute visitor, Reader/Writer visitors
-  - Full WS4-6 integration
+- ✅ Target registration (8 tests)
+- ✅ Metadata inference (7 tests)
+  - Schedule inference (per-core tile assignments)
+  - Shard inference (DRAM layout descriptors)
+- ✅ Transform pipeline (39 tests)
+  - GridToPersistentTT (persistent loop model)
+  - TTShardToCoreMap (NOC grid mapping)
+  - MemorySpaceLowerTT (DRAM → L1 circular buffers)
+  - TilePadTT (32×32 tile alignment)
+  - TensorizeTT (pattern detection)
+  - VerifyTTIR (constraint verification)
+- ✅ Code generation (41 tests)
+  - IR-driven visitor infrastructure
+  - Reader/Compute/Writer kernels
+  - Host program generation
+  - DST lifecycle management
 
-**✅ Metalium API Integration (Weeks 16-18 Complete)**
-- ✅ Week 16: Kernel headers with conditional compilation
-- ✅ Week 17: Host program generation (real/mock modes)
-- ✅ Week 18: CMake build system integration
-- ⚠️ Weeks 19-22: SDK validation (blocked - needs SDK access)
+**✅ SDK Integration Complete**
+- ✅ External SDK approach (like CUDA/ROCm)
+- ✅ CMake FindMetalium module
+- ✅ Real vs Mock build modes
+- ✅ CI workflows (mock + SDK validation)
 
-**✅ External SDK Implementation Complete**
-- ✅ CMake: find_package(TT-Metalium) with TT::Metalium target
-- ✅ Local build: --with-metalium flag for local_build_and_test_tt.sh
-- ✅ CI workflow: tenstorrent-sdk-ci.yml (manual/weekly triggers)
-- ✅ SDK verification: verify_metalium_sdk.sh script
-
-**Total: 95 tests passing**
+**⚠️ Next Steps**
+- Extend `tensorize_tt.cc` for pattern detection
+- SDK validation (blocked - needs SDK access)
 
 **Key Documents:**
-- 📋 **MVP Plan** (Historical): `UNIFIED_MATMUL_MVP_PLAN.md` - Original MVP spec
-- 🔍 **IR Codegen Plan** (Completed): `IR_DRIVEN_CODEGEN_PLAN.md` - Tasks 1-6
-- 🔧 **Metalium Integration** (Current): `METALIUM_INTEGRATION_PLAN.md` - Weeks 16-18
-- ⚙️ **Metalium Setup Guide**: `METALIUM_SETUP_GUIDE.md` - SDK installation & build instructions
-- ✅ **SDK Validation Plan** (Next): `METALIUM_SDK_VALIDATION_PLAN.md` - API gaps & testing
-- 💡 **POC Example**: `examples/tenstorrent/example_matmul_tt_poc.py` - Workflow demo
+- 🏗️ **Architecture**: [TT_ARCHITECTURE.md](docs/tenstorrent/TT_ARCHITECTURE.md) - Complete TT backend architecture
+- 📊 **Compiler Internals**: [IR_LOWERING_ANALYSIS.md](docs/tenstorrent/IR_LOWERING_ANALYSIS.md) - GPU vs TT pipeline comparison
+- 📋 **Pass Reference**: [PASS_TABLE.md](docs/tenstorrent/PASS_TABLE.md) - All 60+ transform passes
+- 🚧 **Next Tasks**: [IR_LOWERING_TASKS.md](docs/tenstorrent/IR_LOWERING_TASKS.md) - Pattern detection roadmap
+- ⚙️ **SDK Setup**: [METALIUM_SETUP_GUIDE.md](docs/tenstorrent/METALIUM_SETUP_GUIDE.md) - SDK installation
+- 🔬 **SDK Validation**: [METALIUM_SDK_VALIDATION_PLAN.md](docs/tenstorrent/METALIUM_SDK_VALIDATION_PLAN.md) - Validation phases
 
 **Build Modes:**
 - **Mock mode** (default): All tests pass, dry-run code generation
 - **Real mode**: `cmake -DUSE_REAL_METALIUM=ON` (requires TT_METAL_HOME)
-
-**Next Steps:**
-- Obtain TT-Metalium SDK access for validation
-- See `METALIUM_SDK_VALIDATION_PLAN.md` for detailed roadmap
 
 ---
 
@@ -286,7 +282,7 @@ pytest testing/python/tt/test_target_registration.py -v
 ```
 
 **Expected test results:**
-- 8 tests pass (Workstream 1 complete)
+- 8 tests pass (Phase 1 complete)
   - 5 target registration and engine adapter tests
   - 3 default annotation helper tests
 
@@ -328,46 +324,39 @@ The format script will show diffs; manually apply changes or use auto-formatting
 - ✅ **Metalium Integration Complete** - Weeks 16-18 (conditional compilation ready)
 - ⚠️ **SDK Validation Pending** - Weeks 19-22 (blocked by SDK access)
 
-**Architecture Details:** See documentation for:
-- **IR Flow**: `IR_DRIVEN_CODEGEN_PLAN.md` - Complete visitor-based codegen
-- **Metalium Integration**: `METALIUM_INTEGRATION_PLAN.md` - Real/mock API conditional compilation
-- **SDK Validation**: `METALIUM_SDK_VALIDATION_PLAN.md` - API gaps & validation phases
-- **Original MVP**: `UNIFIED_MATMUL_MVP_PLAN.md` - Historical reference
+**Architecture Details:** See [TT_ARCHITECTURE.md](docs/tenstorrent/TT_ARCHITECTURE.md) for complete details.
 
-**Components:**
+**Key Components:**
 
-1. **WS1: Target Registration & Default Annotations** ✅ COMPLETE
+1. **Target Registration** ✅ COMPLETE
    - `tilelang/utils/target.py` - Target registration
    - `tilelang/engine/tt/` - Engine adapter
    - `tilelang/tt/target.py` - `apply_tt_defaults()` function
-   - Stamps default TT attributes: contiguous schedule, DRAM interleaved layout
+   - Stamps default TT attributes (schedule, shard)
    - 8 tests passing
 
-2. **WS2: Schedule & Sharding Metadata Inference** ✅ COMPLETE
-   - `src/transform/tt/infer_tt_schedule.cc` - Compute per-core tile ranges
-   - `src/transform/tt/infer_tt_shard.cc` - Generate DRAM layout descriptors
+2. **Metadata Inference** ✅ COMPLETE
+   - `src/transform/tt/infer_tt_schedule.cc` - Per-core tile assignments
+   - `src/transform/tt/infer_tt_shard.cc` - DRAM layout descriptors
    - `tilelang/tt/passes.py` - Python bindings
    - 7 tests passing
 
-3. **WS3: TIR Transform Pipeline** ✅ COMPLETE (Extended)
-   - `src/transform/tt/grid_to_persistent_tt.cc` - GridToPersistentTT
-   - `src/transform/tt/tt_shard_to_core_map.cc` - TTShardToCoreMap
-   - `src/transform/tt/memory_space_lower_tt.cc` - MemorySpaceLowerTT
-   - `src/transform/tt/tile_pad_tt.cc` - TilePadTT
-   - `src/transform/tt/tensorize_tt.cc` - TensorizeTT
-   - `src/transform/tt/verify_tt_ir.cc` - VerifyTTIR
+3. **Transform Pipeline** ✅ COMPLETE
+   - `src/transform/tt/grid_to_persistent_tt.cc` - Persistent loop model
+   - `src/transform/tt/tt_shard_to_core_map.cc` - NOC grid mapping
+   - `src/transform/tt/memory_space_lower_tt.cc` - DRAM → L1 CB
+   - `src/transform/tt/tile_pad_tt.cc` - Tile alignment
+   - `src/transform/tt/tensorize_tt.cc` - Pattern detection (incomplete)
+   - `src/transform/tt/verify_tt_ir.cc` - Constraint verification
    - 39 tests passing
 
-4. **WS4-6: Code Generation** ✅ COMPLETE (IR-Driven)
-   - `src/target/tt/codegen_tt.cc` - Base codegen framework
+4. **Code Generation** ✅ COMPLETE (IR-Driven)
+   - `src/target/tt/codegen_tt.cc` - Main codegen framework
    - `src/target/tt/codegen_tt_visitor_base.cc` - IR walking infrastructure
-   - `src/target/tt/codegen_tt_compute_visitor.cc` - Compute kernel generation
-   - `src/target/tt/codegen_tt_reader_visitor.cc` - Reader kernel generation
-   - `src/target/tt/codegen_tt_writer_visitor.cc` - Writer kernel generation
-   - **Metalium Integration (Weeks 16-18):**
-     - ✅ Conditional compilation (real/mock modes)
-     - ✅ Real Metalium headers in generated code
-     - ⚠️ SDK validation pending (needs hardware access)
+   - `src/target/tt/codegen_tt_compute_visitor.cc` - Compute kernel
+   - `src/target/tt/codegen_tt_reader_visitor.cc` - Reader kernel
+   - `src/target/tt/codegen_tt_writer_visitor.cc` - Writer kernel
+   - Conditional compilation (real/mock modes)
    - 41 tests passing
 
 ### Directory Structure
@@ -392,8 +381,8 @@ tilelang-tt/
 │   └── transform/              # IR transformation passes
 ├── tilelang/
 │   ├── engine/                 # Backend engines
-│   │   └── tt/                 # Tenstorrent engine adapter (WS1 complete)
-│   ├── tt/                     # Tenstorrent utilities (WS1 complete)
+│   │   └── tt/                 # Tenstorrent engine adapter (Target Registration complete)
+│   ├── tt/                     # Tenstorrent utilities (Target Registration complete)
 │   │   └── target.py           # Default annotation helper
 │   ├── language/               # TileLang DSL (Python API)
 │   ├── autotuner/              # Auto-tuning framework
@@ -517,13 +506,13 @@ LD_LIBRARY_PATH=build/tvm pytest testing/python/tt/ -v
    - Update status after each validation phase
    - Document any API discrepancies discovered
 
-## Autonomous Workstream Execution Framework
+## Autonomous Phase Execution Framework
 
-This section provides a systematic approach for AI agents (like Claude Code) to autonomously complete workstreams from planning through implementation, testing, PR creation, and merge.
+This section provides a systematic approach for AI agents (like Claude Code) to autonomously complete phases from planning through implementation, testing, PR creation, and merge.
 
-### Workstream Lifecycle Overview
+### Phase Lifecycle Overview
 
-Each workstream follows this lifecycle:
+Each phase follows this lifecycle:
 ```
 Plan → Implement → Test → Document → PR → Merge → Next WS
 ```
@@ -533,17 +522,17 @@ Plan → Implement → Test → Document → PR → Merge → Next WS
 **Objective:** Fully understand requirements and create detailed implementation plan.
 
 **Steps:**
-1. **Read workstream documentation:**
+1. **Read phase documentation:**
    ```bash
    # Read status document
-   cat docs/tenstorrent/workstream{N}/WS{N}_STATUS.md
+   cat docs/tenstorrent/phase{N}/WS{N}_STATUS.md
 
    # Read all related design docs
-   find docs/tenstorrent/workstream{N}/ -name "*.md" -exec cat {} \;
+   find docs/tenstorrent/phase{N}/ -name "*.md" -exec cat {} \;
    ```
 
 2. **Understand dependencies:**
-   - Verify prerequisite workstreams are complete
+   - Verify prerequisite phases are complete
    - Check which components from previous WS are needed
    - Identify new components to build
 
@@ -694,7 +683,7 @@ Plan → Implement → Test → Document → PR → Merge → Next WS
    git commit -m "$(cat <<'EOF'
    Complete WS{N}: {Brief description}
 
-   This PR implements Workstream {N}: {Full description}
+   This PR implements Phase {N}: {Full description}
 
    **What's included:**
    - C++ implementation: {list files}
@@ -734,7 +723,7 @@ Plan → Implement → Test → Document → PR → Merge → Next WS
      --body "$(cat <<'EOF'
    ## Summary
 
-   This PR implements Workstream {N}: {Full description}.
+   This PR implements Phase {N}: {Full description}.
 
    ## Changes
 
@@ -750,7 +739,7 @@ Plan → Implement → Test → Document → PR → Merge → Next WS
    - `testing/python/tt/test_ws{N}_{feature}.py` - {X} tests
 
    ### Documentation
-   - Updated `docs/tenstorrent/workstream{N}/WS{N}_STATUS.md`
+   - Updated `docs/tenstorrent/phase{N}/WS{N}_STATUS.md`
    - {list other doc updates}
 
    ## Test Results
@@ -836,24 +825,24 @@ Plan → Implement → Test → Document → PR → Merge → Next WS
 - [ ] Local main updated
 - [ ] Tests pass on main branch
 
-### Phase 7: Move to Next Workstream
+### Phase 7: Move to Next Phase
 
-**Objective:** Seamlessly transition to next workstream.
+**Objective:** Seamlessly transition to next phase.
 
 **Transition steps:**
 1. **Verify current WS complete:**
    ```bash
    # Check status document
-   cat docs/tenstorrent/workstream{N}/WS{N}_STATUS.md | grep "Progress:"
+   cat docs/tenstorrent/phase{N}/WS{N}_STATUS.md | grep "Progress:"
    ```
 
-2. **Identify next workstream:**
+2. **Identify next phase:**
    ```bash
    # Read project plan
    cat docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md
 
    # Check next WS directory
-   ls -la docs/tenstorrent/workstream{N+1}/
+   ls -la docs/tenstorrent/phase{N+1}/
    ```
 
 3. **Read next WS documentation:**
@@ -861,7 +850,7 @@ Plan → Implement → Test → Document → PR → Merge → Next WS
    - Read WS{N+1}_STATUS.md
    - Understand dependencies
 
-4. **Begin next workstream:**
+4. **Begin next phase:**
    - Go back to Phase 1 with new WS
    - Follow same lifecycle
 
@@ -875,7 +864,7 @@ Plan → Implement → Test → Document → PR → Merge → Next WS
 ### Automation Guidelines
 
 **When to use TodoWrite:**
-- Beginning of each workstream (track all tasks)
+- Beginning of each phase (track all tasks)
 - During implementation (track subtasks)
 - Mark tasks complete as you finish them
 - Update task status in real-time
@@ -901,23 +890,23 @@ Plan → Implement → Test → Document → PR → Merge → Next WS
 
 ### Key Success Metrics
 
-For each workstream, verify:
+For each phase, verify:
 - ✅ All planned components implemented
 - ✅ All tests passing (aim for 100% test pass rate)
 - ✅ Documentation complete and accurate
 - ✅ PR merged to main branch
 - ✅ No breaking changes to existing functionality
 
-### Example: Autonomous Execution of WS2
+### Example: Autonomous Execution of Metadata Inference
 
 ```
-Phase 1: Read docs/tenstorrent/workstream2/*.md → Create plan → Update STATUS.md
+Phase 1: Read docs/tenstorrent/phase2/*.md → Create plan → Update STATUS.md
 Phase 2: Implement infer_tt_schedule.cc, infer_tt_shard.cc, passes.py → Build succeeds
 Phase 3: Write test_ws2_passes.py → 7/7 tests pass → All existing tests pass
-Phase 4: Update WS2_STATUS.md with results → Update CLAUDE.md
+Phase 4: Update Metadata Inference_STATUS.md with results → Update CLAUDE.md
 Phase 5: Commit → Push ws2-schedule-shard-inference → Create PR
 Phase 6: Review PR → Merge to main → Update local main
-Phase 7: Read WS3 docs → Start Phase 1 for WS3
+Phase 7: Read Transform Pipeline docs → Start Phase 1 for Transform Pipeline
 ```
 
 ## Key Technical Details
@@ -940,30 +929,22 @@ This allows existing GPU-style kernels to run on TT with minimal changes (subjec
 
 ## Related Documentation
 
-### Primary References
-- **[UNIFIED_MATMUL_MVP_PLAN.md](docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md)** ⭐ **AUTHORITATIVE PLAN**
-  - Complete MVP scope and status
-  - IR flow and transformations
-  - TT vs CUDA stack comparison
-  - Detailed matmul IR with TT extensions
-  - Generated code examples
+### Core Documentation
+- **[TT_ARCHITECTURE.md](docs/tenstorrent/TT_ARCHITECTURE.md)** ⭐ - Complete TT backend architecture
+- **[IR_LOWERING_ANALYSIS.md](docs/tenstorrent/IR_LOWERING_ANALYSIS.md)** - GPU vs TT pipeline comparison
+- **[PASS_TABLE.md](docs/tenstorrent/PASS_TABLE.md)** - Comprehensive pass reference (60+ passes)
+- **[IR_LOWERING_TASKS.md](docs/tenstorrent/IR_LOWERING_TASKS.md)** - Pattern detection implementation tasks
 
-### Supporting Documentation
-- [GPU vs Tenstorrent Architecture](docs/tenstorrent/GPU_vs_Tenstorrent.md)
-- [Kernel Authoring Comparison](docs/tenstorrent/kernel_authoring_comparison.md)
-- [CI Documentation](docs/tenstorrent/CI.md)
-- [Local Build Guide](docs/tenstorrent/local_build_guide.md)
-- [Installation Guide](docs/get_started/Installation.md)
-- [External SDK Implementation Plan](docs/tenstorrent/EXTERNAL_SDK_IMPLEMENTATION_PLAN.md) - Complete External SDK integration
-- [Metalium Setup Guide](docs/tenstorrent/METALIUM_SETUP_GUIDE.md) - SDK installation and configuration
+### Setup & Usage
+- [METALIUM_SETUP_GUIDE.md](docs/tenstorrent/METALIUM_SETUP_GUIDE.md) - SDK installation and configuration
+- [local_build_guide.md](docs/tenstorrent/local_build_guide.md) - Local build instructions
+- [CI.md](docs/tenstorrent/CI.md) - Continuous integration
 
-### Workstream Status (Historical - See Unified Plan for Current Status)
-- [WS1 Status](docs/tenstorrent/workstream1/WS1_STATUS.md) ✅ Complete
-- [WS2 Status](docs/tenstorrent/workstream2/WS2_STATUS.md) ✅ Complete
-- [WS3 Status](docs/tenstorrent/workstream3/WS3_STATUS.md) ✅ Foundation Complete
-- [WS4 Status](docs/tenstorrent/workstream4/WS4_STATUS.md) 🚧 In Progress
-- [WS5 Status](docs/tenstorrent/workstream5/WS5_STATUS.md) 🚧 In Progress
-- [WS6 Status](docs/tenstorrent/workstream6/WS6_STATUS.md) 🚧 In Progress
+### Validation
+- [METALIUM_SDK_VALIDATION_PLAN.md](docs/tenstorrent/METALIUM_SDK_VALIDATION_PLAN.md) - SDK validation phases
+
+### Phase Development (Active)
+- [phases/PHASES_STATUS.md](docs/tenstorrent/phases/PHASES_STATUS.md) - 6-phase implementation tracking
 
 
 ## Important Notes
