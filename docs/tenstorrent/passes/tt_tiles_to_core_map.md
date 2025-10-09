@@ -8,13 +8,13 @@
 
 ## Purpose
 
-Translate the logical tile scheduling metadata from Workstream 2 (`tt_tiles_per_core`) into the physical topology required by the Tenstorrent runtime (core range sets and per-core runtime arguments).
+Translate the logical tile scheduling metadata from Stage 2 (`tt_tiles_per_core`) into the physical topology required by the Tenstorrent runtime (core range sets and per-core runtime arguments).
 
 ---
 
 ## Why Needed
 
-Tenstorrent devices address cores by `(x, y)` coordinates on an 8 × 8 mesh (for Grayskull/Wormhole). WS2 produces linear tile assignments per core; the runtime expects:
+Tenstorrent devices address cores by `(x, y)` coordinates on an 8 × 8 mesh (for Grayskull/Wormhole). metadata inference stage produces linear tile assignments per core; the runtime expects:
 - Physical CoreRange descriptors describing which cores participate.
 - An ordered list of per-core runtime arguments (`start_tile`, `tile_count`).
 
@@ -43,14 +43,14 @@ This pass performs the conversion.
    ]
    ```
 
-Future optimisations may merge adjacent cores into rectangular ranges, but the MVP emits one range per active core.
+Future optimisations may merge adjacent cores into rectangular ranges, but the baseline feature set emits one range per active core.
 
 ---
 
 ## Tests
 
 **File**: `testing/python/tt/test_tt_tiles_to_core_map.py`  
-**Status**: ✅ Covers basic mapping, coordinate validation, runtime arg structure, and WS2 integration.
+**Status**: ✅ Covers basic mapping, coordinate validation, runtime arg structure, and metadata inference stage integration.
 
 ---
 
@@ -66,7 +66,7 @@ Future optimisations may merge adjacent cores into rectangular ranges, but the M
 
 ## Success Criteria
 
-- [x] Converts WS2 tile assignments into physical coordinates
+- [x] Converts metadata inference stage tile assignments into physical coordinates
 - [x] Emits per-core runtime arguments aligned with the persistent loop contract
 - [x] Leaves inactive cores with zero tiles
 - [x] Validated by unit tests

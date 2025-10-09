@@ -1,4 +1,4 @@
-"""Test TensorizeTT pass (WS3 Phase 2).
+"""Test TensorizeTT pass (persistent transform stage Phase 2).
 
 This pass lowers high-level matmul operations to TT intrinsics.
 """
@@ -142,8 +142,8 @@ def test_tensorize_tt_skip_non_tt_functions():
 
 
 def test_tensorize_tt_integration_with_ws1_ws2():
-    """Test TensorizeTT integrates with full WS1→WS2→TensorizeTT pipeline."""
-    from tilelang.tt.passes import apply_ws2_passes, tensorize_tt
+    """Test TensorizeTT integrates with full TT defaults stage→metadata inference stage→TensorizeTT pipeline."""
+    from tilelang.tt.passes import apply_tt_metadata_passes, tensorize_tt
     from tilelang.tt.target import apply_tt_defaults
 
     # Create function with gemm
@@ -161,16 +161,16 @@ def test_tensorize_tt_integration_with_ws1_ws2():
 
     mod = tvm.IRModule({"main": func})
 
-    # Apply WS1 → WS2 → TensorizeTT
+    # Apply TT defaults stage → metadata inference stage → TensorizeTT
     mod = apply_tt_defaults(mod)
-    mod = apply_ws2_passes(mod)
+    mod = apply_tt_metadata_passes(mod)
     mod = tensorize_tt(mod)
 
     func = mod["main"]
 
     # Verify all metadata exists
-    assert "tt_schedule_policy" in func.attrs, "Should have WS1 defaults"
-    assert "tt_tiles_per_core" in func.attrs, "Should have WS2 schedule metadata"
+    assert "tt_schedule_policy" in func.attrs, "Should have TT defaults stage defaults"
+    assert "tt_tiles_per_core" in func.attrs, "Should have metadata inference stage schedule metadata"
     assert "tt_num_matmuls" in func.attrs, "Should have TensorizeTT output"
     assert "tt_has_tensorize" in func.attrs, "Should have tensorize flag"
 

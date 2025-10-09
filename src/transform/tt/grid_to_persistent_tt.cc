@@ -19,13 +19,13 @@
 
 /*!
  * \file grid_to_persistent_tt.cc
- * \brief Transform grid-style kernel to persistent per-core loop (WS3)
+ * \brief Transform grid-style kernel to persistent per-core loop (Persistent Transform stage)
  *
  * This pass converts GPU-style grid kernels to Tenstorrent's persistent
  * execution model. Each core runs a persistent loop iterating over its
  * assigned tiles, recovering block indices from the static schedule.
  *
- * See: docs/tenstorrent/workstream3/WS3_STATUS.md
+ * See: docs/tenstorrent/workstream3/Persistent Transform stage_STATUS.md
  */
 
 #include <tvm/ffi/reflection/registry.h>
@@ -176,14 +176,14 @@ class GridToPersistentMutator : public StmtMutator {
 /*!
  * \brief Transform grid-style kernel to persistent per-core loop
  *
- * This pass reads WS2 schedule metadata and wraps the kernel body
+ * This pass reads Metadata Inference stage schedule metadata and wraps the kernel body
  * with a persistent loop that iterates over assigned tiles.
  *
  * \param f The PrimFunc to process
  * \return Enhanced PrimFunc with persistent loop structure
  */
 PrimFunc GridToPersistentTTImpl(PrimFunc f) {
-  // Step 1: Read grid dimensions from WS2 metadata
+  // Step 1: Read grid dimensions from Metadata Inference stage metadata
   auto grid_x_attr = f->attrs.GetAttr<Integer>("tt_grid_x");
   auto grid_y_attr = f->attrs.GetAttr<Integer>("tt_grid_y");
   auto grid_z_attr = f->attrs.GetAttr<Integer>("tt_grid_z");

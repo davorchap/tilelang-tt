@@ -37,7 +37,7 @@ These items remain on the roadmap; the current pass provides scaffolding without
 
 ## Tests
 
-Covered indirectly via WS3 integration tests that assert `tt_has_tensorize` metadata when `T.gemm()` is used.
+Covered indirectly via persistent transform stage integration tests that assert `tt_has_tensorize` metadata when `T.gemm()` is used.
 
 ---
 

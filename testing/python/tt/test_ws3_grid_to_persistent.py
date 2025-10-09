@@ -1,13 +1,13 @@
-"""Basic tests for Workstream 3: GridToPersistentTT pass.
+"""Basic tests for Persistent transform stage: GridToPersistentTT pass.
 
-This module tests the foundation of WS3 - the GridToPersistentTT transform
+This module tests the foundation of persistent transform stage – the GridToPersistentTT transform
 that converts grid-style kernels to persistent per-core loops.
 """
 
 import pytest
 from tilelang import tvm
 import tilelang.language as T
-from tilelang.tt import apply_tt_defaults, apply_ws2_passes, grid_to_persistent_tt, apply_ws3_passes
+from tilelang.tt import apply_tt_defaults, apply_tt_metadata_passes, grid_to_persistent_tt, apply_tt_transform_passes
 
 
 class TestGridToPersistentTT:
@@ -22,10 +22,10 @@ class TestGridToPersistentTT:
                 # Stub kernel body
                 pass
 
-        # Convert to IRModule and apply WS1+WS2
+        # Convert to IRModule and apply TT defaults stage + metadata inference stage
         mod = tvm.IRModule.from_expr(simple_kernel.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)
-        mod = apply_ws2_passes(mod)
+        mod = apply_tt_metadata_passes(mod)
 
         # Apply GridToPersistentTT
         mod = grid_to_persistent_tt(mod)
@@ -76,7 +76,7 @@ class TestGridToPersistentTT:
 
         mod = tvm.IRModule.from_expr(kernel_1d.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)
-        mod = apply_ws2_passes(mod)
+        mod = apply_tt_metadata_passes(mod)
         mod = grid_to_persistent_tt(mod)
 
         func = mod["main"]
@@ -95,7 +95,7 @@ class TestGridToPersistentTT:
 
         mod = tvm.IRModule.from_expr(kernel_3d.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)
-        mod = apply_ws2_passes(mod)
+        mod = apply_tt_metadata_passes(mod)
         mod = grid_to_persistent_tt(mod)
 
         func = mod["main"]
@@ -104,8 +104,8 @@ class TestGridToPersistentTT:
         assert list(map(str, runtime_args["iteration_symbols"])) == ["bx", "by", "bz"]
         assert int(func.attrs["tt_persistent_iteration_ndims"]) == 3
 
-    def test_apply_ws3_passes(self):
-        """Test full WS3 pipeline on simple kernel."""
+    def test_apply_tt_transform_passes(self):
+        """Test full persistent transform stage pipeline on simple kernel."""
 
         @T.prim_func
         def kernel(A: T.Buffer((128, 128), "float16")):
@@ -114,23 +114,23 @@ class TestGridToPersistentTT:
 
         mod = tvm.IRModule.from_expr(kernel.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)
-        mod = apply_ws2_passes(mod)
+        mod = apply_tt_metadata_passes(mod)
 
-        # Apply WS3 pipeline
-        mod = apply_ws3_passes(mod)
+        # Apply persistent transform stage pipeline
+        mod = apply_tt_transform_passes(mod)
 
         func = mod["main"]
-        # Should have both WS2 and WS3 metadata
-        assert "tt_num_tiles" in func.attrs  # From WS2
-        assert "tt_runtime_args" in func.attrs  # From WS3
-        assert "tt_persistent_loop" in func.attrs  # From WS3
+        # Should have both metadata inference stage and persistent transform stage metadata
+        assert "tt_num_tiles" in func.attrs  # From metadata inference stage
+        assert "tt_runtime_args" in func.attrs  # From persistent transform stage
+        assert "tt_persistent_loop" in func.attrs  # From persistent transform stage
 
 
-class TestWS1WS2WS3Integration:
+class TestPipelineIntegration:
     """Test integration of all three workstreams."""
 
     def test_full_pipeline_integration(self):
-        """Test WS1 → WS2 → WS3 pipeline on realistic GEMM."""
+        """Test TT defaults stage → metadata inference stage → persistent transform stage pipeline on realistic GEMM."""
 
         @T.prim_func
         def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
@@ -141,21 +141,21 @@ class TestWS1WS2WS3Integration:
 
         # Full pipeline
         mod = tvm.IRModule.from_expr(gemm.with_attr("global_symbol", "main"))
-        mod = apply_tt_defaults(mod)  # WS1
-        mod = apply_ws2_passes(mod)  # WS2
-        mod = apply_ws3_passes(mod)  # WS3
+        mod = apply_tt_defaults(mod)  # TT defaults stage
+        mod = apply_tt_metadata_passes(mod)  # metadata inference stage
+        mod = apply_tt_transform_passes(mod)  # persistent transform stage
 
         func = mod["main"]
 
-        # Verify WS1 metadata
+        # Verify TT defaults stage metadata
         assert "tt_schedule_policy" in func.attrs
         assert "tt_layout_type" in func.attrs
 
-        # Verify WS2 metadata
+        # Verify metadata inference stage metadata
         assert "tt_num_tiles" in func.attrs
         assert "tt_tiles_per_core" in func.attrs
 
-        # Verify WS3 metadata
+        # Verify persistent transform stage metadata
         assert "tt_runtime_args" in func.attrs
         assert "tt_persistent_loop" in func.attrs
 

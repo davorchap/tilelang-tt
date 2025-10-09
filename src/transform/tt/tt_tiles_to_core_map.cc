@@ -19,10 +19,10 @@
 
 /*!
  * \file tt_tiles_to_core_map.cc
- * \brief Map tile assignments to physical core coordinates (WS3 Phase 2)
+ * \brief Map tile assignments to physical core coordinates (Persistent Transform stage)
  *
  * This pass generates CoreRangeSet topology mappings for Tenstorrent devices.
- * It converts the logical tile-to-core mapping from WS2 into physical core
+ * It converts the logical tile-to-core mapping from Metadata Inference stage into physical core
  * coordinates that the TT-Metalium runtime can understand.
  *
  * Tenstorrent Core Grid (Grayskull/Wormhole):
@@ -88,11 +88,11 @@ CoreCoord LinearToCoreCoord(int core_id, int grid_width = 8) {
 /*!
  * \brief Generate core range sets from tile assignments
  *
- * This function converts the logical tile-to-core mapping from WS2 into
+ * This function converts the logical tile-to-core mapping from Metadata Inference stage into
  * physical CoreRangeSet objects. It attempts to merge adjacent cores into
  * rectangular ranges for efficiency.
  *
- * \param tiles_per_core Array of [start_id, count] per core from WS2
+ * \param tiles_per_core Array of [start_id, count] per core from Metadata Inference stage
  * \param num_cores Total number of cores (default 64)
  * \return Array of core ranges (as nested arrays for TVM IR)
  */
@@ -137,7 +137,7 @@ Array<Array<Integer>> GenerateCoreRanges(const Array<Array<Integer>>& tiles_per_
  * Creates arrays of runtime arguments (start_tile, num_tiles) for each core.
  * These will be passed to the TT-Metalium runtime during kernel launch.
  *
- * \param tiles_per_core Tile assignments from WS2
+ * \param tiles_per_core Tile assignments from Metadata Inference stage
  * \param num_cores Total number of cores
  * \return Array of [start_tile, num_tiles] per core
  */
@@ -170,7 +170,7 @@ Array<Array<Integer>> GenerateCoreRuntimeArgs(const Array<Array<Integer>>& tiles
 /*!
  * \brief Main implementation of TTTilesToCoreMap pass
  *
- * Reads WS2 tile assignment metadata and generates physical core topology.
+ * Reads Metadata Inference stage tile assignment metadata and generates physical core topology.
  * Adds the following attributes:
  * - tt_core_ranges: Array of [start_x, start_y, end_x, end_y, start_tile, count]
  * - tt_core_runtime_args: Array of [start_tile, num_tiles] per core
@@ -179,12 +179,12 @@ Array<Array<Integer>> GenerateCoreRuntimeArgs(const Array<Array<Integer>>& tiles
  * \return Enhanced PrimFunc with core topology metadata
  */
 PrimFunc TTTilesToCoreMapImpl(PrimFunc f) {
-  // Step 1: Check for required WS2 metadata
+  // Step 1: Check for required Metadata Inference stage metadata
   auto tiles_per_core_attr = f->attrs.GetAttr<Array<Array<Integer>>>("tt_tiles_per_core");
   auto num_cores_attr = f->attrs.GetAttr<Integer>("tt_num_cores");
 
   if (!tiles_per_core_attr.defined() || !num_cores_attr.defined()) {
-    // No WS2 metadata, skip transformation
+    // No Metadata Inference stage metadata, skip transformation
     return f;
   }
 

@@ -19,7 +19,7 @@
 
 /*!
  * \file infer_tt_shard.cc
- * \brief Infer default Tenstorrent sharding metadata (WS2)
+ * \brief Infer default Tenstorrent sharding metadata (Metadata Inference stage)
  *
  * This pass generates DRAM interleaved layout descriptors and identifies
  * padding requirements for non-tile-aligned dimensions. It prepares buffer

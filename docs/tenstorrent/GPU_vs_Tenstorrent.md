@@ -337,7 +337,7 @@ def matmul(A: T.Buffer, B: T.Buffer, C: T.Buffer):
 # Apply TT backend
 mod = tvm.IRModule.from_expr(matmul)
 mod = tt.apply_tt_defaults(mod)         # Inject TT annotations
-mod = tt.apply_ws2_passes(mod)          # Lower to persistent + CBs
+mod = tt.apply_tt_metadata_passes(mod)          # Lower to persistent + CBs
 artifacts = tt.emit_tt_artifacts(mod)   # Generate reader/compute/writer
 ```
 

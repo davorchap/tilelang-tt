@@ -19,7 +19,7 @@
 
 /*!
  * \file codegen_tt.cc
- * \brief Code generator for Tenstorrent backend (WS4)
+ * \brief Code generator for Tenstorrent backend (Artifact Generation stage)
  *
  * This module generates Metalium-compatible C++ kernels and metadata
  * for dry-run execution on the Tenstorrent backend.
@@ -29,7 +29,7 @@
  * - IR-driven codegen: Uses visitor pattern to walk actual IR structure
  *
  * See: docs/tenstorrent/IR_DRIVEN_CODEGEN_PLAN.md
- * See: docs/tenstorrent/workstream4/WS4_STATUS.md
+ * See: docs/tenstorrent/workstream4/Artifact Generation stage_STATUS.md
  */
 
 #include <tvm/ffi/container/map.h>

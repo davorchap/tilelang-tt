@@ -1,4 +1,4 @@
-"""Test TilePadTT pass (WS3 Phase 2).
+"""Test TilePadTT pass (persistent transform stage Phase 2).
 
 This pass computes padding metadata for non-tile-aligned buffers.
 """
@@ -9,7 +9,7 @@ from tvm import tir
 
 
 def create_func_with_padding_metadata(needs_padding=True):
-    """Create a mock PrimFunc with WS2 padding metadata."""
+    """Create a mock PrimFunc with metadata inference stage padding metadata."""
     # Create buffers - 250×250 if padding needed, 256×256 if aligned
     if needs_padding:
         A = tir.decl_buffer((250, 250), "float16", name="A", scope="global")
@@ -25,7 +25,7 @@ def create_func_with_padding_metadata(needs_padding=True):
     # Add TT defaults
     func = func.with_attr("tt_schedule_policy", "contiguous")
 
-    # Add WS2 padding metadata
+    # Add metadata inference stage padding metadata
     func = func.with_attr("tt_buffer_A_needs_padding",
                           tvm.tir.IntImm("int32", 1 if needs_padding else 0))
     func = func.with_attr(
@@ -185,7 +185,7 @@ def test_tile_pad_tt_multiple_buffers():
     # Add TT defaults
     func = func.with_attr("tt_schedule_policy", "contiguous")
 
-    # Add WS2 metadata
+    # Add metadata inference stage metadata
     func = func.with_attr("tt_buffer_A_needs_padding", tvm.tir.IntImm("int32", 1))
     func = func.with_attr(
         "tt_buffer_A_tile_shape",
@@ -223,8 +223,8 @@ def test_tile_pad_tt_multiple_buffers():
 
 
 def test_tile_pad_tt_integration_with_ws1_ws2():
-    """Test TilePadTT integrates with full WS1→WS2→TilePadTT pipeline."""
-    from tilelang.tt.passes import apply_ws2_passes, tile_pad_tt
+    """Test TilePadTT integrates with full TT defaults stage→metadata inference stage→TilePadTT pipeline."""
+    from tilelang.tt.passes import apply_tt_metadata_passes, tile_pad_tt
     from tilelang.tt.target import apply_tt_defaults
 
     # Create function with non-aligned buffer
@@ -241,16 +241,16 @@ def test_tile_pad_tt_integration_with_ws1_ws2():
 
     mod = tvm.IRModule({"main": func})
 
-    # Apply WS1 → WS2 → TilePadTT
+    # Apply TT defaults stage → metadata inference stage → TilePadTT
     mod = apply_tt_defaults(mod)
-    mod = apply_ws2_passes(mod)
+    mod = apply_tt_metadata_passes(mod)
     mod = tile_pad_tt(mod)
 
     func = mod["main"]
 
     # Verify all metadata exists
-    assert "tt_schedule_policy" in func.attrs, "Should have WS1 defaults"
-    assert "tt_buffer_A_needs_padding" in func.attrs, "Should have WS2 padding detection"
+    assert "tt_schedule_policy" in func.attrs, "Should have TT defaults stage defaults"
+    assert "tt_buffer_A_needs_padding" in func.attrs, "Should have metadata inference stage padding detection"
     assert "tt_padding_info" in func.attrs, "Should have TilePadTT output"
 
 

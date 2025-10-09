@@ -46,7 +46,7 @@ The underlying `DeclBuffer` nodes remain unchanged; codegen replays the metadata
 
 ## Tests
 
-**File**: Pending (metadata inspected indirectly through WS3 tests)
+**File**: Pending (metadata inspected indirectly through persistent transform stage tests)
 
 ---
 

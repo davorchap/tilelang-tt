@@ -71,9 +71,9 @@ def main():
 
     # Step 2: Run unified IR lowering pipeline
     print("Step 2: Running unified IR lowering pipeline...")
-    print("  - Phase 1: Apply TT defaults (WS1)")
+    print("  - Phase 1: Apply TT defaults stage")
     print("  - Phase 2: Frontend lowering (15+ passes, shared with CUDA)")
-    print("  - Phase 3: TT optimizations (WS2 + WS3 + common)")
+    print("  - Phase 3: TT optimizations (metadata inference + persistent transform + common)")
     print("  - Phase 4: Device splitting")
     print("  - Phase 5: Codegen (3-kernel architecture)")
     print()

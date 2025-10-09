@@ -1,5 +1,5 @@
 """
-TileLang Tenstorrent Backend Code Generation (WS4)
+TileLang Tenstorrent Backend Code Generation (Artifact Generation stage)
 
 This module provides Python bindings for TT kernel codegen and artifact generation.
 """
@@ -18,7 +18,7 @@ def emit_tt_artifacts(mod: IRModule, target: str = "tenstorrent") -> Dict[str, s
     - tt.plan.json: Scheduling metadata (grid, cores, assignments)
 
     Args:
-        mod: TVM IRModule with WS1-3 transforms applied (schedule + sharding metadata)
+        mod: TVM IRModule with TT Defaults stage-3 transforms applied (schedule + sharding metadata)
         target: Target string (default: "tenstorrent")
 
     Returns:

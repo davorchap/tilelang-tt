@@ -94,7 +94,7 @@ import tilelang.tt as tt
 # Compile for Tenstorrent
 mod = tvm.IRModule.from_expr(matmul)
 mod = tt.apply_tt_defaults(mod)      # Add default schedule/sharding
-mod = tt.apply_ws2_passes(mod)       # Lower to persistent + CBs + tensorization
+mod = tt.apply_tt_metadata_passes(mod)       # Lower to persistent + CBs + tensorization
 artifacts = tt.emit_tt_artifacts(mod)  # Generate reader/compute/writer kernels
 
 # Artifacts:

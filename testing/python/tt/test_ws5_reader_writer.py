@@ -1,5 +1,5 @@
 """
-WS5: Reader/Writer Kernel Emission Integration Tests
+reader/writer generation stage: Reader/Writer Kernel Emission Integration Tests
 
 Tests for TT reader and writer kernel generation, circular buffer operations,
 and 3-kernel coordination (reader → compute → writer).
@@ -12,9 +12,9 @@ import tilelang.tt as tt
 
 def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
     """
-    Create a minimal TVM IRModule with WS2/WS3 metadata attached for codegen testing.
+    Create a minimal TVM IRModule with metadata inference stage/persistent transform stage metadata attached for codegen testing.
 
-    This simulates the output of WS1-3 pipeline without needing actual kernel code.
+    This simulates the output of TT defaults stage-3 pipeline without needing actual kernel code.
     """
     # Create minimal PrimFunc
     A = tir.decl_buffer((256, 256), "float16", name="A")
@@ -29,7 +29,7 @@ def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
         body=body,
     )
 
-    # Attach WS2 schedule metadata
+    # Attach metadata inference stage schedule metadata
     num_tiles = grid_x * grid_y
     tiles_per_core = []
     for i in range(num_cores):
@@ -59,7 +59,7 @@ def test_emit_reader_kernel_basic():
     Verifies that reader.cpp artifact is generated with correct CB API calls
     and NOC operations.
     """
-    # Create module with WS2/WS3 metadata
+    # Create module with metadata inference stage/persistent transform stage metadata
     mod = create_tt_module_with_metadata(grid_x=8, grid_y=8)
 
     # Generate artifacts
@@ -82,7 +82,7 @@ def test_emit_reader_kernel_basic():
     assert "cb_push_back(cb_in1, 1)" in reader_cpp, "cb_push_back missing for cb_in1"
     assert "get_write_ptr(cb_in1)" in reader_cpp, "get_write_ptr missing for cb_in1"
 
-    # Verify NOC operations (WS7: uses noc_async_read_tile)
+    # Verify NOC operations (reader/writer specialization stage: uses noc_async_read_tile)
     assert "noc_async_read_tile(" in reader_cpp, "noc_async_read_tile missing"
     assert "noc_async_read_barrier()" in reader_cpp, "noc_async_read_barrier missing"
 
@@ -118,7 +118,7 @@ def test_emit_writer_kernel_basic():
     assert "cb_pop_front(cb_out0, 1)" in writer_cpp, "cb_pop_front missing for cb_out0"
     assert "get_read_ptr(cb_out0)" in writer_cpp, "get_read_ptr missing for cb_out0"
 
-    # Verify NOC operations (WS7: uses noc_async_write_tile)
+    # Verify NOC operations (reader/writer specialization stage: uses noc_async_write_tile)
     assert "noc_async_write_tile(" in writer_cpp, "noc_async_write_tile missing"
     assert "noc_async_write_barrier()" in writer_cpp, "noc_async_write_barrier missing"
 
@@ -172,7 +172,7 @@ def test_reader_writer_tile_counts():
     """
     Test 4: Reader/Writer kernel handles different tile counts correctly
 
-    Verifies that tile counts from WS2 metadata are correctly reflected
+    Verifies that tile counts from metadata inference stage metadata are correctly reflected
     in generated reader/writer kernels.
     """
     test_cases = [
@@ -188,7 +188,7 @@ def test_reader_writer_tile_counts():
 
         expected_tiles = grid_x * grid_y
 
-        # WS7: Reader/writer kernels now have matmul-specific structure
+        # reader/writer specialization stage: Reader/writer kernels now have matmul-specific structure
         # Verify they contain runtime args and loop structures
         reader_cpp = artifacts["reader.cpp"]
         assert "num_out_tiles" in reader_cpp, \
@@ -222,7 +222,7 @@ def test_cb_synchronization_pattern():
     compute_cpp = artifacts["compute.cpp"]
     writer_cpp = artifacts["writer.cpp"]
 
-    # Reader pattern: reserve → write → push (WS7: unified kernel_main)
+    # Reader pattern: reserve → write → push (reader/writer specialization stage: unified kernel_main)
     # Check order by finding positions
     reader_lines = reader_cpp.split('\n')
     reader_kernel_start = next(
@@ -251,7 +251,7 @@ def test_cb_synchronization_pattern():
         assert "cb_wait_front" in compute_cpp or "matmul_tiles" in compute_cpp, "Compute missing operations"
     # else: Empty body is valid for IR-driven (just has runtime args)
 
-    # Writer pattern: wait → read → pop (WS7: kernel_main)
+    # Writer pattern: wait → read → pop (reader/writer specialization stage: kernel_main)
     writer_lines = writer_cpp.split('\n')
     writer_kernel_start = next(
         i for i, line in enumerate(writer_lines) if "void kernel_main()" in line)
@@ -271,7 +271,7 @@ def test_cb_synchronization_pattern():
 
 if __name__ == "__main__":
     # Run tests
-    print("Running WS5 Reader/Writer Kernel Tests\n")
+    print("Running reader/writer generation stage Reader/Writer Kernel Tests\n")
 
     test_emit_reader_kernel_basic()
     test_emit_writer_kernel_basic()
@@ -279,4 +279,4 @@ if __name__ == "__main__":
     test_reader_writer_tile_counts()
     test_cb_synchronization_pattern()
 
-    print("\n✅ All WS5 reader/writer tests passed!")
+    print("\n✅ All reader/writer generation stage reader/writer tests passed!")

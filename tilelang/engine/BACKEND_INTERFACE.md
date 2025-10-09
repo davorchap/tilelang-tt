@@ -46,8 +46,8 @@ TileLang uses a **phased lowering pipeline** with shared and backend-specific co
 │ OptimizeFor     │      │  OptimizeFor        │
 │ Target()        │      │  TargetTT()         │
 │                 │      │                     │
-│ - WarpSpecial   │      │  - WS2 Inference    │
-│ - TMA Lowering  │      │  - WS3 Transforms   │
+│ - WarpSpecial   │      │  - Metadata Inference    │
+│ - TMA Lowering  │      │  - Persistent Transforms   │
 │ - SharedMem     │      │  - Common Opts      │
 │ - Common Opts   │      │  - TT Verification  │
 │ - SplitHost     │      │  - SplitTTKernels   │

@@ -57,7 +57,7 @@ A = T.Buffer((256, 256), "float16")  # DRAM buffer
 ## Tests
 
 **File**: Covered indirectly via `testing/python/tt/test_ws3_grid_to_persistent.py`  
-**Status**: ✅ Metadata shape validated alongside WS3 transforms
+**Status**: ✅ Metadata shape validated alongside persistent transform stage transforms
 
 ---
 
