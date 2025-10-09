@@ -48,8 +48,8 @@ Applied by both GPU and TT targets via `LowerAndLegalize()`.
 **Output:** Legalized TIR with memory layouts inferred
 
 **Key Transforms:**
-- `T.copy(A, B)` → `for i, j: B[i,j] = A[i,j]` (GPU: final; TT: intermediate, re-lowered in Phase 2B)
-- Fragment allocations get memory scope annotations (GPU only; TT uses circular buffers)
+- `T.copy(A, B)` → `for i, j: B[i,j] = A[i,j]`
+- Fragment allocations get memory scope annotations
 - Safety checks for dynamic indexing
 
 ---
@@ -148,29 +148,54 @@ Applied only for CUDA/ROCm targets via `OptimizeForTarget()`.
 
 Applied only for Tenstorrent target via `OptimizeForTargetTT()`.
 
-### Metadata Inference: Schedule and Sharding Inference
+### Metadata Inference: Layout-Aware (New Pipeline)
 
 | Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
 |------|--------|----------|----------|-----------|---------|---------------|
-| **infer_default_tt_schedule** | ✅ Complete | Device | Grid kernel | Kernel + schedule | Compute per-core tile ranges | [📄 Doc](./passes/infer_default_tt_schedule.md) |
-| **infer_default_tt_shard** | ✅ Complete | Memory | Buffers | Buffers + shard metadata | Generate DRAM layout descriptors | [📄 Doc](./passes/infer_default_tt_shard.md) |
+| **InferTTLayout** | 🚧 Planned | Memory | Buffers + user attrs | Buffers + `tt.buffer.*` | Normalize memory layout & ND sharding | [📄 Doc](./passes/infer_layout_tt.md) |
+| **PropagateTTLayout** | 🚧 Planned | Memory | Copy ops | PrimFunc + `tt.cb.*` | Generate circular buffer metadata | [📄 Doc](./passes/propagate_layout_tt.md) |
+| **LayoutAwareWorkPartitionTT** | 🚧 Planned | Device | PrimFunc + layout | PrimFunc + partition attrs | Choose cores, partition mode, runtime args | [📄 Doc](./passes/layout_aware_partition_tt.md) |
 
-- Schedule metadata:
-  - `tt_grid_{x,y,z}`, `tt_num_tiles`, `tt_tiles_per_core`
-  - Consolidated `tt_schedule` map: `policy`, `order`, `grid_shape`, `assignments=[{core_id, start_tile, tile_count}]`
-- Sharding metadata:
-  - Legacy per-buffer keys (`tt_buffer_{name}_layout`, etc.)
-  - Consolidated `tt_shard` map keyed by buffer name with layout, tile shape, padding info
+**Annotations Added:**
+```json
+"tt.buffer.A": {
+  "memory": "DRAM",
+  "layout": "sharded",
+  "tile_shape": [32, 32],
+  "dtype": "bf16",
+  "nd_shard": {
+    "axes": ["B","H","M","N"],
+    "grid": [2,4,1,1],
+    "shard_shape_elems": [B//2,H//4,M,N],
+    "order": "row_major",
+    "align_tiles": true,
+    "projected_grid": [Gy,Gx],
+    "projected_shard_tiles": [Sm,Sn]
+  }
+}
+
+"tt.partition_mode": "local_shard"
+"tt.core_ranges": [[y0,x0],[y1,x1], ...]
+"tt.runtime_args": ["start_id","count","Mt","Kt","Nt","Sm","Sn","Gy","Gx","sy","sx"]
+"tt.cb.A": {"page_size": 2048, "depth": 2, "data_format": "BFloat16_b"}
+```
+
+Legacy schedule/shard passes remain for compatibility:
+
+| Pass | Status | Category | Purpose |
+|------|--------|----------|---------|
+| **infer_default_tt_schedule** | 🟡 Legacy | Device | Seed default per-core ranges when no annotations are provided. |
+| **infer_default_tt_shard** | 🟡 Legacy | Memory | Provide DRAM layout descriptors until layout-aware pipeline lands. |
 
 ### Transform Pipeline: TIR Transformations
 
 | Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
 |------|--------|----------|----------|-----------|---------|---------------|
-| **grid_to_persistent_tt** | ✅ Complete | Device | GPU grid kernel | TT persistent kernel | Transform grid → persistent loop (adds runtime params) | [📄 Doc](./passes/grid_to_persistent_tt.md) |
-| **tt_tiles_to_core_map** | ✅ Complete | Device | Tile assignments | Core (x, y) coords | Map scheduled tiles to NOC grid | [📄 Doc](./passes/tt_tiles_to_core_map.md) |
-| **memory_space_lower_tt** | ✅ Complete | Memory | DRAM buffers | TT CB metadata | Record circular-buffer annotations (metadata only) | [📄 Doc](./passes/memory_space_lower_tt.md) |
-| **tile_pad_tt** | ✅ Complete | Memory | Arbitrary shapes | Padding metadata | Record tile padding requirements | [📄 Doc](./passes/tile_pad_tt.md) |
-| **tensorize_tt** | 🟡 Partial | Device | Loops | Loop attrs | Annotate matmul pragmas for TT codegen | [📄 Doc](./passes/tensorize_tt.md) |
+| **grid_to_persistent_tt** | 🛠️ Update planned | Device | Persistent kernel metadata | Shard-aware persistent loop | Recover tile indices with partition mode | [📄 Doc](./passes/grid_to_persistent_tt.md) |
+| **tt_tiles_to_core_map** | 🟡 Legacy | Device | Tile assignments | Core (x, y) coords | Legacy NOC mapping (to be replaced) | [📄 Doc](./passes/tt_tiles_to_core_map.md) |
+| **memory_space_lower_tt** | ✅ Complete | Memory | DRAM buffers | L1 circular buffers | Lower DRAM → L1 CB (consumes `tt.cb.*`) | [📄 Doc](./passes/memory_space_lower_tt.md) |
+| **tile_pad_tt** | ✅ Complete | Memory | Arbitrary shapes | Tile-aligned shapes | Pad to 32×32 tiles | [📄 Doc](./passes/tile_pad_tt.md) |
+| **tensorize_tt** | 🟡 Partial | Device | Loops | Loops + intrinsic annos | Detect patterns, annotate | [📄 Doc](./passes/tensorize_tt.md) |
 | **rasterization_tt** | ⚠️ Planned | Optimization | Tile iteration | Optimized tile order | Remap tile iteration order | [📄 Spec](#rasterization_tt-specification) |
 | **tt_multicast_reuse** | ⚠️ Planned | Optimization | NOC ops | NOC + multicast | Insert multicast for reuse | [📄 Spec](#tt_multicast_reuse-specification) |
 | **verify_tt_ir** | ✅ Complete | Verification | TT IR | Verified TT IR | Verify TT constraints | [📄 Doc](./passes/verify_tt_ir.md) |
@@ -187,20 +212,27 @@ def kernel(...):
 
 # After
 @T.prim_func
-def kernel(..., tt_start_tile: int32, tt_tile_count: int32):
-  for tt_tile_iter in range(tt_tile_count):
-    tile_id = tt_start_tile + tt_tile_iter
-    bx = tile_id % 8
-    by = (tile_id // 8) % 8
+def kernel(...):
+  core_id = get_core_id()
+  start, count, Mt, Nt = get_runtime_args(core_id)[:4]
+  mode = get_partition_mode()
 
-    # Original computation
-    C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
+  if mode == "global":
+    for i in range(count):
+      tid = start + i
+      m = tid // Nt
+      n = tid % Nt
+      compute_tile(m, n)
+  else:
+    Sm, Sn, Gy, Gx, sy, sx = get_runtime_args(core_id)[4:]
+    for i in range(count):
+      tid = start + i
+      m_local = tid // Sn
+      n_local = tid % Sn
+      m = sy * Sm + m_local
+      n = sx * Sn + n_local
+      compute_tile(m, n)
 ```
-
-**Runtime Metadata:**
-- Appends scalar params `tt_start_tile`, `tt_tile_count`
-- `tt_runtime_args`: `{start_tile, tile_count, grid_shape, iteration_ndims, iteration_symbols, param_order}`
-- `tt_persistent_iteration_ndims`: Signals 1D/2D/3D tile iteration coverage
 
 **Example Transform (tensorize_tt):**
 
@@ -235,17 +267,20 @@ AttrStmt("tt.matmul_k_loop", kt):
 | **HoistIfThenElse** | Optimization | If in loops | Hoisted if | (Same as GPU) | TVM built-in |
 | **VerifyMemory** | Verification | IR | Verified IR | (Same as GPU) | TVM built-in |
 
-**Total:** 10 TT-specific (8 implemented/partial + 2 planned) + 11 shared = 21 passes
+**Total:** 7 active TT-specific (+3 legacy compatibility) + 11 shared passes
 
 **Input:** Legalized TIR from Phase 1 + TT defaults
 
 **Output:** TT-ready IR with persistent loops, CB allocations, intrinsic annotations
 
 **Key Transforms:**
-- Grid kernel → Persistent kernel with tile assignments
-- DRAM buffers → L1 circular buffers
-- Manual matmul loops → Annotated with tt.matmul_k_loop
-- Buffers padded to 32×32 tile boundaries
+- Layout annotations → Canonical `tt.buffer.*` schema (memory, layout, ND sharding).
+- DRAM↔L1 copies → `tt.cb.*` circular buffer metadata.
+- Buffer residency → Partition mode (`global` vs `local_shard`) and runtime args.
+- Grid kernel → Persistent kernel with shard-aware `(m, n)` recovery.
+- DRAM buffers → L1 circular buffers.
+- Manual matmul loops → Annotated with `tt.matmul_k_loop`.
+- Buffers padded to 32×32 tile boundaries.
 
 ---
 
@@ -320,15 +355,13 @@ Phase 2B (TT-Specific)
   ↓
 Metadata Inference: Schedule/Shard Inference (2 passes)
   ↓
-Transform Pipeline: TIR Transformations (4 passes: grid_to_persistent, shard_to_core_map, memory_space_lower, tile_pad)
+Transform Pipeline: TIR Transformations (4 passes)
   ↓
-Transform Pipeline: Tensorization (1 pass: tensorize_tt) ⭐
-  ↓
-Transform Pipeline: Optimizations (2 planned: rasterization_tt, tt_multicast_reuse)
+Transform Pipeline: Tensorization (1 pass) ⭐
   ↓
 Common optimizations (11 passes)
   ↓
-Verification (1 pass: verify_tt_ir)
+Verification (1 pass)
   ↓
 Phase 3 (Codegen)
   ↓
@@ -343,12 +376,12 @@ Phase 3 (Codegen)
 
 | Responsibility | Transform Passes | Codegen |
 |----------------|------------------|---------|
-| **Pattern Detection** | ✅ Yes (TT: tensorize_tt; GPU: InferFragment) | ❌ No |
+| **Pattern Detection** | ✅ Yes (tensorize_tt, InferFragment) | ❌ No |
 | **Annotation** | ✅ Yes (AttrStmt with metadata) | ❌ No |
 | **IR Optimization** | ✅ Yes (simplify, loop unroll, etc.) | ❌ No |
 | **Memory Planning** | ✅ Yes (storage rewrite, buffer merge) | ❌ No |
 | **Intrinsic Emission** | ❌ No | ✅ Yes (read annotations, emit code) |
-| **Code Generation** | ❌ No | ✅ Yes (emit C++/CUDA/PTX for GPU; C++ for TT) |
+| **Code Generation** | ❌ No | ✅ Yes (emit C++/CUDA/PTX) |
 
 **Key Principle:** Transform passes are "smart" (detect patterns, optimize), codegen is "dumb" (emit based on annotations).
 
@@ -372,7 +405,7 @@ See [IR Lowering Tasks](./IR_LOWERING_TASKS.md) for implementation plan.
 **Total Passes:**
 - Shared (Phase 1): 12 passes
 - GPU-specific (Phase 2A): ~35 passes
-- TT-specific (Phase 2B): 10 passes (8 implemented/partial + 2 planned)
+- TT-specific (Phase 2B): 6 passes
 - Common optimizations: 11 passes (shared by both)
 
 **Key Files:**

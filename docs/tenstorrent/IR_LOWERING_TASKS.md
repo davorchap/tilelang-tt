@@ -20,14 +20,16 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 | Component | Status | Documentation |
 |-----------|--------|---------------|
-| **infer_default_tt_schedule** | ✅ Complete | [📄 passes/infer_default_tt_schedule.md](./passes/infer_default_tt_schedule.md) |
-| **infer_default_tt_shard** | ✅ Complete | [📄 passes/infer_default_tt_shard.md](./passes/infer_default_tt_shard.md) |
-| **grid_to_persistent_tt** | ✅ Complete | [📄 passes/grid_to_persistent_tt.md](./passes/grid_to_persistent_tt.md) |
-| **tt_tiles_to_core_map** | ✅ Complete | [📄 passes/tt_tiles_to_core_map.md](./passes/tt_tiles_to_core_map.md) |
-| **memory_space_lower_tt** | ✅ Complete | [📄 passes/memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) |
-| **tile_pad_tt** | ✅ Complete | [📄 passes/tile_pad_tt.md](./passes/tile_pad_tt.md) |
+| **InferTTLayout** | 🚧 Planned | [📄 passes/infer_layout_tt.md](./passes/infer_layout_tt.md) |
+| **PropagateTTLayout** | 🚧 Planned | [📄 passes/propagate_layout_tt.md](./passes/propagate_layout_tt.md) |
+| **LayoutAwareWorkPartitionTT** | 🚧 Planned | [📄 passes/layout_aware_partition_tt.md](./passes/layout_aware_partition_tt.md) |
+| **grid_to_persistent_tt** | 🛠️ Update required | [📄 passes/grid_to_persistent_tt.md](./passes/grid_to_persistent_tt.md) |
+| **memory_space_lower_tt** | ✅ Complete (consume new metadata) | [📄 passes/memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) |
 | **tensorize_tt** | 🟡 Partial | [📄 passes/tensorize_tt.md](./passes/tensorize_tt.md) |
 | **verify_tt_ir** | ✅ Complete | [📄 passes/verify_tt_ir.md](./passes/verify_tt_ir.md) |
+| **infer_default_tt_schedule** | 🟡 Legacy | [📄 passes/infer_default_tt_schedule.md](./passes/infer_default_tt_schedule.md) |
+| **infer_default_tt_shard** | 🟡 Legacy | [📄 passes/infer_default_tt_shard.md](./passes/infer_default_tt_shard.md) |
+| **tt_tiles_to_core_map** | 🟡 Legacy | [📄 passes/tt_tiles_to_core_map.md](./passes/tt_tiles_to_core_map.md) |
 
 ---
 
@@ -45,7 +47,38 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 ## Implementation Priority
 
-### Priority 1: Tensorize TT Pass (HIGH) 🔴
+### Priority 1: Layout-Aware Metadata (HIGH) 🔴
+
+**What**: Implement the three new passes that anchor buffer/PrimFunc attributes (`InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT`) and ensure existing passes consume them.
+
+**Why**: Enables sharding schema (DRAM & L1), TensorAccessor correctness, and shard-aware persistent lowering.
+
+**Status**: 🚧 Planned (no implementation yet)
+
+**Tasks**:
+1. Add Python annotations (`annotate_tt_layout`, `annotate_tt_schedule`) that supply metadata.
+2. Implement `InferTTLayout` with validation, projection helpers, and diagnostics.
+3. Implement `PropagateTTLayout` to stamp `tt.cb.*` metadata from the inferred layout.
+4. Implement `LayoutAwareWorkPartitionTT` to choose partition mode, populate `tt.core_ranges`, `tt.grid_tiles`, and runtime args.
+
+**Estimated Effort**: 3-4 days
+
+### Priority 2: Update GridToPersistent & Codegen (HIGH) 🔴
+
+**What**: Teach `grid_to_persistent_tt` to handle `local_shard` partitioning and update `EmitTTKernels` to pass shard geometry + guardrails.
+
+**Why**: Ensures runtime argument order stays consistent and kernels can reconstruct `(m, n)` coordinates correctly.
+
+**Status**: 🛠️ Spec drafted (see pass docs)
+
+**Tasks**:
+1. Extend persistent lowering to emit shard-aware `(m, n)` math.
+2. Update codegen to build TensorAccessor compile args, enforce guardrail, and set runtime args.
+3. Refresh reader/writer kernel templates to use new runtime args and TensorAccessor usage.
+
+**Estimated Effort**: 2-3 days
+
+### Priority 3: Tensorize TT Pass (MEDIUM) 🟡
 
 **What**: Extend `tensorize_tt.cc` to detect manual matmul and element-wise patterns
 
@@ -65,40 +98,7 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 ---
 
-### Priority 2: Update Codegen to Read Annotations (MEDIUM) 🟡
-
-**What**: Modify `codegen_tt_compute_visitor.cc` to read annotations instead of using heuristics
-
-**Status**: ⏳ Pending Task 1 completion
-
-**Current Approach** (heuristics):
-```cpp
-// BAD: Detects K-loop via variable name
-if (loop_var_name.find("kt") != std::string::npos) {
-  // Assume it's a K-loop for matmul
-}
-```
-
-**Target Approach** (annotation-driven):
-```cpp
-// GOOD: Reads annotation from IR
-if (HasAttribute(loop, "tt.matmul_k_loop")) {
-  // Read buffer names from annotations
-  auto input_bufs = GetAttribute(loop, "tt.input_buffers");
-  auto output_buf = GetAttribute(loop, "tt.output_buffer");
-
-  // Emit intrinsics based on annotations
-  EmitMatmulIntrinsics(input_bufs, output_buf);
-}
-```
-
-**File**: `src/target/tt/codegen_tt_compute_visitor.cc`
-
-**Estimated Effort**: 1-2 days
-
----
-
-### Priority 3: Add Integration Tests (MEDIUM) 🟡
+### Priority 4: Add Integration Tests (MEDIUM) 🟡
 
 **What**: End-to-end tests for annotated IR → correct codegen
 
@@ -116,7 +116,7 @@ if (HasAttribute(loop, "tt.matmul_k_loop")) {
 
 ---
 
-### Priority 4: Update Example Matmul (LOW) 🟢
+### Priority 5: Update Example Matmul (LOW) 🟢
 
 **What**: Update `examples/tenstorrent/example_matmul_tt_poc.py` to use real TileLang operations
 
@@ -133,28 +133,28 @@ if (HasAttribute(loop, "tt.matmul_k_loop")) {
 
 ## Success Criteria
 
-**Task 1 (Tensorize TT)**:
-- [ ] Detects manual matmul loops (3-nested with accumulation)
-- [ ] Detects element-wise operations (T.grid patterns)
-- [ ] Generates correct nested annotations
-- [ ] Existing tests pass + new pattern detection tests pass
+**Task 1 (Layout-Aware Metadata)**:
+- [ ] `InferTTLayout` emits `tt.buffer.*` for all tensors and enforces diagnostics.
+- [ ] `PropagateTTLayout` attaches `tt.cb.*` with correct page size/depth/format.
+- [ ] `LayoutAwareWorkPartitionTT` stamps `tt.partition_mode`, `tt.core_ranges`, and canonical `tt.runtime_args`.
 
-**Task 2 (Update Codegen)**:
-- [ ] Codegen reads annotations (no heuristics)
-- [ ] Emits `matmul_tiles()` for annotated matmul
-- [ ] Emits `add_tiles()` for annotated element-wise
-- [ ] Emits correct CB operations (wait/pop)
-- [ ] Generated code matches Metalium examples
+**Task 2 (Persistent + Codegen Updates)**:
+- [ ] `GridToPersistentTT` recovers `(m, n)` for both `global` and `local_shard` modes.
+- [ ] Host codegen builds TensorAccessor compile args from actual buffers.
+- [ ] Runtime args include shard geometry when required; guardrail prevents default TA usage.
 
-**Task 3 (Integration Tests)**:
-- [ ] IR → codegen pipeline tested end-to-end
-- [ ] All patterns covered
-- [ ] No regressions in existing tests
+**Task 3 (Tensorize TT)**:
+- [ ] Detects manual matmul loops and element-wise patterns.
+- [ ] Emits attr-based annotations consumed by compute codegen.
 
-**Task 4 (Example Update)**:
-- [ ] Example uses real operations
-- [ ] Generates correct Metalium code
-- [ ] Demonstrates full pipeline
+**Task 4 (Integration Tests)**:
+- [ ] Layout-aware feature matrix covered (DRAM/L1, interleaved/sharded).
+- [ ] Negative tests assert diagnostics (halo, L1 overflow, guardrail).
+- [ ] Regression suite remains green.
+
+**Task 5 (Example Update)**:
+- [ ] Example uses real TileLang ops with new annotations.
+- [ ] Generated Metalium code validates layout-aware pathways.
 
 ---
 
@@ -162,11 +162,12 @@ if (HasAttribute(loop, "tt.matmul_k_loop")) {
 
 | Task | Estimated | Dependencies |
 |------|-----------|--------------|
-| Task 1: Extend tensorize_tt | 2-3 days | None |
-| Task 2: Update codegen | 1-2 days | Task 1 |
-| Task 3: Integration tests | 1 day | Tasks 1-2 |
-| Task 4: Update example | 0.5 days | Tasks 1-3 |
-| **Total** | **4.5-6.5 days** | Sequential |
+| Layout-aware metadata passes | 3-4 days | Python annotations |
+| Persistent + codegen updates | 2-3 days | Metadata passes |
+| Tensorize extensions | 2-3 days | None |
+| Integration tests | 1 day | Metadata + codegen |
+| Example refresh | 0.5 days | All of the above |
+| **Total** | **8.5-11.5 days** | Staged |
 
 ---
 
@@ -175,15 +176,18 @@ if (HasAttribute(loop, "tt.matmul_k_loop")) {
 For detailed specifications, implementation notes, and tests for each transform pass, see:
 
 - **Metadata Inference**:
-  - [infer_default_tt_schedule.md](./passes/infer_default_tt_schedule.md) - Per-core tile assignment
-  - [infer_default_tt_shard.md](./passes/infer_default_tt_shard.md) - DRAM layout descriptors
+  - [infer_layout_tt.md](./passes/infer_layout_tt.md) - Buffer schema, ND sharding
+  - [propagate_layout_tt.md](./passes/propagate_layout_tt.md) - CB metadata propagation
+  - [layout_aware_partition_tt.md](./passes/layout_aware_partition_tt.md) - Core ranges & runtime args
+  - [infer_default_tt_schedule.md](./passes/infer_default_tt_schedule.md) - Legacy defaults
+  - [infer_default_tt_shard.md](./passes/infer_default_tt_shard.md) - Legacy shard metadata
 
 - **Transform Pipeline**:
   - [grid_to_persistent_tt.md](./passes/grid_to_persistent_tt.md) - Grid → persistent loop
   - [tt_tiles_to_core_map.md](./passes/tt_tiles_to_core_map.md) - Tile assignments → NOC coordinates
-  - [memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) - Circular-buffer metadata
-  - [tile_pad_tt.md](./passes/tile_pad_tt.md) - Padding metadata (32×32)
-  - [tensorize_tt.md](./passes/tensorize_tt.md) - Matmul annotation scaffold ⭐
+  - [memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) - DRAM → L1 circular buffers
+  - [tile_pad_tt.md](./passes/tile_pad_tt.md) - Tile alignment (32×32)
+  - [tensorize_tt.md](./passes/tensorize_tt.md) - Pattern detection & annotation ⭐
   - [verify_tt_ir.md](./passes/verify_tt_ir.md) - Constraint verification
 
 ---
@@ -196,4 +200,4 @@ For detailed specifications, implementation notes, and tests for each transform 
 
 ---
 
-**Last Updated**: 2026-02-20
+**Last Updated**: 2025-10-09

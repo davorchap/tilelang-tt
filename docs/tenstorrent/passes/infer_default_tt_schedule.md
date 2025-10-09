@@ -1,14 +1,14 @@
 # InferDefaultTTSchedule Pass
 
-**Status**: ✅ Complete
-**Priority**: CRITICAL
+**Status**: 🟡 Legacy (superseded by layout-aware pipeline)  
+**Priority**: P1 (compatibility)
 **File**: `src/transform/tt/infer_tt_schedule.cc`
 
 ---
 
 ## Purpose
 
-Compute per-core tile assignments from grid dimensions, determining which tiles each Tensix core will process.
+Compute per-core tile assignments from grid dimensions, determining which tiles each Tensix core will process. In the layout-aware roadmap this pass becomes a compatibility shim that seeds defaults when users do not provide explicit annotations. Downstream passes (`LayoutAwareWorkPartitionTT`) will override the metadata with buffer-derived shard geometry.
 
 ---
 
@@ -28,46 +28,49 @@ with T.Kernel(8, 8) as (bx, by):  # 64 total tiles
 
 **Output**: Schedule metadata attached to IR
 ```python
-tt_num_tiles = 64
-tt_grid_x = 8
-tt_grid_y = 8
-tt_grid_z = 1
-tt_tiles_per_core = [[0, 1], [1, 1], ...]
-tt_schedule = {
-  "policy": "contiguous",
-  "order": "row_major",
-  "grid_shape": [8, 8, 1],
+{
+  "policy": "contiguous",  # or "block_cyclic"
+  "order": "row_major",    # or "column_major"
   "assignments": [
-    {"core_id": 0, "start_tile": 0, "tile_count": 1},
-    {"core_id": 1, "start_tile": 1, "tile_count": 1},
+    {"core_id": 0, "start_tile": 0, "count": 1},
+    {"core_id": 1, "start_tile": 1, "count": 1},
     ...
   ]
 }
 ```
+Legacy attributes (`tt.schedule`) are maintained for backward compatibility; new passes will translate them into the canonical `tt.partition_mode`, `tt.core_ranges`, and `tt.runtime_args`.
 
 **Algorithm**:
-1. Determine `grid_x/y/z` from `T.Kernel` metadata or blockIdx extents.
-2. Compute total tiles: `num_tiles = grid_x * grid_y * grid_z`.
-3. Partition tiles contiguously across 64 cores (row-major enumeration).
-4. Emit legacy scalar attributes plus consolidated `tt_schedule` map.
+1. Calculate total tiles: `num_tiles = grid_x * grid_y`
+2. For contiguous policy:
+   - Divide tiles evenly across cores
+   - Assign consecutive tiles to each core
+3. Attach as `tt.schedule` attribute
 
 ---
 
 ## Configuration
 
-The pass currently supports the default **contiguous / row-major** policy that is seeded by
-`apply_tt_defaults()`. Alternate policies can be introduced by front-end annotations, but the
-core algorithm always produces a contiguous slice per core today.
+**Policies**:
+- `contiguous` (default): Core 0 gets tiles 0-N, core 1 gets N+1-2N, etc.
+- `block_cyclic`: Tiles distributed in round-robin fashion
 
-`tt_schedule["policy"]` and `tt_schedule["order"]` are carried through from user or default
-attributes so downstream components can branch if additional policies are added.
+**Order**:
+- `row_major` (default): Tiles numbered left-to-right, top-to-bottom
+- `column_major`: Tiles numbered top-to-bottom, left-to-right
 
 ---
 
 ## Tests
 
-**File**: Covered indirectly in `testing/python/tt/test_ws3_grid_to_persistent.py`
-**Status**: ✅ Runtime metadata verified alongside persistent transform stage transforms
+**File**: `testing/python/tt/test_passes.py`
+**Status**: ✅ 7 tests passing
+
+Tests cover:
+- Default schedule inference
+- Different grid sizes
+- Policy variations
+- Metadata structure validation
 
 ---
 
@@ -77,8 +80,9 @@ attributes so downstream components can branch if additional policies are added.
 - `apply_tt_defaults()` - Provides default policy if not annotated
 
 **Depended On By**:
-- `grid_to_persistent_tt.cc` - Uses schedule metadata to build persistent loops
-- Runtime code generation relies on `tt_tiles_per_core` and `tt_schedule`
+- `LayoutAwareWorkPartitionTT` (only when explicit layout annotations are missing).
+- `grid_to_persistent_tt.cc` - Uses schedule to seed tile counts until replaced by layout-aware metadata.
+- Legacy code paths in host codegen.
 
 ---
 
@@ -93,9 +97,10 @@ attributes so downstream components can branch if additional policies are added.
 ## Success Criteria
 
 - [x] Infers tile assignments from grid dimensions
-- [x] Emits both legacy scalar attrs and consolidated `tt_schedule` map
-- [x] Compatible with downstream persistent transform stage passes
+- [x] Supports contiguous and block-cyclic policies
+- [x] Attaches metadata to IR module
+- [x] All tests passing (7/7)
 
 ---
 
-**Last Updated**: 2026-02-20
+**Last Updated**: 2025-10-09
