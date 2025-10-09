@@ -48,8 +48,8 @@ Applied by both GPU and TT targets via `LowerAndLegalize()`.
 **Output:** Legalized TIR with memory layouts inferred
 
 **Key Transforms:**
-- `T.copy(A, B)` → `for i, j: B[i,j] = A[i,j]`
-- Fragment allocations get memory scope annotations
+- `T.copy(A, B)` → `for i, j: B[i,j] = A[i,j]` (GPU: final; TT: intermediate, re-lowered in Phase 2B)
+- Fragment allocations get memory scope annotations (GPU only; TT uses circular buffers)
 - Safety checks for dynamic indexing
 
 ---
@@ -242,7 +242,7 @@ AttrStmt("tt.matmul_k_loop", kt):
 | **HoistIfThenElse** | Optimization | If in loops | Hoisted if | (Same as GPU) | TVM built-in |
 | **VerifyMemory** | Verification | IR | Verified IR | (Same as GPU) | TVM built-in |
 
-**Total:** 6 TT-specific + 11 shared = 17 passes
+**Total:** 10 TT-specific (8 implemented/partial + 2 planned) + 11 shared = 21 passes
 
 **Input:** Legalized TIR from Phase 1 + TT defaults
 
@@ -327,13 +327,15 @@ Phase 2B (TT-Specific)
   ↓
 Metadata Inference: Schedule/Shard Inference (2 passes)
   ↓
-Transform Pipeline: TIR Transformations (4 passes)
+Transform Pipeline: TIR Transformations (4 passes: grid_to_persistent, shard_to_core_map, memory_space_lower, tile_pad)
   ↓
-Transform Pipeline: Tensorization (1 pass) ⭐
+Transform Pipeline: Tensorization (1 pass: tensorize_tt) ⭐
+  ↓
+Transform Pipeline: Optimizations (2 planned: rasterization_tt, tt_multicast_reuse)
   ↓
 Common optimizations (11 passes)
   ↓
-Verification (1 pass)
+Verification (1 pass: verify_tt_ir)
   ↓
 Phase 3 (Codegen)
   ↓
@@ -348,12 +350,12 @@ Phase 3 (Codegen)
 
 | Responsibility | Transform Passes | Codegen |
 |----------------|------------------|---------|
-| **Pattern Detection** | ✅ Yes (tensorize_tt, InferFragment) | ❌ No |
+| **Pattern Detection** | ✅ Yes (TT: tensorize_tt; GPU: InferFragment) | ❌ No |
 | **Annotation** | ✅ Yes (AttrStmt with metadata) | ❌ No |
 | **IR Optimization** | ✅ Yes (simplify, loop unroll, etc.) | ❌ No |
 | **Memory Planning** | ✅ Yes (storage rewrite, buffer merge) | ❌ No |
 | **Intrinsic Emission** | ❌ No | ✅ Yes (read annotations, emit code) |
-| **Code Generation** | ❌ No | ✅ Yes (emit C++/CUDA/PTX) |
+| **Code Generation** | ❌ No | ✅ Yes (emit C++/CUDA/PTX for GPU; C++ for TT) |
 
 **Key Principle:** Transform passes are "smart" (detect patterns, optimize), codegen is "dumb" (emit based on annotations).
 
@@ -377,7 +379,7 @@ See [IR Lowering Tasks](./IR_LOWERING_TASKS.md) for implementation plan.
 **Total Passes:**
 - Shared (Phase 1): 12 passes
 - GPU-specific (Phase 2A): ~35 passes
-- TT-specific (Phase 2B): 6 passes
+- TT-specific (Phase 2B): 10 passes (8 implemented/partial + 2 planned)
 - Common optimizations: 11 passes (shared by both)
 
 **Key Files:**
