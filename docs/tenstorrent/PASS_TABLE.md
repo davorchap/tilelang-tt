@@ -181,6 +181,8 @@ Applied only for Tenstorrent target via `OptimizeForTargetTT()`.
 | **memory_space_lower_tt** | ✅ Complete | Memory | DRAM buffers | L1 circular buffers | Lower DRAM → L1 CB | [📄 Doc](./passes/memory_space_lower_tt.md) |
 | **tile_pad_tt** | ✅ Complete | Memory | Arbitrary shapes | Tile-aligned shapes | Pad to 32×32 tiles | [📄 Doc](./passes/tile_pad_tt.md) |
 | **tensorize_tt** | 🟡 Partial | Device | Loops | Loops + intrinsic annos | Detect patterns, annotate | [📄 Doc](./passes/tensorize_tt.md) |
+| **rasterization_tt** | ⚠️ Planned | Optimization | Tile iteration | Optimized tile order | Remap tile iteration order | [📄 Spec](#rasterization_tt-specification) |
+| **tt_multicast_reuse** | ⚠️ Planned | Optimization | NOC ops | NOC + multicast | Insert multicast for reuse | [📄 Spec](#tt_multicast_reuse-specification) |
 | **verify_tt_ir** | ✅ Complete | Verification | TT IR | Verified TT IR | Verify TT constraints | [📄 Doc](./passes/verify_tt_ir.md) |
 
 **Example Transform (grid_to_persistent_tt):**
@@ -384,6 +386,150 @@ See [IR Lowering Tasks](./IR_LOWERING_TASKS.md) for implementation plan.
 - Transform passes: `src/transform/*.cc` and `src/transform/tt/*.cc`
 - GPU codegen: `src/target/codegen_cuda.cc`, `codegen_hip.cc`
 - TT codegen: `src/target/tt/codegen_tt*.cc`
+
+---
+
+## Planned Pass Specifications
+
+### rasterization_tt Specification
+
+**Status:** ⚠️ Planned (P1 - Performance Optimization)
+
+**Purpose:** Optimize tile iteration order for better cache locality, NOC traffic reduction, and multicast efficiency.
+
+**Input IR:**
+```python
+# Row-major tile iteration (default)
+for tile_id in range(start_id, start_id + count):
+    by = tile_id // Nt  # Row index
+    bx = tile_id % Nt   # Column index
+    # Process tile (by, bx)
+```
+
+**Output IR:**
+```python
+# Optimized iteration order (e.g., block-linear, Z-order)
+for tile_id in range(start_id, start_id + count):
+    # Block-linear rasterization for better locality
+    block_y = tile_id // (BLOCK_H * Nt / BLOCK_W)
+    block_x = (tile_id % (BLOCK_H * Nt / BLOCK_W)) // BLOCK_H
+    local_y = (tile_id % BLOCK_H)
+    by = block_y * BLOCK_H + local_y
+    bx = block_x * BLOCK_W + (tile_id % BLOCK_W)
+    # Process tile (by, bx)
+```
+
+**Supported Rasterization Policies:**
+- `row_major`: Sequential tiles in row-major order (default)
+- `column_major`: Sequential tiles in column-major order
+- `block_linear`: Tiles grouped in rectangular blocks for locality
+- `z_order`: Morton/Z-order curve for 2D locality
+- `hilbert`: Hilbert curve (better locality than Z-order)
+
+**Metadata Required:**
+- `tt.schedule.order`: Current iteration order
+- `tt.schedule.rect`: Rectangular block dimensions for block-linear
+- `tt.grid_x`, `tt.grid_y`: Grid dimensions
+
+**Benefits:**
+- **Locality:** Reduce DRAM/L1 traffic by reusing nearby tiles
+- **NOC Efficiency:** Group cores with similar access patterns
+- **Multicast Setup:** Enable multicast by creating core groups with shared data
+
+**Implementation Location:** `src/transform/tt/rasterization_tt.cc` (to be created)
+
+**Related Passes:**
+- Runs after `grid_to_persistent_tt` (modifies tile ID → (bx, by) mapping)
+- Before `tt_multicast_reuse` (sets up core groups for multicast)
+
+---
+
+### tt_multicast_reuse Specification
+
+**Status:** ⚠️ Planned (P1 - Performance Optimization)
+
+**Purpose:** Insert NOC multicast operations to reduce DRAM bandwidth when multiple cores need the same data.
+
+**Use Cases:**
+1. **GEMM:** Row tiles of A reused across columns, column tiles of B reused across rows
+2. **FlashAttention:** Q tiles broadcast to multiple cores processing KV chunks
+3. **Convolution:** Filter weights broadcast to multiple spatial positions
+
+**Input IR:**
+```cpp
+// Reader kernel (all cores read same A tile independently)
+for (uint32_t out_tile = 0; out_tile < count; ++out_tile) {
+    uint32_t tile_a_idx = ...;
+    noc_async_read(tile_a_idx, dram_addr_a, get_write_ptr(cb::c_in0));
+    // Each core issues separate DRAM read
+}
+```
+
+**Output IR:**
+```cpp
+// Reader kernel (sender core multicasts to receivers)
+CoreRange sender_range = get_sender_range();
+CoreRangeSet receiver_ranges = get_receiver_ranges();
+
+if (is_sender_core()) {
+    // Sender: Read once, multicast to multiple cores
+    noc_async_read(tile_a_idx, dram_addr_a, get_write_ptr(cb::c_in0));
+    noc_async_write_multicast(get_write_ptr(cb::c_in0),
+                               receiver_ranges,  // Multiple destinations
+                               cb_addr_remote,
+                               tile_size);
+} else {
+    // Receiver: Wait for multicast data
+    cb_wait_front(cb::c_in0, 1);  // Data arrives via NOC
+}
+```
+
+**Analysis Required:**
+1. **Reuse Detection:**
+   - Analyze buffer access patterns across cores
+   - Identify tiles accessed by multiple cores in same iteration
+   - Compute reuse factor (how many cores share the tile)
+
+2. **Core Grouping:**
+   - Partition cores into sender/receiver groups
+   - Minimize DRAM reads (one read per sender group)
+   - Balance NOC traffic (avoid hotspots)
+
+3. **Synchronization:**
+   - Insert barriers for sender/receiver coordination
+   - Ensure CB availability before multicast
+   - Handle dependencies (sender must read before multicast)
+
+**Metadata Required:**
+- `tt.core_ranges`: CoreRangeSet for kernel execution
+- `tt.schedule.assignments`: Per-core tile assignments
+- `tt.shard`: Buffer sharding/layout metadata
+
+**Metadata Generated:**
+- `tt.multicast_groups`: List of (sender_core, receiver_cores, tile_indices)
+- `tt.sync_barriers`: Barrier points for sender/receiver coordination
+
+**Benefits:**
+- **Bandwidth Reduction:** 1 DRAM read instead of N (reuse factor N)
+- **Latency Hiding:** Multicast overlaps with compute on other cores
+- **Scalability:** Enables scaling to more cores without bandwidth saturation
+
+**Example Savings (GEMM 8×8 grid, 64 cores):**
+- Without multicast: 64 cores × 8 A tiles = 512 DRAM reads for row
+- With multicast: 8 senders × 1 read = 8 DRAM reads (64× reduction)
+
+**Implementation Location:** `src/transform/tt/tt_multicast_reuse.cc` (to be created)
+
+**Related Passes:**
+- Runs after `rasterization_tt` (needs optimized core grouping)
+- Before `verify_tt_ir` (verification checks multicast validity)
+
+**References:**
+- [TT-Metalium Multicast APIs](https://docs.tenstorrent.com/tt-metalium/latest/tt_metal/programming_guide/data_movement.html#multicast)
+- `noc_async_write_multicast()`: Core → CoreRangeSet broadcast
+- `noc_semaphore_*()`: Synchronization for sender/receiver coordination
+
+---
 
 **References:**
 - [IR Lowering Analysis](./IR_LOWERING_ANALYSIS.md) - GPU vs TT architecture comparison
