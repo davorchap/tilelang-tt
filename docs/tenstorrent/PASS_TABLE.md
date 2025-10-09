@@ -388,4 +388,4 @@ See [IR Lowering Tasks](./IR_LOWERING_TASKS.md) for implementation plan.
 **References:**
 - [IR Lowering Analysis](./IR_LOWERING_ANALYSIS.md) - GPU vs TT architecture comparison
 - [IR Lowering Tasks](./IR_LOWERING_TASKS.md) - Implementation tasks for TT gaps
-- [Unified Matmul MVP Plan](./UNIFIED_MATMUL_MVP_PLAN.md) - MVP status and history
+- [TT Architecture](./TT_ARCHITECTURE.md) - Complete TT backend architecture

@@ -37,7 +37,7 @@
  * - Padded: 8*32 = 256×256
  * - Padding: 6 extra elements per dimension
  *
- * See: docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md Phase 2 WS3-Extended
+ * See: docs/tenstorrent/passes/tile_pad_tt.md for detailed specification
  */
 
 #include <tvm/ffi/reflection/registry.h>

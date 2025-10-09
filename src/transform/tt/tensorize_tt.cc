@@ -34,7 +34,7 @@
  * - matmul_tiles_init(cb_a, cb_b, cb_c) - Initialize accumulator
  * - matmul_tiles(cb_a, cb_b, cb_c, accumulate=true/false) - Perform matmul
  *
- * See: docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md Phase 2 WS3-Extended
+ * See: docs/tenstorrent/passes/tensorize_tt.md for detailed specification
  */
 
 #include <tvm/ffi/reflection/registry.h>

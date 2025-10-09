@@ -30,7 +30,7 @@
  * - Physical: CoreCoord(x, y) where x,y ∈ [0, 7]
  * - CoreRangeSet: Collection of CoreRange objects defining execution topology
  *
- * See: docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md Phase 2
+ * See: docs/tenstorrent/passes/tt_shard_to_core_map.md for detailed specification
  */
 
 #include <tvm/ffi/reflection/registry.h>
