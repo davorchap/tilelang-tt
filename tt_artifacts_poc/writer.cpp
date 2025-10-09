@@ -17,7 +17,7 @@ inline void noc_async_write_barrier() {}
 inline void cb_pop_front(uint32_t cb_id, uint32_t n_tiles) {}
 
 // Circular Buffer Index
-constexpr uint32_t CB_C = 2;
+constexpr auto cb_out0 = tt::CBIndex::c_16;
 
 constexpr uint32_t TILE_SIZE_BYTES = 32 * 32 * sizeof(uint16_t);  // fp16
 
@@ -32,10 +32,10 @@ void kernel_main() {
     for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile) {
         uint32_t tile_idx = out_tile_start_id + out_tile;
         
-        cb_wait_front(CB_C, 1);
-        uint32_t l1_read_addr = get_read_ptr(CB_C);
+        cb_wait_front(cb_out0, 1);
+        uint32_t l1_read_addr = get_read_ptr(cb_out0);
         noc_async_write_tile(tile_idx, l1_read_addr, dram_addr_c);
         noc_async_write_barrier();
-        cb_pop_front(CB_C, 1);
+        cb_pop_front(cb_out0, 1);
     }
 }

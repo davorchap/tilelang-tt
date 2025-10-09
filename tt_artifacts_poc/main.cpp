@@ -55,9 +55,16 @@ int main() {
     Program program;
     std::cout << "Program created (Mock)" << std::endl;
 
-    // 5. Load kernels (Mock - placeholder)
+    // 5. Create kernels (Mock)
+    std::cout << "Creating kernels (Mock)..." << std::endl;
+    // Mock kernel creation - simulating reader, compute, writer kernels
+    // In real mode, these would be CreateKernel() calls with actual .cpp files
+    struct MockKernel { std::string name; };
+    MockKernel reader_kernel{"reader.cpp"};
+    MockKernel compute_kernel{"compute.cpp"};
+    MockKernel writer_kernel{"writer.cpp"};
     program.Build();
-    std::cout << "Kernels loaded and built (Mock)" << std::endl;
+    std::cout << "Kernels created successfully (Mock)" << std::endl;
 
     // 6. Allocate DRAM buffers
     constexpr uint32_t M = 256;
@@ -88,11 +95,42 @@ int main() {
     uint32_t out_tile_start_id = 0;
     uint32_t num_out_tiles_per_core = NUM_OUTPUT_TILES;
 
-    // SetRuntimeArgs pattern (Mock for dry-run):
-    // Reader: {dram_a, dram_b, Mt, Kt, Nt, start_tile_id, num_tiles}
-    // Compute: {start_tile_id, num_output_tiles, Kt}
-    // Writer: {dram_c, start_tile_id, num_tiles, Nt}
-    std::cout << "Runtime args: " << NUM_OUTPUT_TILES << " tiles, Kt=" << Kt << " (Mock)" << std::endl;
+    // SetRuntimeArgs (Mock)
+    std::cout << "Setting runtime arguments (Mock)..." << std::endl;
+
+    // Mock SetRuntimeArgs function
+    auto SetRuntimeArgs = [](auto& prog, auto& kernel, const std::vector<uint32_t>& args) {
+        // Mock implementation - in real mode, this would configure kernel args
+    };
+
+    // Reader kernel args: {dram_addr_a, dram_addr_b, Mt, Kt, Nt, start_tile_id, num_tiles}
+    std::vector<uint32_t> reader_args = {
+        reinterpret_cast<uint32_t>(dram_a.data()),
+        reinterpret_cast<uint32_t>(dram_b.data()),
+        Mt, Kt, Nt,
+        out_tile_start_id,
+        num_out_tiles_per_core
+    };
+    SetRuntimeArgs(program, reader_kernel, reader_args);
+
+    // Compute kernel args: {start_tile_id, num_output_tiles, Kt}
+    std::vector<uint32_t> compute_args = {
+        out_tile_start_id,
+        num_out_tiles_per_core,
+        Kt
+    };
+    SetRuntimeArgs(program, compute_kernel, compute_args);
+
+    // Writer kernel args: {dram_addr_c, start_tile_id, num_tiles, Nt}
+    std::vector<uint32_t> writer_args = {
+        reinterpret_cast<uint32_t>(dram_c.data()),
+        out_tile_start_id,
+        num_out_tiles_per_core,
+        Nt
+    };
+    SetRuntimeArgs(program, writer_kernel, writer_args);
+
+    std::cout << "Runtime args configured: " << NUM_OUTPUT_TILES << " tiles, Kt=" << Kt << " (Mock)" << std::endl;
 
     // 8. Launch program
     CommandQueue cq;

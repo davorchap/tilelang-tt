@@ -15,24 +15,25 @@ inline void cb_pop_front(uint32_t cb_id, uint32_t n_tiles) {}
 inline void cb_push_back(uint32_t cb_id, uint32_t n_tiles) {}
 
 // Mock TT matmul compute APIs for dry-run
-inline void matmul_tiles_init(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c) {}
-inline void matmul_tiles(uint32_t cb_a, uint32_t cb_b, uint32_t cb_c, bool accumulate) {}
+inline void mm_init(uint32_t cb_in0, uint32_t cb_in1, uint32_t cb_out = 16) {}
+inline void matmul_tiles(uint32_t cb_in0, uint32_t cb_in1, uint32_t tile_idx_in0, uint32_t tile_idx_in1, uint32_t dst_tile_idx, bool transpose) {}
 
-// Mock TT DST register double buffering APIs for dry-run
-inline void acquire_dst() {}
-inline void commit_dst() {}
-inline void wait_for_tile() {}
-inline void release_dst() {}
+// Mock TT tile register APIs for dry-run
+inline void tile_regs_acquire() {}
+inline void tile_regs_commit() {}
+inline void tile_regs_wait() {}
+inline void tile_regs_release() {}
 
 // Mock TT element-wise compute APIs for dry-run
-inline void add_tiles_init() {}
+inline void binary_op_init_common(uint32_t cb_in0, uint32_t cb_in1, uint32_t cb_out = 16) {}
+inline void add_tiles_init(uint32_t cb_in0 = 0, uint32_t cb_in1 = 1) {}
 inline void add_tiles(uint32_t cb_a, uint32_t cb_b, uint32_t idx_a, uint32_t idx_b, uint32_t idx_dst) {}
 inline void pack_tile(uint32_t idx_dst, uint32_t cb_out) {}
 
 // Circular Buffer Indices
-constexpr uint32_t CB_A = 0;
-constexpr uint32_t CB_B = 1;
-constexpr uint32_t CB_C = 2;
+constexpr auto cb_in0 = tt::CBIndex::c_0;
+constexpr auto cb_in1 = tt::CBIndex::c_1;
+constexpr auto cb_out0 = tt::CBIndex::c_16;
 
 void MAIN() {
     // Runtime arguments
@@ -40,40 +41,42 @@ void MAIN() {
     uint32_t num_output_tiles = get_arg_val<uint32_t>(1);
     uint32_t Kt = get_arg_val<uint32_t>(2);
     
-    // Outer loop: process output tile
-    // DST: Acquire registers for computation
-    acquire_dst();
-    
     for (uint32_t i = 0; i < tt_count; ++i) {
         /* unsupported call */;
+        // Acquire tile registers for matmul accumulation
+        // Acquire tile registers for computation
+        tile_regs_acquire();
+        
         // K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)
-        // Initialize matmul
-        matmul_tiles_init(CB_A, CB_B, CB_C);
+        // Initialize matmul (once before all loops)
+        mm_init(cb_in0, cb_in1, cb_out0);
+        
         for (uint32_t k = 0; k < 8; ++k) {
             // T.copy - handled by reader/writer kernels
             // T.copy - handled by reader/writer kernels
             // Wait for input tiles from reader
-            cb_wait_front(CB_A, 1);
-            cb_wait_front(CB_B, 1);
+            cb_wait_front(cb_in0, 1);
+            cb_wait_front(cb_in1, 1);
             
-            // Matmul: accumulate if k > 0
-            bool accumulate = (k > 0);
-            matmul_tiles(CB_A, CB_B, CB_C, accumulate);
+            // Matmul: process tile (accumulation automatic)
+            matmul_tiles(cb_in0, cb_in1, 0, 0, 0, false);
             
             // Release input tiles
-            cb_pop_front(CB_A, 1);
-            cb_pop_front(CB_B, 1);
+            cb_pop_front(cb_in0, 1);
+            cb_pop_front(cb_in1, 1);
             
         }
         
         // After K-loop: pack result
-        cb_reserve_back(CB_C, 1);
-        // DST: Commit computation complete
-        commit_dst();
-        pack_tile(0, CB_C);
-        cb_push_back(CB_C, 1);
-        // DST: Release registers
-        release_dst();
+        // Commit tile register computation
+        tile_regs_commit();
+        // Wait for tile register computation to complete
+        tile_regs_wait();
+        cb_reserve_back(cb_out0, 1);
+        pack_tile(0, cb_out0);
+        cb_push_back(cb_out0, 1);
+        // Release tile registers
+        tile_regs_release();
         
         // T.copy - handled by reader/writer kernels
     }
