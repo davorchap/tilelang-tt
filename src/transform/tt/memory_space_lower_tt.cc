@@ -35,7 +35,7 @@
  * - B_tile → CB1 (2 pages for double-buffering)
  * - C_tile → CB2 (1 page for accumulator)
  *
- * See: docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md Phase 2 WS3-Extended
+ * See: docs/tenstorrent/passes/memory_space_lower_tt.md for detailed specification
  */
 
 #include <tvm/ffi/reflection/registry.h>

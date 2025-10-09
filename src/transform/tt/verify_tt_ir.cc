@@ -36,7 +36,7 @@
  * 3. WS3: tt_persistent_loop, tt_runtime_args, tt_core_ranges
  * 4. WS3: tt_circular_buffers, tt_padding_info (if applicable)
  *
- * See: docs/tenstorrent/UNIFIED_MATMUL_MVP_PLAN.md Phase 2 WS3-Extended
+ * See: docs/tenstorrent/passes/verify_tt_ir.md for detailed specification
  */
 
 #include <tvm/ffi/reflection/registry.h>
