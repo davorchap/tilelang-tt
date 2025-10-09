@@ -335,7 +335,7 @@ def OptimizeForTargetTT(mod: IRModule, target: Target) -> IRModule:
 
     # === Transform Pipeline: TT-Specific TIR Transformations ===
     mod = grid_to_persistent_tt(mod)      # Grid → persistent loop
-    mod = tt_shard_to_core_map(mod)       # Shard → core (x, y)
+    mod = tt_tiles_to_core_map(mod)       # Tile assignments → core (x, y)
     mod = memory_space_lower_tt(mod)      # DRAM → L1 circular buffers
     mod = tile_pad_tt(mod)                # Pad to 32×32 tiles
 
@@ -366,7 +366,7 @@ def OptimizeForTargetTT(mod: IRModule, target: Target) -> IRModule:
 - **infer_default_tt_schedule**: Compute per-core tile assignments
 - **infer_default_tt_shard**: Generate DRAM sharding descriptors
 - **grid_to_persistent_tt**: Transform GPU grid to TT persistent loops
-- **tt_shard_to_core_map**: Map shards to NOC grid coordinates
+- **tt_tiles_to_core_map**: Map tile assignments to NOC grid coordinates
 - **memory_space_lower_tt**: Lower DRAM allocations to L1 circular buffers
 - **tile_pad_tt**: Pad buffers to 32×32 tile boundaries
 - **tensorize_tt**: ⭐ Pattern detection and intrinsic annotation

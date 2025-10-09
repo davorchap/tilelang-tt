@@ -23,7 +23,7 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 | **infer_default_tt_schedule** | ✅ Complete | [📄 passes/infer_default_tt_schedule.md](./passes/infer_default_tt_schedule.md) |
 | **infer_default_tt_shard** | ✅ Complete | [📄 passes/infer_default_tt_shard.md](./passes/infer_default_tt_shard.md) |
 | **grid_to_persistent_tt** | ✅ Complete | [📄 passes/grid_to_persistent_tt.md](./passes/grid_to_persistent_tt.md) |
-| **tt_shard_to_core_map** | ✅ Complete | [📄 passes/tt_shard_to_core_map.md](./passes/tt_shard_to_core_map.md) |
+| **tt_tiles_to_core_map** | ✅ Complete | [📄 passes/tt_tiles_to_core_map.md](./passes/tt_tiles_to_core_map.md) |
 | **memory_space_lower_tt** | ✅ Complete | [📄 passes/memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) |
 | **tile_pad_tt** | ✅ Complete | [📄 passes/tile_pad_tt.md](./passes/tile_pad_tt.md) |
 | **tensorize_tt** | 🟡 Partial | [📄 passes/tensorize_tt.md](./passes/tensorize_tt.md) |
@@ -180,10 +180,10 @@ For detailed specifications, implementation notes, and tests for each transform 
 
 - **Transform Pipeline**:
   - [grid_to_persistent_tt.md](./passes/grid_to_persistent_tt.md) - Grid → persistent loop
-  - [tt_shard_to_core_map.md](./passes/tt_shard_to_core_map.md) - Shard → NOC coordinates
-  - [memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) - DRAM → L1 circular buffers
-  - [tile_pad_tt.md](./passes/tile_pad_tt.md) - Tile alignment (32×32)
-  - [tensorize_tt.md](./passes/tensorize_tt.md) - Pattern detection & annotation ⭐
+  - [tt_tiles_to_core_map.md](./passes/tt_tiles_to_core_map.md) - Tile assignments → NOC coordinates
+  - [memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) - Circular-buffer metadata
+  - [tile_pad_tt.md](./passes/tile_pad_tt.md) - Padding metadata (32×32)
+  - [tensorize_tt.md](./passes/tensorize_tt.md) - Matmul annotation scaffold ⭐
   - [verify_tt_ir.md](./passes/verify_tt_ir.md) - Constraint verification
 
 ---
@@ -196,4 +196,4 @@ For detailed specifications, implementation notes, and tests for each transform 
 
 ---
 
-**Last Updated**: 2025-10-09
+**Last Updated**: 2026-02-20

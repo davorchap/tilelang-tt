@@ -1,81 +1,74 @@
 # InferDefaultTTShard Pass
 
-**Status**: ✅ Complete
-**Priority**: CRITICAL
+**Status**: ✅ Complete  
+**Priority**: CRITICAL  
 **File**: `src/transform/tt/infer_tt_shard.cc`
 
 ---
 
 ## Purpose
 
-Generate DRAM layout descriptors (sharding metadata) for buffers, describing how data is laid out in Tenstorrent's tiled DRAM format.
+Emit DRAM tilization metadata for every buffer, describing how data is arranged in Tenstorrent's 32×32 tiled memory layout and whether padding is required.
 
 ---
 
 ## Why Needed
 
-Tenstorrent DRAM is organized in **32×32 tiles**, not linear arrays. This pass infers the shard configuration (layout, interleaving, tile shape) for each buffer.
+Tenstorrent DRAM is organized in 32×32 tiles rather than linear rows. Downstream passes need tile counts, padding information, and layout descriptors to plan circular buffers, DMA descriptors, and NOC routing.
 
 ---
 
 ## Implementation
 
-**Input**: Buffer allocations
+**Input**: Buffer bindings (function parameters / buffer_map entries)
 ```python
 A = T.Buffer((256, 256), "float16")  # DRAM buffer
 ```
 
-**Output**: Shard metadata
+**Output**: Shard metadata emitted as legacy scalar attrs plus a consolidated map
 ```python
-{
-  "layout": "tiled",        # Data organized as 32×32 tiles
-  "interleaved": true,      # Tiles interleaved across DRAM banks
-  "tile_shape": [32, 32],   # Tile dimensions
-  "shard_strategy": "height" # or "width", "block"
+# Legacy attributes (per buffer)
+"tt_buffer_A_layout" = "dram_interleaved"
+"tt_buffer_A_tile_shape" = [32, 32]
+"tt_buffer_A_num_tiles_height" = 8
+"tt_buffer_A_num_tiles_width" = 8
+"tt_buffer_A_needs_padding" = False
+
+# Aggregated metadata
+"tt_shard" = {
+  "A": {
+    "layout": "dram_interleaved",
+    "tile_shape": [32, 32],
+    "tiles_height": 8,
+    "tiles_width": 8,
+    "needs_padding": False
+  }
 }
 ```
 
 **Algorithm**:
-1. For each buffer in the IR:
-   - Determine if it's a DRAM buffer (vs L1)
-   - Calculate tile grid: `(height/32, width/32)`
-   - Set default tiled layout with 32×32 tiles
-2. Attach as `tt.shard` attribute
-
----
-
-## Shard Strategies
-
-- `height`: Shard along height dimension
-- `width`: Shard along width dimension
-- `block`: 2D block sharding
-- `replicate`: Full copy on each core
-
-Default: `height` for row-major layouts
+1. Iterate over every buffer in `PrimFunc.buffer_map`.
+2. Compute tile coverage with ceil-division by the default 32×32 tile shape.
+3. Detect whether padding is necessary and record the padded shape if so.
+4. Attach both the existing scalar attributes (`tt_buffer_*`) for backward compatibility and a new `tt_shard` map keyed by buffer name.
 
 ---
 
 ## Tests
 
-**File**: `testing/python/tt/test_passes.py`
-**Status**: ✅ 7 tests passing (shared with schedule inference)
-
-Tests cover:
-- Default shard inference
-- Different buffer shapes
-- Tile alignment
-- Metadata structure
+**File**: Covered indirectly via `testing/python/tt/test_ws3_grid_to_persistent.py`  
+**Status**: ✅ Metadata shape validated alongside WS3 transforms
 
 ---
 
 ## Dependencies
 
 **Depends On**:
-- `apply_tt_defaults()` - Provides default shard config
+- `apply_tt_defaults()` for default layout/tile annotations
 
 **Depended On By**:
-- `tt_shard_to_core_map.cc` - Maps shards to NOC coordinates
-- `memory_space_lower_tt.cc` - Creates circular buffers based on shard info
+- `tt_tiles_to_core_map.cc` (consumes tile counts for runtime arg planning)
+- `memory_space_lower_tt.cc` (derives circular-buffer sizing)
 
 ---
 
@@ -83,17 +76,15 @@ Tests cover:
 
 - `src/transform/tt/infer_tt_shard.cc` - Implementation
 - `tilelang/tt/passes.py` - Python binding
-- `testing/python/tt/test_passes.py` - Tests
 
 ---
 
 ## Success Criteria
 
-- [x] Infers shard metadata for all DRAM buffers
-- [x] Handles arbitrary buffer shapes (pads to 32×32)
-- [x] Attaches correct metadata to IR
-- [x] All tests passing
+- [x] Emits tilization metadata for all DRAM buffers
+- [x] Records padding requirements when shapes are not tile-aligned
+- [x] Provides both legacy and consolidated annotations for downstream passes
 
 ---
 
-**Last Updated**: 2025-10-09
+**Last Updated**: 2026-02-20

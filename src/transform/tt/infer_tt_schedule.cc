@@ -158,6 +158,37 @@ PrimFunc InferDefaultTTScheduleImpl(PrimFunc f) {
   new_func = WithAttr(new_func, "tt_num_cores", Integer(TT_NUM_CORES));
   new_func = WithAttr(new_func, "tt_tiles_per_core", tiles_per_core);
 
+  // Step 6: Consolidated schedule metadata map (for documentation parity)
+  Map<String, ObjectRef> schedule_map;
+
+  if (auto policy = f->attrs.GetAttr<String>("tt_schedule_policy")) {
+    schedule_map.Set("policy", policy.value());
+  }
+  if (auto order = f->attrs.GetAttr<String>("tt_schedule_order")) {
+    schedule_map.Set("order", order.value());
+  }
+
+  Array<Integer> grid_shape;
+  grid_shape.push_back(Integer(grid_x));
+  grid_shape.push_back(Integer(grid_y));
+  grid_shape.push_back(Integer(grid_z));
+  schedule_map.Set("grid_shape", grid_shape);
+  schedule_map.Set("total_tiles", Integer(num_tiles));
+  schedule_map.Set("num_cores", Integer(TT_NUM_CORES));
+
+  Array<ObjectRef> assignments;
+  for (int core_id = 0; core_id < static_cast<int>(tile_ranges.size()); ++core_id) {
+    const auto& range = tile_ranges[core_id];
+    Map<String, ObjectRef> assignment;
+    assignment.Set("core_id", Integer(core_id));
+    assignment.Set("start_tile", Integer(range.first));
+    assignment.Set("tile_count", Integer(range.second));
+    assignments.push_back(assignment);
+  }
+  schedule_map.Set("assignments", assignments);
+
+  new_func = WithAttr(new_func, "tt_schedule", schedule_map);
+
   // TODO(WS2): Add tt_runtime_args_schema for kernel invocation
   // Format: {start_id, count, grid_x, grid_y, kt_tiles}
 

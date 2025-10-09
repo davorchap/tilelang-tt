@@ -266,7 +266,7 @@ TT Transform Passes:
   - InferTTSchedule: Assign tiles to cores
   - InferTTShard: Compute DRAM layouts
   - GridToPersistentTT: Convert grid→persistent loop
-  - TTShardToCoreMap: Derive CoreRangeSet
+  - TTTilesToCoreMap: Derive CoreRangeSet
   - MemorySpaceLowerTT: Lower T.copy → CBs + NOC ops
   - TilePadTT: Insert padding for non-tile-aligned shapes
   - TensorizeTT: Replace patterns with matmul_tiles, etc.

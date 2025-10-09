@@ -1,114 +1,77 @@
 # TilePadTT Pass
 
-**Status**: ✅ Complete
-**Priority**: MEDIUM
+**Status**: ✅ Complete  
+**Priority**: MEDIUM  
 **File**: `src/transform/tt/tile_pad_tt.cc`
 
 ---
 
 ## Purpose
 
-Pad buffer dimensions to multiples of 32 (tile size), ensuring all operations work on complete 32×32 tiles.
+Capture padding requirements for buffers whose shapes are not multiples of the Tenstorrent tile size (32 × 32). The pass does not mutate buffers; it records the padding plan for codegen.
 
 ---
 
 ## Why Needed
 
-Tenstorrent hardware operates on **32×32 tiles** exclusively. Arbitrary dimensions (e.g., 100×100) must be padded to the next tile boundary (128×128 = 4×4 tiles).
+Hardware tensor operations expect tile-aligned shapes. When user buffers have trailing elements that do not fill a full tile, the runtime must handle edge tiles carefully. Recording the intended padded shape up front allows codegen to configure DMA descriptors and guard stores.
 
 ---
 
-## Transformation
+## Metadata Emitted
 
-**Before** (arbitrary dimensions):
+For each buffer that requires padding, the pass emits:
+
 ```python
-A = T.Buffer((100, 100), "float16")  # Not tile-aligned
+"tt_padding_info" = {
+  "A": {
+    "needs_padding": True,
+    "original_shape": [100, 100],
+    "padded_shape": [128, 128],
+    "padding_amount": [28, 28],
+  },
+  ...
+}
 ```
 
-**After** (tile-aligned):
-```python
-A_padded = T.Buffer((128, 128), "float16")  # 4×4 tiles
-# Original: 100×100
-# Padding: +28 rows, +28 columns
-```
-
-**Padding Strategy**:
-- Rows: `ceil(100 / 32) * 32 = 128`
-- Columns: `ceil(100 / 32) * 32 = 128`
-- Padding filled with zeros
+Buffers that are already tile aligned are skipped.
 
 ---
 
 ## Implementation
 
-**Algorithm**:
-1. For each buffer dimension:
-   - If `dim % 32 != 0`:
-     - Pad to next multiple of 32
-     - Add padding metadata to IR
-2. Update buffer shapes in IR
-3. Insert padding initialization (fill with 0)
+1. Look up sharding metadata produced by `infer_default_tt_shard` (`tt_buffer_*_needs_padding`, etc.).
+2. For every buffer flagged as needing padding:
+   - Reconstruct the original and padded shapes.
+   - Compute per-dimension padding amounts.
+3. Aggregate the metadata under `tt_padding_info`.
 
-**IR Attribute**:
-```python
-"tt.tile_padding": {
-  "original_shape": [100, 100],
-  "padded_shape": [128, 128],
-  "padding": [28, 28]
-}
-```
-
----
-
-## Codegen Impact
-
-Codegen must:
-- Allocate padded size in DRAM
-- Only write valid data (avoid padding regions)
-- Handle padding in result validation
+The pass leaves the underlying TIR untouched—no additional buffers or loops are inserted at this stage. Padding logic is implemented later in TT codegen.
 
 ---
 
 ## Tests
 
-**File**: `testing/python/tt/test_tile_pad_tt.py`
-**Status**: ✅ 6 tests passing
-
-Tests cover:
-- Already aligned (no padding needed)
-- Single dimension padding
-- Both dimensions padding
-- Large padding requirements
-- Metadata correctness
+**File**: Pending (covered indirectly by WS3 integration tests)
 
 ---
 
 ## Dependencies
 
 **Depends On**:
-- None (can run early in pipeline)
+- `infer_default_tt_shard.cc` (provides per-buffer padding flags)
 
 **Depended On By**:
-- `memory_space_lower_tt.cc` - Expects tile-aligned shapes
-- All code generation passes
-
----
-
-## Related Files
-
-- `src/transform/tt/tile_pad_tt.cc` - Implementation
-- `tilelang/tt/passes.py` - Python binding
-- `testing/python/tt/test_tile_pad_tt.py` - Tests
+- TT codegen visitors (reader / writer) when configuring DMA strides
 
 ---
 
 ## Success Criteria
 
-- [x] Pads all dimensions to multiples of 32
-- [x] Preserves semantics (padding is transparent)
-- [x] Metadata tracks original vs padded shapes
-- [x] All tests passing (6/6)
+- [x] Emits padding metadata for every buffer that needs it
+- [x] Leaves already aligned buffers untouched
+- [x] Does not rewrite user IR—pure metadata pass
 
 ---
 
-**Last Updated**: 2025-10-09
+**Last Updated**: 2026-02-20

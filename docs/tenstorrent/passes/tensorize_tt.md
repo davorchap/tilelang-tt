@@ -1,182 +1,60 @@
 # TensorizeTT Pass
 
-**Status**: 🟡 Partial
-**Priority**: HIGH
+**Status**: 🟡 Partial  
+**Priority**: HIGH  
 **File**: `src/transform/tt/tensorize_tt.cc`
 
 ---
 
 ## Purpose
 
-Detect manual matmul loops and element-wise operations in TIR and annotate them with Metalium intrinsic metadata, enabling the code generator to emit efficient tile-based operations.
+Bridge between TileLang's high level matmul pragmas and Tenstorrent codegen by annotating TIR with TT-specific intrinsic metadata.
 
 ---
 
-## Why Needed
+## Current Behavior
 
-**Problem**: Codegen currently uses heuristics (like variable name "kt") to detect patterns, which is:
-- Fragile (fails if variables renamed)
-- Incomplete (misses complex patterns)
-- Violates separation of concerns (codegen should be "dumb")
+- Walks the TIR, looking for `AttrStmt` markers inserted by the frontend (`"pragma_gemm"`, `"tl.gemm"`, `"gemm_operation"`).
+- Wraps each matched region with a new `AttrStmt` tagged `"tt.matmul_intrinsic"` and assigns a unique matmul ID.
+- Attaches convenience attributes to the `PrimFunc`:
+  - `tt_num_matmuls`
+  - `tt_has_tensorize`
 
-**Solution**: Transform pass detects patterns and adds IR annotations that codegen simply reads.
-
----
-
-## Current Implementation
-
-**What Works**:
-- Detects `T.gemm()` intrinsic calls
-- Annotates with `tt.matmul_intrinsic` attribute
-
-**What's Missing**:
-- Manual matmul loop detection (3 nested loops with accumulation)
-- Element-wise operation detection (tile grid operations)
-- Input/output buffer annotations
-- K-loop annotations for matmul
+This minimal functionality allows codegen visitors to enumerate matmul regions without relying on brittle name-based heuristics.
 
 ---
 
-## Specification
+## Missing Work
 
-### Pattern 1: K-Loop Matmul
+- Pattern matching for handwritten loop nests (no `pragma_gemm`).
+- Buffer operand annotations (`tt.input_buffers`, `tt.output_buffer`).
+- Element-wise pattern detection.
+- Integration with reader / writer kernels for non-matmul intrinsics.
 
-**Input IR** (manual matmul):
-```python
-for tile_idx in range(num_output_tiles):
-    for kt in range(Kt):  # K-loop
-        for i, j in T.grid(32, 32):
-            C[tile_m*32+i, tile_n*32+j] += A[tile_m*32+i, kt*32+j] * B[kt*32+i, tile_n*32+j]
-```
-
-**Output IR** (annotated):
-```python
-AttrStmt("tt.matmul_k_loop", matmul_id=0):
-  AttrStmt("tt.input_buffers", [A, B]):
-    AttrStmt("tt.output_buffer", C):
-      for kt in range(Kt):
-        # loop body unchanged
-```
-
-### Pattern 2: Element-Wise Operations
-
-**Input IR**:
-```python
-for tile_idx in range(num_tiles):
-    for i, j in T.grid(32, 32):
-        C[bx*32+i, by*32+j] = A[bx*32+i, by*32+j] + B[bx*32+i, by*32+j]
-```
-
-**Output IR** (annotated):
-```python
-AttrStmt("tt.elementwise_op", op_id=0):
-  AttrStmt("tt.op_type", "add"):
-    AttrStmt("tt.input_buffers", [A, B]):
-      AttrStmt("tt.output_buffer", C):
-        # loop body unchanged
-```
-
----
-
-## Implementation Tasks
-
-### Task 1.1: Matmul Pattern Matcher
-
-**File**: `src/transform/tt/tensorize_tt.cc`
-
-**Add**:
-```cpp
-class MatmulPatternMatcher {
-public:
-  bool Match(const Stmt& body);
-  Var GetBufferA();
-  Var GetBufferB();
-  Var GetBufferC();
-  bool IsAccumulation();  // Check for += pattern
-};
-```
-
-**Status**: ❌ Not Implemented
-
-### Task 1.2: Element-Wise Pattern Matcher
-
-**Add**:
-```cpp
-class ElementwisePatternMatcher {
-public:
-  bool Match(const Stmt& body);
-  std::string GetOpType();  // "add", "mul", etc.
-  Array<Var> GetInputBuffers();
-  Var GetOutputBuffer();
-};
-```
-
-**Status**: ❌ Not Implemented
-
-### Task 1.3: Annotation Logic
-
-**Add to** `TensorizeTTMutator::VisitStmt_(const ForNode* op)`:
-- Detect K-loop via pattern matching (not variable name)
-- Detect element-wise via `T.grid(32, 32)` pattern
-- Add nested `AttrStmt` nodes with buffer info
-
-**Status**: ❌ Not Implemented
+These items remain on the roadmap; the current pass provides scaffolding without modifying user loops.
 
 ---
 
 ## Tests
 
-**Test File**: `testing/python/tt/test_tensorize_tt.py`
-
-**Current**: 8 tests (basic intrinsic detection)
-
-**Needed**:
-- Test manual matmul loop detection
-- Test element-wise detection
-- Test annotation structure
-- Test multiple patterns in same function
-
-**Status**: ⏳ Pending implementation
+Covered indirectly via WS3 integration tests that assert `tt_has_tensorize` metadata when `T.gemm()` is used.
 
 ---
 
 ## Dependencies
 
-**Depends On**:
-- None (standalone transform)
-
-**Depended On By**:
-- `codegen_tt_compute_visitor.cc` - Reads annotations to emit intrinsics
-- All downstream code generation
+**Depends On**: None  
+**Depended On By**: `codegen_tt_compute_visitor.cc` (consumes `tt.matmul_intrinsic` annotations)
 
 ---
 
-## Related Files
+## Success Criteria (current milestone)
 
-- `src/transform/tt/tensorize_tt.cc` - Implementation
-- `src/target/tt/codegen_tt_compute_visitor.cc` - Consumes annotations
-- `testing/python/tt/test_tensorize_tt.py` - Tests
-
----
-
-## Success Criteria
-
-- [ ] Detects manual matmul loops (no `T.gemm()` call needed)
-- [ ] Detects element-wise operations
-- [ ] Generates correct nested annotations
-- [ ] Codegen emits intrinsics based on annotations (not heuristics)
-- [ ] All existing tests pass
-- [ ] New pattern detection tests pass
+- [x] Translate frontend GEMM pragmas into TT-specific annotations
+- [x] Count and label matmul regions
+- [ ] Detect unannotated loop patterns (future)
+- [ ] Handle element-wise tensorization (future)
 
 ---
 
-## Timeline
-
-**Estimated Effort**: 2-3 days
-- Day 1: Pattern matchers
-- Day 2: Annotation logic
-- Day 3: Tests and integration
-
----
-
-**Last Updated**: 2025-10-09
+**Last Updated**: 2026-02-20

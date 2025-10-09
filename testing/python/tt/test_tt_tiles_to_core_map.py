@@ -1,4 +1,4 @@
-"""Test TTShardToCoreMap pass (WS3 Phase 2).
+"""Test TTTilesToCoreMap pass (WS3 Phase 2).
 
 This pass maps logical tile assignments to physical core coordinates.
 """
@@ -43,16 +43,16 @@ def create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8):
     return func
 
 
-def test_tt_shard_to_core_map_basic():
-    """Test TTShardToCoreMap generates core ranges correctly."""
-    from tilelang.tt.passes import tt_shard_to_core_map
+def test_tt_tiles_to_core_map_basic():
+    """Test TTTilesToCoreMap generates core ranges correctly."""
+    from tilelang.tt.passes import tt_tiles_to_core_map
 
     # Create function with WS2 metadata
     func = create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8)
     mod = tvm.IRModule({"main": func})
 
-    # Apply TTShardToCoreMap
-    mod = tt_shard_to_core_map(mod)
+    # Apply TTTilesToCoreMap
+    mod = tt_tiles_to_core_map(mod)
     func = mod["main"]
 
     # Verify core ranges attribute exists
@@ -69,14 +69,14 @@ def test_tt_shard_to_core_map_basic():
         core_runtime_args) == 64, f"Expected 64 runtime arg sets, got {len(core_runtime_args)}"
 
 
-def test_tt_shard_to_core_map_coordinates():
-    """Test TTShardToCoreMap generates correct physical coordinates."""
-    from tilelang.tt.passes import tt_shard_to_core_map
+def test_tt_tiles_to_core_map_coordinates():
+    """Test TTTilesToCoreMap generates correct physical coordinates."""
+    from tilelang.tt.passes import tt_tiles_to_core_map
 
     func = create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8)
     mod = tvm.IRModule({"main": func})
 
-    mod = tt_shard_to_core_map(mod)
+    mod = tt_tiles_to_core_map(mod)
     func = mod["main"]
 
     core_ranges = func.attrs["tt_core_ranges"]
@@ -111,14 +111,14 @@ def test_tt_shard_to_core_map_coordinates():
     assert int(last_range[1]) == 7, "Core 63 should have y=7"
 
 
-def test_tt_shard_to_core_map_runtime_args():
-    """Test TTShardToCoreMap generates correct runtime args."""
-    from tilelang.tt.passes import tt_shard_to_core_map
+def test_tt_tiles_to_core_map_runtime_args():
+    """Test TTTilesToCoreMap generates correct runtime args."""
+    from tilelang.tt.passes import tt_tiles_to_core_map
 
     func = create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8)
     mod = tvm.IRModule({"main": func})
 
-    mod = tt_shard_to_core_map(mod)
+    mod = tt_tiles_to_core_map(mod)
     func = mod["main"]
 
     core_runtime_args = func.attrs["tt_core_runtime_args"]
@@ -136,9 +136,9 @@ def test_tt_shard_to_core_map_runtime_args():
         assert num_tiles == 1, f"Core {core_id} should have 1 tile"
 
 
-def test_tt_shard_to_core_map_skip_without_metadata():
-    """Test TTShardToCoreMap skips functions without WS2 metadata."""
-    from tilelang.tt.passes import tt_shard_to_core_map
+def test_tt_tiles_to_core_map_skip_without_metadata():
+    """Test TTTilesToCoreMap skips functions without WS2 metadata."""
+    from tilelang.tt.passes import tt_tiles_to_core_map
 
     # Create function WITHOUT WS2 metadata
     A = tir.decl_buffer((256, 256), "float16", name="A")
@@ -147,16 +147,16 @@ def test_tt_shard_to_core_map_skip_without_metadata():
     mod = tvm.IRModule({"main": func})
 
     # Apply pass
-    mod = tt_shard_to_core_map(mod)
+    mod = tt_tiles_to_core_map(mod)
     func = mod["main"]
 
     # Should NOT add core ranges
     assert func.attrs is None or "tt_core_ranges" not in func.attrs, "Should not add core ranges without WS2 metadata"
 
 
-def test_tt_shard_to_core_map_consistency_with_ws2():
-    """Test TTShardToCoreMap output is consistent with WS2 input."""
-    from tilelang.tt.passes import tt_shard_to_core_map
+def test_tt_tiles_to_core_map_consistency_with_ws2():
+    """Test TTTilesToCoreMap output is consistent with WS2 input."""
+    from tilelang.tt.passes import tt_tiles_to_core_map
 
     func = create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8)
     mod = tvm.IRModule({"main": func})
@@ -165,7 +165,7 @@ def test_tt_shard_to_core_map_consistency_with_ws2():
     original_tiles_per_core = func.attrs["tt_tiles_per_core"]
 
     # Apply pass
-    mod = tt_shard_to_core_map(mod)
+    mod = tt_tiles_to_core_map(mod)
     func = mod["main"]
 
     core_ranges = func.attrs["tt_core_ranges"]
@@ -194,9 +194,9 @@ def test_tt_shard_to_core_map_consistency_with_ws2():
         assert args_count == original_count, f"Core {core_id} runtime args count mismatch"
 
 
-def test_tt_shard_to_core_map_integration_with_ws2():
-    """Test TTShardToCoreMap integrates with WS2 passes."""
-    from tilelang.tt.passes import apply_ws2_passes, tt_shard_to_core_map
+def test_tt_tiles_to_core_map_integration_with_ws2():
+    """Test TTTilesToCoreMap integrates with WS2 passes."""
+    from tilelang.tt.passes import apply_ws2_passes, tt_tiles_to_core_map
     from tilelang.tt.target import apply_tt_defaults
 
     # Create a simple function
@@ -217,26 +217,26 @@ def test_tt_shard_to_core_map_integration_with_ws2():
 
     mod = tvm.IRModule({"main": func})
 
-    # Apply WS1 -> WS2 -> TTShardToCoreMap pipeline
+    # Apply WS1 -> WS2 -> TTTilesToCoreMap pipeline
     mod = apply_tt_defaults(mod)
     mod = apply_ws2_passes(mod)
-    mod = tt_shard_to_core_map(mod)
+    mod = tt_tiles_to_core_map(mod)
 
     func = mod["main"]
 
     # Verify all metadata exists
     assert "tt_schedule_policy" in func.attrs, "Should have WS1 defaults"
     assert "tt_tiles_per_core" in func.attrs, "Should have WS2 schedule metadata"
-    assert "tt_core_ranges" in func.attrs, "Should have TTShardToCoreMap output"
+    assert "tt_core_ranges" in func.attrs, "Should have TTTilesToCoreMap output"
     assert "tt_core_runtime_args" in func.attrs, "Should have runtime args"
 
 
 if __name__ == "__main__":
     # Run tests
-    test_tt_shard_to_core_map_basic()
-    test_tt_shard_to_core_map_coordinates()
-    test_tt_shard_to_core_map_runtime_args()
-    test_tt_shard_to_core_map_skip_without_metadata()
-    test_tt_shard_to_core_map_consistency_with_ws2()
-    test_tt_shard_to_core_map_integration_with_ws2()
-    print("All TTShardToCoreMap tests passed!")
+    test_tt_tiles_to_core_map_basic()
+    test_tt_tiles_to_core_map_coordinates()
+    test_tt_tiles_to_core_map_runtime_args()
+    test_tt_tiles_to_core_map_skip_without_metadata()
+    test_tt_tiles_to_core_map_consistency_with_ws2()
+    test_tt_tiles_to_core_map_integration_with_ws2()
+    print("All TTTilesToCoreMap tests passed!")

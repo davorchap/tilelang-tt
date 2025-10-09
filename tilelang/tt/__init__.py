@@ -12,6 +12,7 @@ from .passes import (
     infer_default_tt_shard,
     apply_ws2_passes,
     grid_to_persistent_tt,
+    tt_tiles_to_core_map,
     apply_ws3_passes,
 )
 from .codegen import (
@@ -25,6 +26,7 @@ __all__ = [
     "infer_default_tt_shard",
     "apply_ws2_passes",
     "grid_to_persistent_tt",
+    "tt_tiles_to_core_map",
     "apply_ws3_passes",
     "emit_tt_artifacts",
     "write_artifacts_to_disk",
