@@ -19,7 +19,7 @@
 
 /*!
  * \file memory_space_lower_tt.cc
- * \brief Lower abstract buffer allocations to TT circular buffers (WS3 Phase 2)
+ * \brief Lower abstract buffer allocations to TT circular buffers (Persistent Transform stage)
  *
  * This pass transforms TileLang's alloc_fragment buffer allocations into
  * Tenstorrent circular buffer (CB) configurations in L1 memory.

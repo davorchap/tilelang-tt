@@ -19,7 +19,7 @@
 
 /*!
  * \file infer_tt_schedule.cc
- * \brief Infer default Tenstorrent schedule metadata (WS2)
+ * \brief Infer default Tenstorrent schedule metadata (Metadata Inference stage)
  *
  * This pass computes contiguous per-core tile ranges and runtime argument
  * schemas based on the kernel grid dimensions. It implements the schedule
@@ -189,7 +189,7 @@ PrimFunc InferDefaultTTScheduleImpl(PrimFunc f) {
 
   new_func = WithAttr(new_func, "tt_schedule", schedule_map);
 
-  // TODO(WS2): Add tt_runtime_args_schema for kernel invocation
+  // TODO(Metadata Inference stage): Add tt_runtime_args_schema for kernel invocation
   // Format: {start_id, count, grid_x, grid_y, kt_tiles}
 
   return new_func;

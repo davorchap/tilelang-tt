@@ -1,5 +1,5 @@
 """
-WS4: Code Generation Integration Tests
+artifact generation stage: Code Generation Integration Tests
 
 Tests for TT kernel codegen and artifact generation.
 """
@@ -11,9 +11,9 @@ import tilelang.tt as tt
 
 def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
     """
-    Create a minimal TVM IRModule with WS2/WS3 metadata attached for codegen testing.
+    Create a minimal TVM IRModule with metadata inference stage/persistent transform stage metadata attached for codegen testing.
 
-    This simulates the output of WS1-3 pipeline without needing actual kernel code.
+    This simulates the output of TT defaults stage-3 pipeline without needing actual kernel code.
     """
     # Create minimal PrimFunc
     A = tir.decl_buffer((256, 256), "float16", name="A")
@@ -28,7 +28,7 @@ def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
         body=body,
     )
 
-    # Attach WS2 schedule metadata
+    # Attach metadata inference stage schedule metadata
     num_tiles = grid_x * grid_y
     tiles_per_core = []
     for i in range(num_cores):
@@ -57,7 +57,7 @@ def test_emit_tt_artifacts_basic():
 
     Verifies that emit_tt_artifacts returns the expected artifact files.
     """
-    # Create module with WS2/WS3 metadata
+    # Create module with metadata inference stage/persistent transform stage metadata
     mod = create_tt_module_with_metadata(grid_x=8, grid_y=8)
 
     # Generate artifacts
@@ -101,7 +101,7 @@ def test_emit_tt_artifacts_grid_metadata():
     """
     Test 2: Grid metadata in generated code
 
-    Verifies that grid dimensions from WS2 appear correctly in generated artifacts.
+    Verifies that grid dimensions from metadata inference stage appear correctly in generated artifacts.
     """
     mod = create_tt_module_with_metadata(grid_x=8, grid_y=8)
 
@@ -129,7 +129,7 @@ def test_emit_tt_artifacts_scheduling_metadata():
     """
     Test 3: Scheduling metadata in plan.json
 
-    Verifies that WS2 schedule metadata appears in the plan.json artifact.
+    Verifies that metadata inference stage schedule metadata appears in the plan.json artifact.
     """
     mod = create_tt_module_with_metadata(grid_x=8, grid_y=8)
 
@@ -232,7 +232,7 @@ def test_write_artifacts_to_disk(tmp_path):
 
 if __name__ == "__main__":
     # Run tests
-    print("Running WS4 Code Generation Tests\n")
+    print("Running artifact generation stage Code Generation Tests\n")
 
     test_emit_tt_artifacts_basic()
     test_emit_tt_artifacts_grid_metadata()
@@ -240,4 +240,4 @@ if __name__ == "__main__":
     test_emit_tt_artifacts_various_grid_sizes()
 
     # Skip tmp_path test when running standalone
-    print("\n✅ All WS4 codegen tests passed!")
+    print("\n✅ All artifact generation stage codegen tests passed!")

@@ -1,21 +1,21 @@
-"""Integration tests for Workstream 2: Schedule and Sharding Inference Passes.
+"""Integration tests for Stage 2: Schedule and Sharding Inference Passes.
 
 This module tests the schedule and sharding inference passes that inject
 TT-specific metadata into IRModules. These tests verify that:
 
 1. Schedule inference computes correct per-core tile ranges
 2. Sharding inference generates correct layout metadata
-3. Metadata format matches expectations for downstream WS3/WS4 passes
+3. Metadata format matches expectations for downstream persistent transform stage/artifact generation stage passes
 """
 
 import pytest
 from tilelang import tvm
 import tilelang.language as T
-from tilelang.tt import apply_tt_defaults, infer_default_tt_schedule, infer_default_tt_shard, apply_ws2_passes
+from tilelang.tt import apply_tt_defaults, infer_default_tt_schedule, infer_default_tt_shard, apply_tt_metadata_passes
 
 
 class TestScheduleInference:
-    """Test schedule inference pass (WS2)."""
+    """Test schedule inference pass (metadata inference stage)."""
 
     def test_schedule_inference_8x8_grid(self):
         """Test schedule inference on 8x8 grid (64 tiles, perfect fit for 64 cores)."""
@@ -26,7 +26,7 @@ class TestScheduleInference:
             with T.Kernel(T.ceildiv(256, 32), T.ceildiv(256, 32)) as (bx, by):
                 pass  # Stub kernel
 
-        # Convert to IRModule and apply WS1 defaults
+        # Convert to IRModule and apply TT defaults stage defaults
         mod = tvm.IRModule.from_expr(gemm_8x8.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)
 
@@ -66,7 +66,7 @@ class TestScheduleInference:
             with T.Kernel(T.ceildiv(128, 32), T.ceildiv(128, 32)) as (bx, by):
                 pass  # Stub kernel
 
-        # Convert to IRModule and apply WS1 defaults
+        # Convert to IRModule and apply TT defaults stage defaults
         mod = tvm.IRModule.from_expr(gemm_4x4.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)
 
@@ -102,7 +102,7 @@ class TestScheduleInference:
             with T.Kernel(T.ceildiv(512, 32), T.ceildiv(512, 32)) as (bx, by):
                 pass  # Stub kernel
 
-        # Convert to IRModule and apply WS1 defaults
+        # Convert to IRModule and apply TT defaults stage defaults
         mod = tvm.IRModule.from_expr(gemm_16x16.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)
 
@@ -125,7 +125,7 @@ class TestScheduleInference:
 
 
 class TestShardInference:
-    """Test sharding inference pass (WS2)."""
+    """Test sharding inference pass (metadata inference stage)."""
 
     def test_shard_inference_tile_aligned(self):
         """Test sharding inference on tile-aligned buffers (256x256, multiples of 32)."""
@@ -136,7 +136,7 @@ class TestShardInference:
             with T.Kernel(8, 8) as (bx, by):
                 pass  # Stub kernel
 
-        # Convert to IRModule and apply WS1 defaults
+        # Convert to IRModule and apply TT defaults stage defaults
         mod = tvm.IRModule.from_expr(gemm_aligned.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)
 
@@ -182,7 +182,7 @@ class TestShardInference:
             with T.Kernel(T.ceildiv(100, 32), T.ceildiv(100, 32)) as (bx, by):
                 pass  # Stub kernel
 
-        # Convert to IRModule and apply WS1 defaults
+        # Convert to IRModule and apply TT defaults stage defaults
         mod = tvm.IRModule.from_expr(gemm_unaligned.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)
 
@@ -213,11 +213,11 @@ class TestShardInference:
             assert int(padded_shape[1]) == 128  # 4 tiles * 32 = 128
 
 
-class TestWS2Integration:
-    """Test integration of WS1 + WS2 passes."""
+class TestMetadata Inference stageIntegration:
+    """Test integration of TT defaults stage + metadata inference stage passes."""
 
     def test_full_ws2_pipeline(self):
-        """Test full WS1 -> WS2 pipeline on realistic GEMM."""
+        """Test full TT defaults stage -> metadata inference stage pipeline on realistic GEMM."""
 
         @T.prim_func
         def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
@@ -228,32 +228,32 @@ class TestWS2Integration:
         # Convert to IRModule
         mod = tvm.IRModule.from_expr(gemm.with_attr("global_symbol", "main"))
 
-        # Apply WS1 defaults
+        # Apply TT defaults stage defaults
         mod = apply_tt_defaults(mod)
 
-        # Apply both WS2 passes
-        mod = apply_ws2_passes(mod)
+        # Apply both metadata inference stage passes
+        mod = apply_tt_metadata_passes(mod)
 
         # Verify all metadata is present
         func = mod["main"]
 
-        # WS1 metadata
+        # TT defaults stage metadata
         assert "tt_schedule_policy" in func.attrs
         assert "tt_schedule_order" in func.attrs
         assert "tt_layout_type" in func.attrs
 
-        # WS2 schedule metadata
+        # metadata inference stage schedule metadata
         assert "tt_num_tiles" in func.attrs
         assert "tt_grid_x" in func.attrs
         assert "tt_tiles_per_core" in func.attrs
 
-        # WS2 shard metadata (check one buffer)
+        # metadata inference stage shard metadata (check one buffer)
         assert "tt_buffer_A_layout" in func.attrs
         assert "tt_buffer_A_tile_shape" in func.attrs
         assert "tt_buffer_A_num_tiles_height" in func.attrs
 
     def test_ws2_convenience_function(self):
-        """Test the apply_ws2_passes convenience function."""
+        """Test the apply_tt_metadata_passes convenience function."""
 
         @T.prim_func
         def kernel(A: T.Buffer((128, 128), "float16")):
@@ -264,7 +264,7 @@ class TestWS2Integration:
         mod = apply_tt_defaults(mod)
 
         # Use convenience function
-        mod = apply_ws2_passes(mod)
+        mod = apply_tt_metadata_passes(mod)
 
         func = mod["main"]
         # Should have both schedule and shard metadata

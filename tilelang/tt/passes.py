@@ -43,8 +43,8 @@ def infer_default_tt_schedule(mod: tvm.IRModule) -> tvm.IRModule:
         >>>         pass
         >>>
         >>> mod = tvm.IRModule.from_expr(gemm)
-        >>> mod = apply_tt_defaults(mod)  # WS1: Add default annotations
-        >>> mod = infer_default_tt_schedule(mod)  # WS2: Infer schedule
+        >>> mod = apply_tt_defaults(mod)  # TT defaults stage: Add default annotations
+        >>> mod = infer_default_tt_schedule(mod)  # metadata inference stage: Infer schedule
     """
     # Call C++ pass via FFI
     pass_func = tvm.ffi.get_global_func("tl.transform.InferDefaultTTSchedule")
@@ -65,7 +65,7 @@ def infer_default_tt_shard(mod: tvm.IRModule) -> tvm.IRModule:
 
     The pass detects buffers with dimensions that are not multiples of 32 and
     marks them for padding. Actual padding insertion and TensorAccessor
-    configuration are deferred to later passes (WS3/WS4).
+    configuration are deferred to later passes (persistent transform stage/Artifact Generation stage).
 
     Args:
         mod: The TVM IRModule to process
@@ -85,32 +85,32 @@ def infer_default_tt_shard(mod: tvm.IRModule) -> tvm.IRModule:
         >>>     pass
         >>>
         >>> mod = tvm.IRModule.from_expr(gemm)
-        >>> mod = apply_tt_defaults(mod)  # WS1: Add default annotations
-        >>> mod = infer_default_tt_shard(mod)  # WS2: Infer sharding
+        >>> mod = apply_tt_defaults(mod)  # TT defaults stage: Add default annotations
+        >>> mod = infer_default_tt_shard(mod)  # metadata inference stage: Infer sharding
     """
     # Call C++ pass via FFI
     pass_func = tvm.ffi.get_global_func("tl.transform.InferDefaultTTShard")
     return pass_func()(mod)
 
 
-def apply_ws2_passes(mod: tvm.IRModule) -> tvm.IRModule:
+def apply_tt_metadata_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Apply all Workstream 2 passes (schedule + sharding inference).
 
     This is a convenience function that applies both schedule and sharding
     inference passes in the correct order.
 
     Args:
-        mod: The TVM IRModule to process (should already have WS1 defaults)
+        mod: The TVM IRModule to process (should already have TT defaults stage defaults)
 
     Returns:
         A new IRModule with both schedule and sharding metadata
 
     Example:
-        >>> from tilelang.tt import apply_tt_defaults, apply_ws2_passes
+        >>> from tilelang.tt import apply_tt_defaults, apply_tt_metadata_passes
         >>>
         >>> mod = create_tilelang_kernel()
-        >>> mod = apply_tt_defaults(mod)  # WS1
-        >>> mod = apply_ws2_passes(mod)  # WS2
+        >>> mod = apply_tt_defaults(mod)  # TT defaults stage
+        >>> mod = apply_tt_metadata_passes(mod)  # metadata inference stage
     """
     mod = infer_default_tt_schedule(mod)
     mod = infer_default_tt_shard(mod)
@@ -132,18 +132,18 @@ def grid_to_persistent_tt(mod: tvm.IRModule) -> tvm.IRModule:
     `tt_runtime_args` map describing iteration order and grid shape.
 
     Args:
-        mod: The TVM IRModule to process (should have WS2 schedule metadata)
+        mod: The TVM IRModule to process (should have metadata inference stage schedule metadata)
 
     Returns:
         A new IRModule with persistent loop structure
 
     Example:
-        >>> from tilelang.tt import apply_ws2_passes, grid_to_persistent_tt
+        >>> from tilelang.tt import apply_tt_metadata_passes, grid_to_persistent_tt
         >>>
         >>> mod = create_tilelang_kernel()
-        >>> mod = apply_tt_defaults(mod)  # WS1
-        >>> mod = apply_ws2_passes(mod)  # WS2
-        >>> mod = grid_to_persistent_tt(mod)  # WS3
+        >>> mod = apply_tt_defaults(mod)  # TT defaults stage
+        >>> mod = apply_tt_metadata_passes(mod)  # metadata inference stage
+        >>> mod = grid_to_persistent_tt(mod)  # persistent transform stage
     """
     pass_func = tvm.ffi.get_global_func("tl.transform.GridToPersistentTT")
     return pass_func()(mod)
@@ -152,7 +152,7 @@ def grid_to_persistent_tt(mod: tvm.IRModule) -> tvm.IRModule:
 def tt_tiles_to_core_map(mod: tvm.IRModule) -> tvm.IRModule:
     """Map tile assignments to physical core coordinates.
 
-    This pass converts logical tile-to-core assignments from WS2 into physical
+    This pass converts logical tile-to-core assignments from metadata inference stage into physical
     CoreRangeSet topology for Tenstorrent devices. It generates:
 
     - tt_core_ranges: Physical core topology as [start_x, start_y, end_x, end_y, start_tile, count]
@@ -162,18 +162,18 @@ def tt_tiles_to_core_map(mod: tvm.IRModule) -> tvm.IRModule:
     core_id maps to (x, y) = (core_id % 8, core_id / 8).
 
     Args:
-        mod: The TVM IRModule to process (should have WS2 tt_tiles_per_core metadata)
+        mod: The TVM IRModule to process (should have metadata inference stage tt_tiles_per_core metadata)
 
     Returns:
         A new IRModule with physical core topology metadata
 
     Example:
-        >>> from tilelang.tt import apply_ws2_passes, tt_tiles_to_core_map
+        >>> from tilelang.tt import apply_tt_metadata_passes, tt_tiles_to_core_map
         >>>
         >>> mod = create_tilelang_kernel()
-        >>> mod = apply_tt_defaults(mod)  # WS1
-        >>> mod = apply_ws2_passes(mod)  # WS2
-        >>> mod = tt_tiles_to_core_map(mod)  # WS3 Phase 2
+        >>> mod = apply_tt_defaults(mod)  # TT defaults stage
+        >>> mod = apply_tt_metadata_passes(mod)  # metadata inference stage
+        >>> mod = tt_tiles_to_core_map(mod)  # persistent transform stage Phase 2
     """
     pass_func = tvm.ffi.get_global_func("tl.transform.TTTilesToCoreMap")
     return pass_func()(mod)
@@ -189,7 +189,7 @@ def memory_space_lower_tt(mod: tvm.IRModule) -> tvm.IRModule:
     allocations when emitting C++.
 
     Args:
-        mod: The TVM IRModule to process (should have WS1 TT defaults)
+        mod: The TVM IRModule to process (should have TT defaults stage TT defaults)
 
     Returns:
         A new IRModule with TT circular-buffer metadata attached
@@ -201,13 +201,13 @@ def memory_space_lower_tt(mod: tvm.IRModule) -> tvm.IRModule:
 def tile_pad_tt(mod: tvm.IRModule) -> tvm.IRModule:
     """Attach padding metadata for non-tile-aligned buffers.
 
-    The pass consults WS2 shard metadata (`tt_buffer_*_needs_padding`) and, for each
+    The pass consults metadata inference stage shard metadata (`tt_buffer_*_needs_padding`) and, for each
     buffer that requires padding, records the original shape, padded shape, and
     padding amounts under `tt_padding_info`. The IR itself is unchanged—codegen reads
     the metadata to handle edge tiles.
 
     Args:
-        mod: The TVM IRModule to process (should have WS2 padding flags)
+        mod: The TVM IRModule to process (should have metadata inference stage padding flags)
 
     Returns:
         A new IRModule with padding metadata for codegen
@@ -241,9 +241,9 @@ def verify_tt_ir(mod: tvm.IRModule) -> tvm.IRModule:
     This pass performs comprehensive validation of transformed IR to ensure it's
     ready for Tenstorrent codegen. It verifies:
 
-    - WS1: tt_schedule_policy, tt_layout_type, tt_tile_* dimensions
-    - WS2: tt_grid_*, tt_num_tiles, tt_tiles_per_core, tt_num_cores
-    - WS3: tt_persistent_loop, tt_core_ranges, tt_circular_buffers, tt_padding_info
+    - TT defaults stage: tt_schedule_policy, tt_layout_type, tt_tile_* dimensions
+    - metadata inference stage: tt_grid_*, tt_num_tiles, tt_tiles_per_core, tt_num_cores
+    - persistent transform stage: tt_persistent_loop, tt_core_ranges, tt_circular_buffers, tt_padding_info
 
     The pass logs errors and warnings but does not modify the IR. It attaches
     validation results as metadata:
@@ -253,44 +253,44 @@ def verify_tt_ir(mod: tvm.IRModule) -> tvm.IRModule:
     - tt_validation_warning_count: Number of warnings found
 
     Args:
-        mod: The TVM IRModule to validate (should have WS1-3 metadata)
+        mod: The TVM IRModule to validate (should have TT defaults stage-3 metadata)
 
     Returns:
         A new IRModule with validation result metadata attached
 
     Example:
-        >>> from tilelang.tt import apply_ws3_passes, verify_tt_ir
+        >>> from tilelang.tt import apply_tt_transform_passes, verify_tt_ir
         >>>
         >>> mod = create_tilelang_kernel()
-        >>> mod = apply_tt_defaults(mod)  # WS1
-        >>> mod = apply_ws2_passes(mod)  # WS2
-        >>> mod = apply_ws3_passes(mod)  # WS3 (includes verify_tt_ir)
+        >>> mod = apply_tt_defaults(mod)  # TT defaults stage
+        >>> mod = apply_tt_metadata_passes(mod)  # metadata inference stage
+        >>> mod = apply_tt_transform_passes(mod)  # persistent transform stage (includes verify_tt_ir)
     """
     pass_func = tvm.ffi.get_global_func("tl.transform.VerifyTTIR")
     return pass_func()(mod)
 
 
-def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
+def apply_tt_transform_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Apply all Workstream 3 TIR transform passes.
 
-    This is a convenience function that applies all WS3 transforms in the
+    This is a convenience function that applies all persistent transform stage transforms in the
     correct order to produce TT-ready IR.
 
     Args:
-        mod: The TVM IRModule to process (should have WS2 metadata)
+        mod: The TVM IRModule to process (should have metadata inference stage metadata)
 
     Returns:
         A new IRModule with transformed TIR ready for codegen
 
     Example:
-        >>> from tilelang.tt import apply_tt_defaults, apply_ws2_passes, apply_ws3_passes
+        >>> from tilelang.tt import apply_tt_defaults, apply_tt_metadata_passes, apply_tt_transform_passes
         >>>
         >>> mod = create_tilelang_kernel()
-        >>> mod = apply_tt_defaults(mod)  # WS1
-        >>> mod = apply_ws2_passes(mod)  # WS2
-        >>> mod = apply_ws3_passes(mod)  # WS3
+        >>> mod = apply_tt_defaults(mod)  # TT defaults stage
+        >>> mod = apply_tt_metadata_passes(mod)  # metadata inference stage
+        >>> mod = apply_tt_transform_passes(mod)  # persistent transform stage
     """
-    # WS3 Transform Pipeline
+    # persistent transform stage Transform Pipeline
     mod = grid_to_persistent_tt(mod)
     mod = tt_tiles_to_core_map(mod)
     mod = memory_space_lower_tt(mod)

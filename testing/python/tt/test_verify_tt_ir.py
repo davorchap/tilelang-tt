@@ -1,4 +1,4 @@
-"""Test VerifyTTIR pass (WS3 Phase 2).
+"""Test VerifyTTIR pass (persistent transform stage Phase 2).
 
 This pass validates that transformed TT IR has all required metadata.
 """
@@ -9,7 +9,7 @@ from tvm import tir
 
 
 def create_func_with_complete_metadata():
-    """Create a mock PrimFunc with complete WS1-3 metadata."""
+    """Create a mock PrimFunc with complete TT defaults stage-3 metadata."""
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
     B = tir.decl_buffer((256, 256), "float16", name="B", scope="global")
     C = tir.decl_buffer((256, 256), "float16", name="C", scope="global")
@@ -17,14 +17,14 @@ def create_func_with_complete_metadata():
     body = tir.Evaluate(0)
     func = tir.PrimFunc([A, B, C], body)
 
-    # WS1 metadata
+    # TT defaults stage metadata
     func = func.with_attr("tt_schedule_policy", "contiguous")
     func = func.with_attr("tt_schedule_order", "row_major")
     func = func.with_attr("tt_layout_type", "dram_interleaved")
     func = func.with_attr("tt_tile_height", tvm.tir.IntImm("int32", 32))
     func = func.with_attr("tt_tile_width", tvm.tir.IntImm("int32", 32))
 
-    # WS2 metadata
+    # metadata inference stage metadata
     func = func.with_attr("tt_grid_x", tvm.tir.IntImm("int32", 8))
     func = func.with_attr("tt_grid_y", tvm.tir.IntImm("int32", 8))
     func = func.with_attr("tt_num_tiles", tvm.tir.IntImm("int32", 64))
@@ -33,19 +33,19 @@ def create_func_with_complete_metadata():
         "tt_tiles_per_core",
         [[tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 1)]])
 
-    # WS3 metadata
+    # persistent transform stage metadata
     func = func.with_attr("tt_persistent_loop", tvm.tir.IntImm("int32", 1))
 
     return func
 
 
 def create_func_missing_ws1_metadata():
-    """Create a mock PrimFunc missing WS1 metadata."""
+    """Create a mock PrimFunc missing TT defaults stage metadata."""
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
     body = tir.Evaluate(0)
     func = tir.PrimFunc([A], body)
 
-    # Has tt_schedule_policy but missing other WS1 attributes
+    # Has tt_schedule_policy but missing other TT defaults stage attributes
     func = func.with_attr("tt_schedule_policy", "contiguous")
     func = func.with_attr("tt_schedule_order", "row_major")
     # Missing: tt_layout_type, tt_tile_height, tt_tile_width
@@ -54,19 +54,19 @@ def create_func_missing_ws1_metadata():
 
 
 def create_func_missing_ws2_metadata():
-    """Create a mock PrimFunc missing WS2 metadata."""
+    """Create a mock PrimFunc missing metadata inference stage metadata."""
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
     body = tir.Evaluate(0)
     func = tir.PrimFunc([A], body)
 
-    # WS1 metadata present
+    # TT defaults stage metadata present
     func = func.with_attr("tt_schedule_policy", "contiguous")
     func = func.with_attr("tt_schedule_order", "row_major")
     func = func.with_attr("tt_layout_type", "dram_interleaved")
     func = func.with_attr("tt_tile_height", tvm.tir.IntImm("int32", 32))
     func = func.with_attr("tt_tile_width", tvm.tir.IntImm("int32", 32))
 
-    # Missing WS2 metadata - should be flagged as error
+    # Missing metadata inference stage metadata - should be flagged as error
     # No tt_grid_x, tt_grid_y, etc.
 
     return func
@@ -78,14 +78,14 @@ def create_func_with_large_grid():
     body = tir.Evaluate(0)
     func = tir.PrimFunc([A], body)
 
-    # WS1 metadata
+    # TT defaults stage metadata
     func = func.with_attr("tt_schedule_policy", "contiguous")
     func = func.with_attr("tt_schedule_order", "row_major")
     func = func.with_attr("tt_layout_type", "dram_interleaved")
     func = func.with_attr("tt_tile_height", tvm.tir.IntImm("int32", 32))
     func = func.with_attr("tt_tile_width", tvm.tir.IntImm("int32", 32))
 
-    # WS2 metadata with large grid (should warn)
+    # metadata inference stage metadata with large grid (should warn)
     func = func.with_attr("tt_grid_x", tvm.tir.IntImm("int32", 100))  # > 64
     func = func.with_attr("tt_grid_y", tvm.tir.IntImm("int32", 100))  # > 64
     func = func.with_attr("tt_num_tiles", tvm.tir.IntImm("int32", 10000))
@@ -131,7 +131,7 @@ def test_verify_tt_ir_validation_passes():
 
 
 def test_verify_tt_ir_detects_missing_ws1():
-    """Test VerifyTTIR detects missing WS1 metadata."""
+    """Test VerifyTTIR detects missing TT defaults stage metadata."""
     from tilelang.tt.passes import verify_tt_ir
 
     func = create_func_missing_ws1_metadata()
@@ -140,14 +140,14 @@ def test_verify_tt_ir_detects_missing_ws1():
     mod = verify_tt_ir(mod)
     func = mod["main"]
 
-    # Should detect missing WS1 attributes
+    # Should detect missing TT defaults stage attributes
     assert "tt_ir_validated" in func.attrs, "Should have validation result"
-    assert not bool(func.attrs["tt_ir_validated"]), "Validation should fail with missing WS1"
+    assert not bool(func.attrs["tt_ir_validated"]), "Validation should fail with missing TT defaults stage"
     assert int(func.attrs["tt_validation_error_count"]) > 0, "Should have errors"
 
 
 def test_verify_tt_ir_detects_missing_ws2():
-    """Test VerifyTTIR detects missing WS2 metadata."""
+    """Test VerifyTTIR detects missing metadata inference stage metadata."""
     from tilelang.tt.passes import verify_tt_ir
 
     func = create_func_missing_ws2_metadata()
@@ -156,8 +156,8 @@ def test_verify_tt_ir_detects_missing_ws2():
     mod = verify_tt_ir(mod)
     func = mod["main"]
 
-    # Should detect missing WS2 attributes
-    assert not bool(func.attrs["tt_ir_validated"]), "Validation should fail with missing WS2"
+    # Should detect missing metadata inference stage attributes
+    assert not bool(func.attrs["tt_ir_validated"]), "Validation should fail with missing metadata inference stage"
     assert int(func.attrs["tt_validation_error_count"]) > 0, "Should have errors"
 
 
@@ -198,8 +198,8 @@ def test_verify_tt_ir_skip_non_tt_functions():
 
 
 def test_verify_tt_ir_integration_with_full_pipeline():
-    """Test VerifyTTIR integrates with full WS1→WS2→WS3 pipeline."""
-    from tilelang.tt.passes import apply_ws2_passes, apply_ws3_passes
+    """Test VerifyTTIR integrates with full TT defaults stage→metadata inference stage→persistent transform stage pipeline."""
+    from tilelang.tt.passes import apply_tt_metadata_passes, apply_tt_transform_passes
     from tilelang.tt.target import apply_tt_defaults
 
     # Create function
@@ -216,16 +216,16 @@ def test_verify_tt_ir_integration_with_full_pipeline():
 
     mod = tvm.IRModule({"main": func})
 
-    # Apply WS1 → WS2 → WS3 (includes VerifyTTIR)
+    # Apply TT defaults stage → metadata inference stage → persistent transform stage (includes VerifyTTIR)
     mod = apply_tt_defaults(mod)
-    mod = apply_ws2_passes(mod)
-    mod = apply_ws3_passes(mod)
+    mod = apply_tt_metadata_passes(mod)
+    mod = apply_tt_transform_passes(mod)
 
     func = mod["main"]
 
     # Verify all metadata exists
-    assert "tt_schedule_policy" in func.attrs, "Should have WS1 defaults"
-    assert "tt_tiles_per_core" in func.attrs, "Should have WS2 schedule metadata"
+    assert "tt_schedule_policy" in func.attrs, "Should have TT defaults stage defaults"
+    assert "tt_tiles_per_core" in func.attrs, "Should have metadata inference stage schedule metadata"
     assert "tt_ir_validated" in func.attrs, "Should have VerifyTTIR output"
 
     # Validation should pass for complete pipeline

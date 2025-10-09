@@ -64,7 +64,7 @@ The pass does **not** materialize runtime helpers (`get_core_id`, etc.); codegen
 
 ## Implementation Notes
 
-1. Read grid dimensions (`tt_grid_{x,y,z}`) from WS2.
+1. Read grid dimensions (`tt_grid_{x,y,z}`) from metadata inference stage.
 2. Append the two runtime scalar parameters to the `PrimFunc`.
 3. Remove `thread_extent` annotations for `blockIdx.x/y/z`.
 4. Wrap the body with a `For` loop over `tt_tile_iter`.
@@ -95,7 +95,7 @@ The pass does **not** materialize runtime helpers (`get_core_id`, etc.); codegen
 - [x] Rewrites grid kernels into persistent loops
 - [x] Emits runtime metadata + parameters consumed by codegen
 - [x] Supports 1D / 2D / 3D tile ranges
-- [x] Verified via WS3 regression tests
+- [x] Verified via persistent transform stage regression tests
 
 ---
 

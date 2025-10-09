@@ -14,10 +14,10 @@ Tile Language (**tile-lang**) is a concise domain-specific language designed to 
 
 # TileLang → Tenstorrent (TT-Metalium) Backend
 
-**Status:** ✅ **Phase 0 MVP Complete** - Artifact generation working (2025-10-07)
+**Status:** ✅ **Phase 0 baseline feature set Complete** - Artifact generation working (2025-10-07)
 **Goal:** Add a first‑class **Tenstorrent TT‑Metalium** backend to TileLang, alongside the existing NVIDIA (CUDA), AMD (HIP), and Ascend targets.
 
-**MVP Capabilities:**
+**baseline feature set Capabilities:**
 - ✅ Target registration (`target="tenstorrent"`)
 - ✅ Default schedule & sharding inference (contiguous, row-major, DRAM interleaved)
 - ✅ Grid-to-persistent transformation (block index recovery)
@@ -30,8 +30,8 @@ import tilelang.tt as tt
 # Apply defaults, infer metadata, generate artifacts
 mod = create_your_gemm_module()
 mod = tt.apply_tt_defaults(mod)
-mod = tt.apply_ws2_passes(mod)
-mod = tt.apply_ws3_passes(mod)
+mod = tt.apply_tt_metadata_passes(mod)
+mod = tt.apply_tt_transform_passes(mod)
 artifacts = tt.emit_tt_artifacts(mod)
 tt.write_artifacts_to_disk(artifacts, "./build/tt_kernels")
 ```
@@ -56,7 +56,7 @@ tt.write_artifacts_to_disk(artifacts, "./build/tt_kernels")
   - [GEMM (no annotations → defaults)](#gemm-no-annotations--defaults)
   - [Attention (with schedule & layout hints)](#attention-with-schedule--layout-hints)
 - [Compiler & Codegen Plan (TVM/TileLang)](#compiler--codegen-plan-tvmtilelang)
-  - [Phase 0 — MVP (GEMM, Elementwise)](#phase-0--mvp-gemm-elementwise)
+  - [Phase 0 — baseline feature set (GEMM, Elementwise)](#phase-0--mvp-gemm-elementwise)
   - [Phase 1 — SDPA, Dequant‑GEMM, Reuse/Multicast](#phase-1--sdpa-dequant-gemm-reusemulticast)
   - [Phase 2 — Ergonomics, Safety, Diagnostics](#phase-2--ergonomics-safety-diagnostics)
 - [Runtime Integration & Build](#runtime-integration--build)
@@ -234,7 +234,7 @@ def sdpa(Q, K, V, O, scale: T.float32, causal: T.int32):
 
 > We integrate via TVM’s **BYOC** (external codegen), keeping the TT backend cleanly modular.
 
-### Phase 0 — MVP (GEMM, Elementwise)
+### Phase 0 — baseline feature set (GEMM, Elementwise)
 
 1. **`GridToPersistentTT` (new pass)**  
    - **In:** TIR/TileLang PrimFunc using `T.Kernel(grid_x, grid_y)` and `bx/by`.  

@@ -3,13 +3,13 @@ Tenstorrent Backend POC: 256×256 Matmul
 
 This example demonstrates the complete TileLang → Tenstorrent backend workflow:
 1. Define matmul kernel in TileLang
-2. Apply TT default annotations (WS1)
-3. Infer schedule and sharding metadata (WS2)
-4. Apply persistent loop transform (WS3)
-5. Generate TT artifacts (WS4-6)
+2. Apply TT default annotations (TT defaults stage)
+3. Infer schedule and sharding metadata (metadata inference stage)
+4. Apply persistent loop transform (persistent transform stage)
+5. Generate TT artifacts (artifact generation stage-6)
 6. Validate generated code
 
-Phase 1 MVP: Template-based codegen with mock APIs (dry-run only)
+Phase 1 baseline feature set: Template-based codegen with mock APIs (dry-run only)
 Phase 2: Will use IR-driven codegen with real Metalium runtime
 """
 
@@ -94,9 +94,9 @@ def main():
         print("  Skipping to conceptual demonstration...")
         return
 
-    # Step 2: Apply WS1 - Default TT Annotations
+    # Step 2: Apply TT defaults stage - Default TT Annotations
     print()
-    print("Step 2: Applying WS1 (Default TT Annotations)...")
+    print("Step 2: Applying TT defaults stage (Default TT Annotations)...")
     try:
         mod = tt.apply_tt_defaults(mod)
         func = mod["main"]
@@ -116,16 +116,16 @@ def main():
         else:
             print("  ⚠ Could not access function attributes")
     except AttributeError as e:
-        print(f"  ⚠ WS1 API may not be available yet: {e}")
+        print(f"  ⚠ TT defaults stage API may not be available yet: {e}")
         print("  Expected: tt.apply_tt_defaults(mod)")
     except Exception as e:
-        print(f"  ✗ ERROR in WS1: {e}")
+        print(f"  ✗ ERROR in TT defaults stage: {e}")
 
-    # Step 3: Apply WS2 - Schedule & Sharding Inference
+    # Step 3: Apply metadata inference stage - Schedule & Sharding Inference
     print()
-    print("Step 3: Applying WS2 (Schedule & Sharding Inference)...")
+    print("Step 3: Applying metadata inference stage (Schedule & Sharding Inference)...")
     try:
-        mod = tt.apply_ws2_passes(mod)
+        mod = tt.apply_tt_metadata_passes(mod)
         func = mod["main"]
 
         if hasattr(func, 'attrs'):
@@ -146,16 +146,16 @@ def main():
         else:
             print("  ⚠ Could not access schedule metadata")
     except AttributeError as e:
-        print(f"  ⚠ WS2 API may not be available yet: {e}")
-        print("  Expected: tt.apply_ws2_passes(mod)")
+        print(f"  ⚠ metadata inference stage API may not be available yet: {e}")
+        print("  Expected: tt.apply_tt_metadata_passes(mod)")
     except Exception as e:
-        print(f"  ✗ ERROR in WS2: {e}")
+        print(f"  ✗ ERROR in metadata inference stage: {e}")
 
-    # Step 4: Apply WS3 - Persistent Loop Transform
+    # Step 4: Apply persistent transform stage - Persistent Loop Transform
     print()
-    print("Step 4: Applying WS3 (Grid-to-Persistent Transform)...")
+    print("Step 4: Applying persistent transform stage (Grid-to-Persistent Transform)...")
     try:
-        mod = tt.apply_ws3_passes(mod)
+        mod = tt.apply_tt_transform_passes(mod)
         func = mod["main"]
 
         if hasattr(func, 'attrs'):
@@ -170,12 +170,12 @@ def main():
         else:
             print("  ⚠ Could not access persistent loop metadata")
     except AttributeError as e:
-        print(f"  ⚠ WS3 API may not be available yet: {e}")
-        print("  Expected: tt.apply_ws3_passes(mod)")
+        print(f"  ⚠ persistent transform stage API may not be available yet: {e}")
+        print("  Expected: tt.apply_tt_transform_passes(mod)")
     except Exception as e:
-        print(f"  ✗ ERROR in WS3: {e}")
+        print(f"  ✗ ERROR in persistent transform stage: {e}")
 
-    # Step 5: Generate TT Artifacts (WS4-6)
+    # Step 5: Generate TT Artifacts (artifact generation stage-6)
     print()
     print("Step 5: Generating TT Artifacts (Compute/Reader/Writer/Host)...")
     try:
@@ -188,7 +188,7 @@ def main():
             else:
                 print(f"      - {name}: {len(str(content))} bytes")
     except AttributeError as e:
-        print(f"  ⚠ WS4-6 API may not be available yet: {e}")
+        print(f"  ⚠ artifact generation stage-6 API may not be available yet: {e}")
         print("  Expected: tt.emit_tt_artifacts(mod)")
         print()
         print("  Demonstrating expected artifact structure:")
@@ -233,7 +233,7 @@ int main() {
         for name in artifacts.keys():
             print(f"      - {name}")
     except Exception as e:
-        print(f"  ✗ ERROR in WS4-6: {e}")
+        print(f"  ✗ ERROR in artifact generation stage-6: {e}")
         artifacts = {}
 
     # Step 6: Write Artifacts to Disk
@@ -329,17 +329,17 @@ int main() {
 
     print("What was demonstrated:")
     print("  1. ✓ TileLang matmul function definition")
-    print("  2. ✓ WS1: Default TT annotations (target registration)")
-    print("  3. ✓ WS2: Schedule and sharding metadata inference")
-    print("  4. ✓ WS3: Persistent loop transformation")
-    print("  5. ✓ WS4-6: Artifact generation (compute/reader/writer/host)")
+    print("  2. ✓ TT defaults stage: Default TT annotations (target registration)")
+    print("  3. ✓ metadata inference stage: Schedule and sharding metadata inference")
+    print("  4. ✓ persistent transform stage: Persistent loop transformation")
+    print("  5. ✓ artifact generation stage-6: Artifact generation (compute/reader/writer/host)")
     print("  6. ✓ Artifact validation")
     print()
 
-    print("Current MVP Phase 1 Status:")
+    print("Current baseline feature set Phase 1 Status:")
     print("  • Template-based codegen (matmul-specific)")
     print("  • Mock Metalium APIs (dry-run only)")
-    print("  • 23 tests passing (WS1-6 implemented)")
+    print("  • 23 tests passing (TT defaults stage-6 implemented)")
     print()
 
     print("Next steps:")

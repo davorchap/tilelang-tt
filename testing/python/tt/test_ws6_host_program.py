@@ -1,5 +1,5 @@
 """
-WS6: Host Program Generation Integration Tests
+host program stage: Host Program Generation Integration Tests
 
 Tests for TT host program generation, including device setup, circular buffer
 configuration, DRAM buffer management, and kernel launch orchestration.
@@ -12,9 +12,9 @@ import tilelang.tt as tt
 
 def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
     """
-    Create a minimal TVM IRModule with WS2/WS3 metadata attached for codegen testing.
+    Create a minimal TVM IRModule with metadata inference stage/persistent transform stage metadata attached for codegen testing.
 
-    This simulates the output of WS1-3 pipeline without needing actual kernel code.
+    This simulates the output of TT defaults stage-3 pipeline without needing actual kernel code.
     """
     # Create minimal PrimFunc
     A = tir.decl_buffer((256, 256), "float16", name="A")
@@ -29,7 +29,7 @@ def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
         body=body,
     )
 
-    # Attach WS2 schedule metadata
+    # Attach metadata inference stage schedule metadata
     num_tiles = grid_x * grid_y
     tiles_per_core = []
     for i in range(num_cores):
@@ -58,7 +58,7 @@ def test_emit_host_program_basic():
 
     Verifies that main.cpp artifact is generated with correct structure.
     """
-    # Create module with WS2/WS3 metadata
+    # Create module with metadata inference stage/persistent transform stage metadata
     mod = create_tt_module_with_metadata(grid_x=8, grid_y=8)
 
     # Generate artifacts
@@ -200,7 +200,7 @@ def test_runtime_args_configuration():
     artifacts = tt.emit_tt_artifacts(mod)
     main_cpp = artifacts["main.cpp"]
 
-    # WS7: Runtime args now use matmul dimensions (Mt, Kt, Nt)
+    # reader/writer specialization stage: Runtime args now use matmul dimensions (Mt, Kt, Nt)
     assert "constexpr uint32_t Mt = 8" in main_cpp, "Mt constant missing"
     assert "constexpr uint32_t Nt = 8" in main_cpp, "Nt constant missing"
     assert "constexpr uint32_t Kt = 8" in main_cpp, "Kt constant missing"
@@ -227,7 +227,7 @@ def test_different_grid_sizes():
         artifacts = tt.emit_tt_artifacts(mod)
         main_cpp = artifacts["main.cpp"]
 
-        # WS7: Verify matmul dimensions (Mt, Kt, Nt)
+        # reader/writer specialization stage: Verify matmul dimensions (Mt, Kt, Nt)
         expected_tiles = grid_x * grid_y
         expected_m = grid_y * 32
         expected_n = grid_x * 32
@@ -261,7 +261,7 @@ def test_full_host_program_structure():
     artifacts = tt.emit_tt_artifacts(mod)
     main_cpp = artifacts["main.cpp"]
 
-    # Verify section order by finding positions (WS7: updated for matmul dimensions)
+    # Verify section order by finding positions (reader/writer specialization stage: updated for matmul dimensions)
     sections = [
         ("includes", "#include <cstdint>"),
         ("device_apis", "class Device"),
@@ -281,7 +281,7 @@ def test_full_host_program_structure():
         assert pos != -1, f"Section '{section_name}' not found (searching for '{search_str}')"
         positions[section_name] = pos
 
-    # Verify order (WS7: runtime_args (dimensions) now come before dram_alloc)
+    # Verify order (reader/writer specialization stage: runtime_args (dimensions) now come before dram_alloc)
     assert positions["includes"] < positions[
         "device_apis"], "Includes should come before device APIs"
     assert positions["device_apis"] < positions[
@@ -304,7 +304,7 @@ def test_full_host_program_structure():
 
 if __name__ == "__main__":
     # Run tests
-    print("Running WS6 Host Program Generation Tests\n")
+    print("Running host program stage Host Program Generation Tests\n")
 
     test_emit_host_program_basic()
     test_device_setup_code()
@@ -315,4 +315,4 @@ if __name__ == "__main__":
     test_different_grid_sizes()
     test_full_host_program_structure()
 
-    print("\n✅ All WS6 host program tests passed!")
+    print("\n✅ All host program stage host program tests passed!")

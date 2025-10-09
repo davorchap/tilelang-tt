@@ -67,7 +67,7 @@ attributes so downstream components can branch if additional policies are added.
 ## Tests
 
 **File**: Covered indirectly in `testing/python/tt/test_ws3_grid_to_persistent.py`
-**Status**: ✅ Runtime metadata verified alongside WS3 transforms
+**Status**: ✅ Runtime metadata verified alongside persistent transform stage transforms
 
 ---
 
@@ -94,7 +94,7 @@ attributes so downstream components can branch if additional policies are added.
 
 - [x] Infers tile assignments from grid dimensions
 - [x] Emits both legacy scalar attrs and consolidated `tt_schedule` map
-- [x] Compatible with downstream WS3 passes
+- [x] Compatible with downstream persistent transform stage passes
 
 ---
 

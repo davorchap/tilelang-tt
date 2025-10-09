@@ -83,8 +83,8 @@ def main():
 
     # Apply full pipeline
     mod = tt.apply_tt_defaults(mod)
-    mod = tt.apply_ws2_passes(mod)
-    mod = tt.apply_ws3_passes(mod)
+    mod = tt.apply_tt_metadata_passes(mod)
+    mod = tt.apply_tt_transform_passes(mod)
     artifacts = tt.emit_tt_artifacts(mod)
 
     print("=" * 70)

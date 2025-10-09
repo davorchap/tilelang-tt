@@ -87,8 +87,8 @@ def main():
     # Apply TT transforms
     print("Applying TT transforms...")
     mod = tt.apply_tt_defaults(mod)
-    mod = tt.apply_ws2_passes(mod)
-    mod = tt.apply_ws3_passes(mod)
+    mod = tt.apply_tt_metadata_passes(mod)
+    mod = tt.apply_tt_transform_passes(mod)
     print("✓ Transforms complete")
     print()
 

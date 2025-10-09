@@ -67,7 +67,7 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     - Common optimizations (buffer flattening, loop unrolling, etc.)
     - IR validation (verify TT constraints)
 
-    This integrates WS2 and WS3 transformation passes, plus common
+    This integrates Metadata Inference stage and Persistent Transform stage transformation passes, plus common
     backend-agnostic optimizations shared with CUDA.
 
     Args:
@@ -77,21 +77,21 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     Returns:
         Optimized IRModule with TT-specific transforms
     """
-    # === WS2: Schedule and Sharding Inference ===
-    # WS2 Phase 1: Schedule inference
+    # === Metadata Inference stage: Schedule and Sharding Inference ===
+    # Metadata Inference stage Phase 1: Schedule inference
     # Compute per-core tile ranges from grid dimensions
     mod = infer_default_tt_schedule(mod)
 
-    # WS2 Phase 2: Sharding inference
+    # Metadata Inference stage Phase 2: Sharding inference
     # Generate DRAM layout descriptors (tiled, interleaved)
     mod = infer_default_tt_shard(mod)
 
-    # === WS3: TT-Specific TIR Transformations ===
-    # WS3 Phase 1: Grid to persistent transformation
+    # === Persistent Transform stage: TT-Specific TIR Transformations ===
+    # Persistent Transform stage: Grid to persistent transformation
     # Transform GPU-style grid kernel to TT persistent loop model
     mod = grid_to_persistent_tt(mod)
 
-    # WS3 Phase 2: Core topology and memory
+    # Persistent Transform stage: Core topology and memory
     # Map scheduled tiles to core coordinates (x, y) on NOC grid
     mod = tt_tiles_to_core_map(mod)
 
@@ -101,7 +101,7 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     # Pad buffers to tile-aligned dimensions (multiple of 32)
     mod = tile_pad_tt(mod)
 
-    # WS3 Phase 3: Tensorization
+    # Persistent Transform stage Phase 3: Tensorization
     # Map high-level ops (gemm, etc.) to TT intrinsics (matmul_tiles, etc.)
     mod = tensorize_tt(mod)
 
@@ -160,16 +160,16 @@ def SplitTTKernels(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
     """Prepare TT module for 3-kernel codegen (reader/compute/writer).
 
     Unlike CUDA's SplitHostDevice which splits into separate IR functions,
-    TT's 3-kernel architecture is implemented during **codegen** (WS4-6).
+    TT's 3-kernel architecture is implemented during **codegen** (Artifact Generation stage-6).
     This function prepares the module by:
     1. Annotating device regions (marks device code)
     2. Keeping the module intact for codegen to process
 
     The actual split into reader/compute/writer happens in:
-    - TTReaderCodegenVisitor (WS5): Generates reader kernel
-    - TTComputeCodegenVisitor (WS4): Generates compute kernel
-    - TTWriterCodegenVisitor (WS5): Generates writer kernel
-    - EmitTTHostProgram (WS6): Generates host wrapper
+    - TTReaderCodegenVisitor (Reader/Writer Generation stage): Generates reader kernel
+    - TTComputeCodegenVisitor (Artifact Generation stage): Generates compute kernel
+    - TTWriterCodegenVisitor (Reader/Writer Generation stage): Generates writer kernel
+    - EmitTTHostProgram (Host Program stage): Generates host wrapper
 
     Args:
         mod: The TVM IRModule to prepare for codegen
@@ -180,9 +180,9 @@ def SplitTTKernels(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
         - host_mod: Same module (host wrapper generated during codegen)
 
     See Also:
-        - docs/tenstorrent/workstream4/WS4_STATUS.md (compute kernel)
-        - docs/tenstorrent/workstream5/WS5_STATUS.md (reader/writer kernels)
-        - docs/tenstorrent/workstream6/WS6_STATUS.md (host program)
+        - docs/tenstorrent/workstream4/Artifact Generation stage_STATUS.md (compute kernel)
+        - docs/tenstorrent/workstream5/Reader/Writer Generation stage_STATUS.md (reader/writer kernels)
+        - docs/tenstorrent/workstream6/Host Program stage_STATUS.md (host program)
     """
     # Annotate device regions (marks code that runs on device)
     # This is similar to what CUDA does before SplitHostDevice
@@ -194,8 +194,8 @@ def SplitTTKernels(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
     # kernel files from this single module.
 
     # Return the same module for both device and host
-    # - device_mod: Will be processed by codegen visitors (WS4-6)
-    # - host_mod: Will be used to generate host wrapper (WS6)
+    # - device_mod: Will be processed by codegen visitors (Artifact Generation stage-6)
+    # - host_mod: Will be used to generate host wrapper (Host Program stage)
     return mod, mod
 
 
@@ -257,7 +257,7 @@ def lower(
         # Use target directly if no host target specified
         target = tvm.target.Target(target)
 
-    # === Phase 1: Apply TT defaults (WS1) ===
+    # === Phase 1: Apply TT defaults (TT Defaults stage) ===
     # This ensures backward compatibility - GPU-style kernels can run on TT
     # with sensible defaults (contiguous schedule, row-major order, DRAM interleaved layout)
     mod = apply_tt_defaults(mod)
@@ -268,12 +268,12 @@ def lower(
         mod = LowerAndLegalizeTT(mod, target)
 
     # === Phase 3: TT-specific optimizations ===
-    # Apply WS2/WS3 transformation passes + common optimizations
+    # Apply Metadata Inference stage/Persistent Transform stage transformation passes + common optimizations
     mod = OptimizeForTargetTT(mod, target)
 
     # === Phase 4: Device splitting (3-kernel architecture) ===
     # Annotate device regions and prepare for 3-kernel codegen
-    # Note: Actual split into reader/compute/writer happens during codegen (WS4-6)
+    # Note: Actual split into reader/compute/writer happens during codegen (Artifact Generation stage-6)
     device_mod, host_mod = SplitTTKernels(mod)
 
     # === Phase 5: Generate kernel source ===

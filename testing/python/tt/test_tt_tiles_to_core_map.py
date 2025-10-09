@@ -1,4 +1,4 @@
-"""Test TTTilesToCoreMap pass (WS3 Phase 2).
+"""Test TTTilesToCoreMap pass (persistent transform stage Phase 2).
 
 This pass maps logical tile assignments to physical core coordinates.
 """
@@ -9,7 +9,7 @@ from tvm import tir
 
 
 def create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8):
-    """Create a mock PrimFunc with tt_tiles_per_core metadata from WS2."""
+    """Create a mock PrimFunc with tt_tiles_per_core metadata from metadata inference stage."""
     # Create simple buffer declaration
     A = tir.decl_buffer((256, 256), "float16", name="A")
     B = tir.decl_buffer((256, 256), "float16", name="B")
@@ -21,7 +21,7 @@ def create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8):
     # Create PrimFunc
     func = tir.PrimFunc([A, B, C], body)
 
-    # Add WS2 schedule metadata
+    # Add metadata inference stage schedule metadata
     num_tiles = grid_x * grid_y
     num_cores = 64
 
@@ -47,7 +47,7 @@ def test_tt_tiles_to_core_map_basic():
     """Test TTTilesToCoreMap generates core ranges correctly."""
     from tilelang.tt.passes import tt_tiles_to_core_map
 
-    # Create function with WS2 metadata
+    # Create function with metadata inference stage metadata
     func = create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8)
     mod = tvm.IRModule({"main": func})
 
@@ -137,10 +137,10 @@ def test_tt_tiles_to_core_map_runtime_args():
 
 
 def test_tt_tiles_to_core_map_skip_without_metadata():
-    """Test TTTilesToCoreMap skips functions without WS2 metadata."""
+    """Test TTTilesToCoreMap skips functions without metadata inference stage metadata."""
     from tilelang.tt.passes import tt_tiles_to_core_map
 
-    # Create function WITHOUT WS2 metadata
+    # Create function WITHOUT metadata inference stage metadata
     A = tir.decl_buffer((256, 256), "float16", name="A")
     body = tir.Evaluate(0)
     func = tir.PrimFunc([A], body)
@@ -151,17 +151,17 @@ def test_tt_tiles_to_core_map_skip_without_metadata():
     func = mod["main"]
 
     # Should NOT add core ranges
-    assert func.attrs is None or "tt_core_ranges" not in func.attrs, "Should not add core ranges without WS2 metadata"
+    assert func.attrs is None or "tt_core_ranges" not in func.attrs, "Should not add core ranges without metadata inference stage metadata"
 
 
 def test_tt_tiles_to_core_map_consistency_with_ws2():
-    """Test TTTilesToCoreMap output is consistent with WS2 input."""
+    """Test TTTilesToCoreMap output is consistent with metadata inference stage input."""
     from tilelang.tt.passes import tt_tiles_to_core_map
 
     func = create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8)
     mod = tvm.IRModule({"main": func})
 
-    # Get original WS2 metadata
+    # Get original metadata inference stage metadata
     original_tiles_per_core = func.attrs["tt_tiles_per_core"]
 
     # Apply pass
@@ -195,8 +195,8 @@ def test_tt_tiles_to_core_map_consistency_with_ws2():
 
 
 def test_tt_tiles_to_core_map_integration_with_ws2():
-    """Test TTTilesToCoreMap integrates with WS2 passes."""
-    from tilelang.tt.passes import apply_ws2_passes, tt_tiles_to_core_map
+    """Test TTTilesToCoreMap integrates with metadata inference stage passes."""
+    from tilelang.tt.passes import apply_tt_metadata_passes, tt_tiles_to_core_map
     from tilelang.tt.target import apply_tt_defaults
 
     # Create a simple function
@@ -217,16 +217,16 @@ def test_tt_tiles_to_core_map_integration_with_ws2():
 
     mod = tvm.IRModule({"main": func})
 
-    # Apply WS1 -> WS2 -> TTTilesToCoreMap pipeline
+    # Apply TT defaults stage -> metadata inference stage -> TTTilesToCoreMap pipeline
     mod = apply_tt_defaults(mod)
-    mod = apply_ws2_passes(mod)
+    mod = apply_tt_metadata_passes(mod)
     mod = tt_tiles_to_core_map(mod)
 
     func = mod["main"]
 
     # Verify all metadata exists
-    assert "tt_schedule_policy" in func.attrs, "Should have WS1 defaults"
-    assert "tt_tiles_per_core" in func.attrs, "Should have WS2 schedule metadata"
+    assert "tt_schedule_policy" in func.attrs, "Should have TT defaults stage defaults"
+    assert "tt_tiles_per_core" in func.attrs, "Should have metadata inference stage schedule metadata"
     assert "tt_core_ranges" in func.attrs, "Should have TTTilesToCoreMap output"
     assert "tt_core_runtime_args" in func.attrs, "Should have runtime args"
 

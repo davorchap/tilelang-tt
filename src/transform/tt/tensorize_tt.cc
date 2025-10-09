@@ -19,7 +19,7 @@
 
 /*!
  * \file tensorize_tt.cc
- * \brief Lower high-level matmul to TT intrinsics (WS3 Phase 2)
+ * \brief Lower high-level matmul to TT intrinsics (Persistent Transform stage)
  *
  * This pass identifies high-level GEMM operations (T.gemm) and annotates them
  * with Tenstorrent-specific intrinsic metadata for use in codegen.

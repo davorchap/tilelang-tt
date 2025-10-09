@@ -52,7 +52,7 @@ The pass leaves the underlying TIR untouched—no additional buffers or loops ar
 
 ## Tests
 
-**File**: Pending (covered indirectly by WS3 integration tests)
+**File**: Pending (covered indirectly by persistent transform stage integration tests)
 
 ---
 

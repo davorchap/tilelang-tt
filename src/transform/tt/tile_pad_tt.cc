@@ -19,14 +19,14 @@
 
 /*!
  * \file tile_pad_tt.cc
- * \brief Insert padding for non-tile-aligned buffers (WS3 Phase 2)
+ * \brief Insert padding for non-tile-aligned buffers (Persistent Transform stage)
  *
  * This pass handles buffers with dimensions that are not multiples of the
  * tile size (typically 32). It annotates the IR with padding metadata that
  * will be used during codegen to properly handle boundary tiles.
  *
  * Padding Strategy:
- * - For buffers with needs_padding=1 (from WS2), compute padded dimensions
+ * - For buffers with needs_padding=1 (from Metadata Inference stage), compute padded dimensions
  * - Padded dimension = ceil(original_dim / tile_size) * tile_size
  * - Stamp padded_shape metadata for use in memory allocation
  * - For Phase 2, actual padding logic will be in codegen
@@ -78,9 +78,9 @@ int64_t ComputePaddedDim(int64_t original_dim, int tile_size = 32) {
 }
 
 /*!
- * \brief Extract padding info from WS2 metadata
+ * \brief Extract padding info from Metadata Inference stage metadata
  *
- * \param f The PrimFunc with WS2 sharding metadata
+ * \param f The PrimFunc with Metadata Inference stage sharding metadata
  * \param param The buffer parameter to check
  * \param param_name Buffer parameter name
  * \return PaddingInfo structure
@@ -89,12 +89,12 @@ PaddingInfo ExtractPaddingInfo(const PrimFunc& f, const Buffer& param, const std
   PaddingInfo info;
   info.needs_padding = false;
 
-  // Check for WS2 padding metadata
+  // Check for Metadata Inference stage padding metadata
   std::string needs_padding_key = "tt_buffer_" + param_name + "_needs_padding";
   auto needs_padding_attr = f->attrs.GetAttr<Integer>(needs_padding_key);
 
   if (!needs_padding_attr.defined()) {
-    return info;  // No WS2 metadata for this buffer
+    return info;  // No Metadata Inference stage metadata for this buffer
   }
 
   bool needs_padding = needs_padding_attr.value()->value != 0;
@@ -113,7 +113,7 @@ PaddingInfo ExtractPaddingInfo(const PrimFunc& f, const Buffer& param, const std
     return info;
   }
 
-  // Extract tile shape from WS2 metadata
+  // Extract tile shape from Metadata Inference stage metadata
   std::string tile_shape_key = "tt_buffer_" + param_name + "_tile_shape";
   auto tile_shape_attr = f->attrs.GetAttr<Array<Integer>>(tile_shape_key);
 
@@ -152,7 +152,7 @@ PaddingInfo ExtractPaddingInfo(const PrimFunc& f, const Buffer& param, const std
  * \return Enhanced PrimFunc with padding metadata
  */
 PrimFunc TilePadTTImpl(PrimFunc f) {
-  // Step 1: Check if this is a TT function with WS2 metadata
+  // Step 1: Check if this is a TT function with Metadata Inference stage metadata
   auto schedule_policy = f->attrs.GetAttr<String>("tt_schedule_policy");
   if (!schedule_policy.defined()) {
     // Not a TT function, skip transformation

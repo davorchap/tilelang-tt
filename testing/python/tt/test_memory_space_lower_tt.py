@@ -1,4 +1,4 @@
-"""Test MemorySpaceLowerTT pass (WS3 Phase 2).
+"""Test MemorySpaceLowerTT pass (persistent transform stage Phase 2).
 
 This pass lowers abstract buffer allocations to TT circular buffer configurations.
 """
@@ -173,8 +173,8 @@ def test_memory_space_lower_tt_skip_non_tile_buffers():
 
 
 def test_memory_space_lower_tt_integration_with_ws1_ws2():
-    """Test MemorySpaceLowerTT integrates with full WS1→WS2→WS3 pipeline."""
-    from tilelang.tt.passes import apply_ws2_passes, memory_space_lower_tt
+    """Test MemorySpaceLowerTT integrates with full TT defaults stage→metadata inference stage→persistent transform stage pipeline."""
+    from tilelang.tt.passes import apply_tt_metadata_passes, memory_space_lower_tt
     from tilelang.tt.target import apply_tt_defaults
 
     # Create function
@@ -196,16 +196,16 @@ def test_memory_space_lower_tt_integration_with_ws1_ws2():
 
     mod = tvm.IRModule({"main": func})
 
-    # Apply WS1 → WS2 → MemorySpaceLowerTT
+    # Apply TT defaults stage → metadata inference stage → MemorySpaceLowerTT
     mod = apply_tt_defaults(mod)
-    mod = apply_ws2_passes(mod)
+    mod = apply_tt_metadata_passes(mod)
     mod = memory_space_lower_tt(mod)
 
     func = mod["main"]
 
     # Verify all metadata exists
-    assert "tt_schedule_policy" in func.attrs, "Should have WS1 defaults"
-    assert "tt_tiles_per_core" in func.attrs, "Should have WS2 schedule metadata"
+    assert "tt_schedule_policy" in func.attrs, "Should have TT defaults stage defaults"
+    assert "tt_tiles_per_core" in func.attrs, "Should have metadata inference stage schedule metadata"
     assert "tt_circular_buffers" in func.attrs, "Should have MemorySpaceLowerTT output"
     assert "tt_num_cbs" in func.attrs, "Should have num CBs"
 

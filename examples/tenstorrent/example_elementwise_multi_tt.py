@@ -111,17 +111,17 @@ def main():
     print("Creating IRModule...")
     mod = create_elementwise_multi_module()
 
-    # Apply TT default annotations (WS1)
-    print("Applying WS1 (default TT annotations)...")
+    # Apply TT default annotations (TT defaults stage)
+    print("Applying TT defaults stage (default TT annotations)...")
     mod = tt.apply_tt_defaults(mod)
 
-    # Apply WS2 passes (schedule + shard inference)
-    print("Applying WS2 (schedule and sharding inference)...")
-    mod = tt.apply_ws2_passes(mod)
+    # Apply metadata inference stage passes (schedule + shard inference)
+    print("Applying metadata inference stage (schedule and sharding inference)...")
+    mod = tt.apply_tt_metadata_passes(mod)
 
-    # Apply WS3 passes (grid to persistent)
-    print("Applying WS3 (grid to persistent transform)...")
-    mod = tt.apply_ws3_passes(mod)
+    # Apply persistent transform stage passes (grid to persistent)
+    print("Applying persistent transform stage (grid to persistent transform)...")
+    mod = tt.apply_tt_transform_passes(mod)
 
     # Generate artifacts
     print("Generating Metalium artifacts...")

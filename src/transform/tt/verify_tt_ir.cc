@@ -19,22 +19,22 @@
 
 /*!
  * \file verify_tt_ir.cc
- * \brief Validate TT-transformed IR (WS3 Phase 2)
+ * \brief Validate TT-transformed IR (Persistent Transform stage)
  *
  * This pass performs validation checks on the transformed IR to ensure it's
  * ready for Tenstorrent codegen. It verifies:
  *
- * - All required WS1-3 metadata is present
+ * - All required TT Defaults stage-3 metadata is present
  * - Persistent loop structure is correct
  * - Circular buffer annotations are valid
  * - Padding metadata is consistent
  * - No unsupported IR constructs
  *
  * Validation Checks:
- * 1. WS1: tt_schedule_policy, tt_layout_type, tt_tile_* dimensions
- * 2. WS2: tt_grid_*, tt_num_tiles, tt_tiles_per_core, tt_num_cores
- * 3. WS3: tt_persistent_loop, tt_runtime_args, tt_core_ranges
- * 4. WS3: tt_circular_buffers, tt_padding_info (if applicable)
+ * 1. TT Defaults stage: tt_schedule_policy, tt_layout_type, tt_tile_* dimensions
+ * 2. Metadata Inference stage: tt_grid_*, tt_num_tiles, tt_tiles_per_core, tt_num_cores
+ * 3. Persistent Transform stage: tt_persistent_loop, tt_runtime_args, tt_core_ranges
+ * 4. Persistent Transform stage: tt_circular_buffers, tt_padding_info (if applicable)
  *
  * See: docs/tenstorrent/passes/verify_tt_ir.md for detailed specification
  */
@@ -84,9 +84,9 @@ bool CheckAttribute(const PrimFunc& f, const std::string& key, ValidationResult&
 }
 
 /*!
- * \brief Validate WS1 metadata
+ * \brief Validate TT Defaults stage metadata
  */
-void ValidateWS1(const PrimFunc& f, ValidationResult& result) {
+void ValidateTT Defaults stage(const PrimFunc& f, ValidationResult& result) {
   CheckAttribute<String>(f, "tt_schedule_policy", result);
   CheckAttribute<String>(f, "tt_schedule_order", result);
   CheckAttribute<String>(f, "tt_layout_type", result);
@@ -95,9 +95,9 @@ void ValidateWS1(const PrimFunc& f, ValidationResult& result) {
 }
 
 /*!
- * \brief Validate WS2 metadata
+ * \brief Validate Metadata Inference stage metadata
  */
-void ValidateWS2(const PrimFunc& f, ValidationResult& result) {
+void ValidateMetadata Inference stage(const PrimFunc& f, ValidationResult& result) {
   CheckAttribute<Integer>(f, "tt_grid_x", result);
   CheckAttribute<Integer>(f, "tt_grid_y", result);
   CheckAttribute<Integer>(f, "tt_num_tiles", result);
@@ -161,9 +161,9 @@ void ValidateWS2(const PrimFunc& f, ValidationResult& result) {
 }
 
 /*!
- * \brief Validate WS3 transformation metadata
+ * \brief Validate Persistent Transform stage transformation metadata
  */
-void ValidateWS3(const PrimFunc& f, ValidationResult& result) {
+void ValidatePersistent Transform stage(const PrimFunc& f, ValidationResult& result) {
   // Check for persistent loop marker
   auto persistent = f->attrs.GetAttr<Bool>("tt_persistent_loop");
   if (!persistent.defined()) {
@@ -230,9 +230,9 @@ PrimFunc VerifyTTIRImpl(PrimFunc f) {
   ValidationResult result;
   result.is_valid = true;
 
-  ValidateWS1(f, result);
-  ValidateWS2(f, result);
-  ValidateWS3(f, result);
+  ValidateTT Defaults stage(f, result);
+  ValidateMetadata Inference stage(f, result);
+  ValidatePersistent Transform stage(f, result);
 
   // Step 3: Log results
   if (!result.errors.empty()) {
