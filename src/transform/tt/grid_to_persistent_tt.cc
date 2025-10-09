@@ -34,6 +34,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
+#include <algorithm>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -51,25 +52,45 @@ using namespace tir;
  */
 class BlockIndexReplacer : public StmtExprMutator {
  public:
-  BlockIndexReplacer(Var tile_id_var, PrimExpr grid_x, PrimExpr grid_y)
-      : tile_id_var_(tile_id_var), grid_x_(grid_x), grid_y_(grid_y) {}
+  BlockIndexReplacer(Var tile_id_var, int grid_x, int grid_y, int grid_z)
+      : tile_id_var_(tile_id_var),
+        grid_x_(std::max(grid_x, 1)),
+        grid_y_(std::max(grid_y, 1)),
+        grid_z_(std::max(grid_z, 1)) {}
 
   PrimExpr VisitExpr_(const VarNode* op) final {
-    // Check if this is a blockIdx variable
-    if (block_idx_vars_.count(op)) {
-      std::string thread_tag = block_idx_vars_[op];
-
-      if (thread_tag == "blockIdx.x") {
-        // bx = tile_id % grid_x
-        return floormod(tile_id_var_, grid_x_);
-      } else if (thread_tag == "blockIdx.y") {
-        // by = tile_id / grid_x
-        return floordiv(tile_id_var_, grid_x_);
-      } else if (thread_tag == "blockIdx.z") {
-        // bz = tile_id / (grid_x * grid_y)
-        return floordiv(tile_id_var_, grid_x_ * grid_y_);
-      }
+    auto it = block_idx_vars_.find(op);
+    if (it == block_idx_vars_.end()) {
+      return GetRef<PrimExpr>(op);
     }
+
+    const std::string& thread_tag = it->second;
+    PrimExpr tile_expr = tile_id_var_;
+    DataType dtype = tile_id_var_->dtype;
+
+    if (thread_tag == "blockIdx.x") {
+      if (grid_x_ == 1) {
+        return make_const(dtype, 0);
+      }
+      return floormod(tile_expr, make_const(dtype, grid_x_));
+    }
+
+    if (thread_tag == "blockIdx.y") {
+      if (grid_y_ == 1) {
+        return make_const(dtype, 0);
+      }
+      PrimExpr div_x = floordiv(tile_expr, make_const(dtype, grid_x_));
+      return floormod(div_x, make_const(dtype, grid_y_));
+    }
+
+    if (thread_tag == "blockIdx.z") {
+      if (grid_z_ == 1) {
+        return make_const(dtype, 0);
+      }
+      PrimExpr denom = make_const(dtype, grid_x_ * grid_y_);
+      return floordiv(tile_expr, denom);
+    }
+
     return GetRef<PrimExpr>(op);
   }
 
@@ -79,8 +100,9 @@ class BlockIndexReplacer : public StmtExprMutator {
 
  private:
   Var tile_id_var_;
-  PrimExpr grid_x_;
-  PrimExpr grid_y_;
+  int grid_x_;
+  int grid_y_;
+  int grid_z_;
   std::unordered_map<const VarNode*, std::string> block_idx_vars_;
 };
 
@@ -91,8 +113,13 @@ class BlockIndexReplacer : public StmtExprMutator {
  */
 class GridToPersistentMutator : public StmtMutator {
  public:
-  explicit GridToPersistentMutator(int grid_x, int grid_y, int grid_z)
-      : grid_x_(grid_x), grid_y_(grid_y), grid_z_(grid_z) {}
+  GridToPersistentMutator(const Var& start_param, const Var& count_param, int grid_x, int grid_y,
+                          int grid_z)
+      : start_param_(start_param),
+        count_param_(count_param),
+        grid_x_(std::max(grid_x, 1)),
+        grid_y_(std::max(grid_y, 1)),
+        grid_z_(std::max(grid_z, 1)) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == tir::attr::thread_extent) {
@@ -115,17 +142,12 @@ class GridToPersistentMutator : public StmtMutator {
     // Visit the body to collect blockIdx variables
     Stmt processed_body = VisitStmt(body);
 
-    // Create tile_id variable
-    Var tile_id("tile_id", DataType::Int(32));
-    Var loop_var("i", DataType::Int(32));
-
-    // Create start_id and count variables (will be runtime args)
-    Var start_id("tt_start_id", DataType::Int(32));
-    Var count("tt_count", DataType::Int(32));
+    // Create tile_id variable and loop variable
+    Var tile_id("tt_tile_id", DataType::Int(32));
+    Var loop_var("tt_tile_iter", DataType::Int(32));
 
     // Replace block indices in the body
-    BlockIndexReplacer replacer(tile_id, IntImm(DataType::Int(32), grid_x_),
-                                 IntImm(DataType::Int(32), grid_y_));
+    BlockIndexReplacer replacer(tile_id, grid_x_, grid_y_, grid_z_);
 
     for (const auto& [var, tag] : block_idx_vars_) {
       replacer.RegisterBlockIdxVar(var, tag);
@@ -133,16 +155,18 @@ class GridToPersistentMutator : public StmtMutator {
     processed_body = replacer(processed_body);
 
     // Compute tile_id = start_id + i
-    Stmt tile_id_compute = LetStmt(tile_id, start_id + loop_var, processed_body);
+    Stmt tile_id_compute = LetStmt(tile_id, start_param_ + loop_var, processed_body);
 
     // Wrap with persistent loop: for (i = 0; i < count; ++i)
-    Stmt persistent_loop =
-        For(loop_var, IntImm(DataType::Int(32), 0), count, ForKind::kSerial, tile_id_compute);
+    Stmt persistent_loop = For(loop_var, make_const(DataType::Int(32), 0), count_param_,
+                               ForKind::kSerial, tile_id_compute);
 
     return persistent_loop;
   }
 
  private:
+  Var start_param_;
+  Var count_param_;
   int grid_x_;
   int grid_y_;
   int grid_z_;
@@ -169,30 +193,82 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
     return f;
   }
 
+  auto existing_persistent = f->attrs.GetAttr<Bool>("tt_persistent_loop");
+  if (existing_persistent.defined() && existing_persistent.value()->value) {
+    // Already transformed
+    return f;
+  }
+
   int grid_x = grid_x_attr.value()->value;
   int grid_y = grid_y_attr.value()->value;
   int grid_z = grid_z_attr.value()->value;
 
+  // Create runtime parameter variables (start tile, tile count)
+  Var start_param("tt_start_tile", DataType::Int(32));
+  Var count_param("tt_tile_count", DataType::Int(32));
+
   // Step 2: Apply the transformation
-  GridToPersistentMutator mutator(grid_x, grid_y, grid_z);
+  GridToPersistentMutator mutator(start_param, count_param, grid_x, grid_y, grid_z);
   Stmt new_body = mutator.Transform(f->body);
 
-  // Step 3: Create new function with transformed body
-  PrimFunc new_func = f;
+  // Step 3: Create new function with transformed body and params
   auto n = make_object<PrimFuncNode>(*f.get());
+  Array<Var> new_params = n->params;
+  new_params.push_back(start_param);
+  new_params.push_back(count_param);
+  n->params = new_params;
   n->body = new_body;
-  new_func = PrimFunc(n);
+  PrimFunc new_func = PrimFunc(n);
 
-  // Step 4: Attach runtime args metadata
-  // Format: {start_id: int32, count: int32, grid_x: int32, grid_y: int32}
+  // Step 4: Attach updated runtime metadata
   Map<String, ObjectRef> runtime_args;
-  runtime_args.Set("start_id", String("int32"));
-  runtime_args.Set("count", String("int32"));
-  runtime_args.Set("grid_x", String("int32"));
-  runtime_args.Set("grid_y", String("int32"));
+
+  Map<String, ObjectRef> start_info;
+  start_info.Set("name", String(start_param->name_hint));
+  start_info.Set("dtype", String("int32"));
+  start_info.Set("semantic", String("tile_start"));
+  runtime_args.Set("start_tile", start_info);
+
+  Map<String, ObjectRef> count_info;
+  count_info.Set("name", String(count_param->name_hint));
+  count_info.Set("dtype", String("int32"));
+  count_info.Set("semantic", String("tile_count"));
+  runtime_args.Set("tile_count", count_info);
+
+  Array<Integer> grid_shape;
+  grid_shape.push_back(Integer(grid_x));
+  grid_shape.push_back(Integer(grid_y));
+  grid_shape.push_back(Integer(grid_z));
+  runtime_args.Set("grid_shape", grid_shape);
+
+  int iter_ndims = 1;
+  if (grid_y > 1) {
+    iter_ndims += 1;
+  }
+  if (grid_z > 1) {
+    iter_ndims += 1;
+  }
+  runtime_args.Set("iteration_ndims", Integer(iter_ndims));
+  runtime_args.Set("iteration_order", String("row_major_xyz"));
+
+  Array<String> dim_symbols;
+  dim_symbols.push_back(String("bx"));
+  if (grid_y > 1) {
+    dim_symbols.push_back(String("by"));
+  }
+  if (grid_z > 1) {
+    dim_symbols.push_back(String("bz"));
+  }
+  runtime_args.Set("iteration_symbols", dim_symbols);
+
+  Array<String> param_order;
+  param_order.push_back(String(start_param->name_hint));
+  param_order.push_back(String(count_param->name_hint));
+  runtime_args.Set("param_order", param_order);
 
   new_func = WithAttr(new_func, "tt_runtime_args", runtime_args);
   new_func = WithAttr(new_func, "tt_persistent_loop", Bool(true));
+  new_func = WithAttr(new_func, "tt_persistent_iteration_ndims", Integer(iter_ndims));
 
   return new_func;
 }

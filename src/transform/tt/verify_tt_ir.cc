@@ -103,6 +103,8 @@ void ValidateWS2(const PrimFunc& f, ValidationResult& result) {
   CheckAttribute<Integer>(f, "tt_num_tiles", result);
   CheckAttribute<Integer>(f, "tt_num_cores", result);
   CheckAttribute<Array<Array<Integer>>>(f, "tt_tiles_per_core", result);
+  CheckAttribute<Map<String, ObjectRef>>(f, "tt_schedule", result);
+  CheckAttribute<Map<String, ObjectRef>>(f, "tt_shard", result);
 
   // Check grid dimensions are reasonable
   auto grid_x = f->attrs.GetAttr<Integer>("tt_grid_x");
@@ -119,6 +121,41 @@ void ValidateWS2(const PrimFunc& f, ValidationResult& result) {
       result.AddWarning("Large grid dimensions may exceed hardware limits");
     }
   }
+
+  // Validate tt_schedule structure
+  auto schedule = f->attrs.GetAttr<Map<String, ObjectRef>>("tt_schedule");
+  if (schedule.defined()) {
+    if (!schedule.value().count("assignments")) {
+      result.AddError("tt_schedule missing assignments array");
+    } else {
+      const auto* assignments = schedule.value()["assignments"].as<ArrayNode>();
+      if (assignments == nullptr) {
+        result.AddError("tt_schedule.assignments should be an array");
+      }
+    }
+    if (!schedule.value().count("grid_shape")) {
+      result.AddError("tt_schedule missing grid_shape entry");
+    }
+  }
+
+  // Validate tt_shard structure (per-buffer metadata)
+  auto shard = f->attrs.GetAttr<Map<String, ObjectRef>>("tt_shard");
+  if (shard.defined()) {
+    for (const auto& kv : shard.value()) {
+      std::string buffer_name = std::string(kv.first);
+      const auto* map_value = kv.second.as<MapNode>();
+      if (map_value == nullptr) {
+        result.AddError("tt_shard entry for buffer " + buffer_name + " must be a map");
+        continue;
+      }
+      if (!map_value->count(String("layout"))) {
+        result.AddError("tt_shard entry for buffer " + buffer_name + " missing layout");
+      }
+      if (!map_value->count(String("tile_shape"))) {
+        result.AddError("tt_shard entry for buffer " + buffer_name + " missing tile_shape");
+      }
+    }
+  }
 }
 
 /*!
@@ -129,6 +166,22 @@ void ValidateWS3(const PrimFunc& f, ValidationResult& result) {
   auto persistent = f->attrs.GetAttr<Bool>("tt_persistent_loop");
   if (!persistent.defined()) {
     result.AddWarning("Missing tt_persistent_loop marker (may be Phase 1 template mode)");
+  }
+
+  // Validate runtime args structure
+  auto runtime_args = f->attrs.GetAttr<Map<String, ObjectRef>>("tt_runtime_args");
+  if (!runtime_args.defined()) {
+    result.AddError("Missing tt_runtime_args metadata");
+  } else {
+    if (!runtime_args.value().count("start_tile") || !runtime_args.value().count("tile_count")) {
+      result.AddError("tt_runtime_args must include start_tile and tile_count entries");
+    }
+    if (!runtime_args.value().count("grid_shape")) {
+      result.AddError("tt_runtime_args must include grid_shape");
+    }
+    if (!runtime_args.value().count("param_order")) {
+      result.AddWarning("tt_runtime_args missing param_order (required for codegen mapping)");
+    }
   }
 
   // Check for core mapping (Phase 2)

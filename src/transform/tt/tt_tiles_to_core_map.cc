@@ -2,7 +2,7 @@
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
- * regarding copyright ownership. The ASF licenses this file
+ * regarding copyright ownership.  The ASF licenses this file
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file tt_shard_to_core_map.cc
+ * \file tt_tiles_to_core_map.cc
  * \brief Map tile assignments to physical core coordinates (WS3 Phase 2)
  *
  * This pass generates CoreRangeSet topology mappings for Tenstorrent devices.
@@ -30,7 +30,7 @@
  * - Physical: CoreCoord(x, y) where x,y ∈ [0, 7]
  * - CoreRangeSet: Collection of CoreRange objects defining execution topology
  *
- * See: docs/tenstorrent/passes/tt_shard_to_core_map.md for detailed specification
+ * See: docs/tenstorrent/passes/tt_tiles_to_core_map.md for detailed specification
  */
 
 #include <tvm/ffi/reflection/registry.h>
@@ -142,7 +142,7 @@ Array<Array<Integer>> GenerateCoreRanges(const Array<Array<Integer>>& tiles_per_
  * \return Array of [start_tile, num_tiles] per core
  */
 Array<Array<Integer>> GenerateCoreRuntimeArgs(const Array<Array<Integer>>& tiles_per_core,
-                                                int num_cores = 64) {
+                                              int num_cores = 64) {
   Array<Array<Integer>> runtime_args;
 
   for (int core_id = 0; core_id < num_cores; ++core_id) {
@@ -168,7 +168,7 @@ Array<Array<Integer>> GenerateCoreRuntimeArgs(const Array<Array<Integer>>& tiles
 }
 
 /*!
- * \brief Main implementation of TTShardToCoreMap pass
+ * \brief Main implementation of TTTilesToCoreMap pass
  *
  * Reads WS2 tile assignment metadata and generates physical core topology.
  * Adds the following attributes:
@@ -178,7 +178,7 @@ Array<Array<Integer>> GenerateCoreRuntimeArgs(const Array<Array<Integer>>& tiles
  * \param f The PrimFunc to process
  * \return Enhanced PrimFunc with core topology metadata
  */
-PrimFunc TTShardToCoreMapImpl(PrimFunc f) {
+PrimFunc TTTilesToCoreMapImpl(PrimFunc f) {
   // Step 1: Check for required WS2 metadata
   auto tiles_per_core_attr = f->attrs.GetAttr<Array<Array<Integer>>>("tt_tiles_per_core");
   auto num_cores_attr = f->attrs.GetAttr<Integer>("tt_num_cores");
@@ -208,21 +208,21 @@ PrimFunc TTShardToCoreMapImpl(PrimFunc f) {
 using namespace tir::transform;
 
 /*!
- * \brief Create the TTShardToCoreMap pass
+ * \brief Create the TTTilesToCoreMap pass
  *
  * \return The TIR pass
  */
-Pass TTShardToCoreMap() {
+Pass TTTilesToCoreMap() {
   auto pass_func = [=](PrimFunc f, const IRModule& m, const PassContext& ctx) {
-    return TTShardToCoreMapImpl(std::move(f));
+    return TTTilesToCoreMapImpl(std::move(f));
   };
-  return CreatePrimFuncPass(pass_func, 0, "tl.TTShardToCoreMap", {});
+  return CreatePrimFuncPass(pass_func, 0, "tl.TTTilesToCoreMap", {});
 }
 
 // Register the pass for Python FFI
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tl.transform.TTShardToCoreMap", TTShardToCoreMap);
+  refl::GlobalDef().def("tl.transform.TTTilesToCoreMap", TTTilesToCoreMap);
 });
 
 }  // namespace tl

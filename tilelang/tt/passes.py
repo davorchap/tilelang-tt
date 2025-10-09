@@ -20,7 +20,7 @@ def infer_default_tt_schedule(mod: tvm.IRModule) -> tvm.IRModule:
 
     - Number of tiles (grid_x * grid_y * grid_z)
     - Grid dimensions
-    - Per-core tile assignments (start_id, count)
+    - Per-core tile assignments (start_tile, tile_count)
     - Number of active cores
 
     The pass implements a contiguous, row-major tile distribution strategy
@@ -127,7 +127,9 @@ def grid_to_persistent_tt(mod: tvm.IRModule) -> tvm.IRModule:
 
     This pass converts GPU-style grid kernels to Tenstorrent's persistent
     execution model. Each core runs a persistent loop iterating over its
-    assigned tiles, recovering block indices from the static schedule.
+    assigned tiles, recovering block indices from the static schedule. It also
+    appends scalar parameters (`tt_start_tile`, `tt_tile_count`) and emits the
+    `tt_runtime_args` map describing iteration order and grid shape.
 
     Args:
         mod: The TVM IRModule to process (should have WS2 schedule metadata)
@@ -147,7 +149,7 @@ def grid_to_persistent_tt(mod: tvm.IRModule) -> tvm.IRModule:
     return pass_func()(mod)
 
 
-def tt_shard_to_core_map(mod: tvm.IRModule) -> tvm.IRModule:
+def tt_tiles_to_core_map(mod: tvm.IRModule) -> tvm.IRModule:
     """Map tile assignments to physical core coordinates.
 
     This pass converts logical tile-to-core assignments from WS2 into physical
@@ -166,106 +168,68 @@ def tt_shard_to_core_map(mod: tvm.IRModule) -> tvm.IRModule:
         A new IRModule with physical core topology metadata
 
     Example:
-        >>> from tilelang.tt import apply_ws2_passes, tt_shard_to_core_map
+        >>> from tilelang.tt import apply_ws2_passes, tt_tiles_to_core_map
         >>>
         >>> mod = create_tilelang_kernel()
         >>> mod = apply_tt_defaults(mod)  # WS1
         >>> mod = apply_ws2_passes(mod)  # WS2
-        >>> mod = tt_shard_to_core_map(mod)  # WS3 Phase 2
+        >>> mod = tt_tiles_to_core_map(mod)  # WS3 Phase 2
     """
-    pass_func = tvm.ffi.get_global_func("tl.transform.TTShardToCoreMap")
+    pass_func = tvm.ffi.get_global_func("tl.transform.TTTilesToCoreMap")
     return pass_func()(mod)
 
 
 def memory_space_lower_tt(mod: tvm.IRModule) -> tvm.IRModule:
-    """Lower abstract buffer allocations to TT circular buffers.
+    """Record circular-buffer metadata for tile-local buffers.
 
-    This pass transforms TileLang's alloc_fragment buffer allocations into
-    Tenstorrent circular buffer (CB) configurations in L1 memory. It:
-
-    - Identifies tile-sized buffers (typically 32×32)
-    - Assigns circular buffer IDs (CB0, CB1, CB2, ...)
-    - Configures num_pages (1 for accumulator, 2 for inputs/outputs)
-    - Stamps storage_scope = "tt.l1"
-    - Attaches tt_circular_buffers metadata for codegen
+    This pass scans `DeclBuffer` nodes created by `T.alloc_fragment`, heuristically
+    identifies tile-sized temporaries, assigns circular-buffer IDs, and emits
+    configuration metadata (`tt_circular_buffers`, `tt_num_cbs`) for codegen to consume.
+    The underlying buffers are left unchanged; TT codegen materialises the actual CB
+    allocations when emitting C++.
 
     Args:
         mod: The TVM IRModule to process (should have WS1 TT defaults)
 
     Returns:
-        A new IRModule with circular buffer annotations
-
-    Example:
-        >>> from tilelang.tt import apply_ws3_passes, memory_space_lower_tt
-        >>>
-        >>> mod = create_tilelang_kernel()
-        >>> mod = apply_tt_defaults(mod)  # WS1
-        >>> mod = apply_ws2_passes(mod)  # WS2
-        >>> mod = grid_to_persistent_tt(mod)  # WS3
-        >>> mod = memory_space_lower_tt(mod)  # WS3 Phase 2
+        A new IRModule with TT circular-buffer metadata attached
     """
     pass_func = tvm.ffi.get_global_func("tl.transform.MemorySpaceLowerTT")
     return pass_func()(mod)
 
 
 def tile_pad_tt(mod: tvm.IRModule) -> tvm.IRModule:
-    """Insert padding metadata for non-tile-aligned buffers.
+    """Attach padding metadata for non-tile-aligned buffers.
 
-    This pass handles buffers with dimensions that are not multiples of the
-    tile size (typically 32). It computes padded dimensions and stamps metadata
-    for use during codegen. It:
-
-    - Reads tt_buffer_*_needs_padding flags from WS2
-    - Computes padded dimensions: ceil(dim / tile_size) * tile_size
-    - Calculates padding amount per dimension
-    - Attaches tt_padding_info metadata with padding details
-
-    For example, a 250×250 buffer with 32×32 tiles becomes 256×256 (6 padding per dim).
+    The pass consults WS2 shard metadata (`tt_buffer_*_needs_padding`) and, for each
+    buffer that requires padding, records the original shape, padded shape, and
+    padding amounts under `tt_padding_info`. The IR itself is unchanged—codegen reads
+    the metadata to handle edge tiles.
 
     Args:
         mod: The TVM IRModule to process (should have WS2 padding flags)
 
     Returns:
         A new IRModule with padding metadata for codegen
-
-    Example:
-        >>> from tilelang.tt import apply_ws2_passes, tile_pad_tt
-        >>>
-        >>> mod = create_tilelang_kernel()
-        >>> mod = apply_tt_defaults(mod)  # WS1
-        >>> mod = apply_ws2_passes(mod)  # WS2 (detects padding needs)
-        >>> mod = tile_pad_tt(mod)  # WS3 Phase 2 (computes padding)
     """
     pass_func = tvm.ffi.get_global_func("tl.transform.TilePadTT")
     return pass_func()(mod)
 
 
 def tensorize_tt(mod: tvm.IRModule) -> tvm.IRModule:
-    """Lower high-level matmul operations to TT intrinsics.
+    """Tag frontend GEMM markers with TT matmul annotations.
 
-    This pass identifies high-level GEMM/matmul operations (T.gemm, pragma_gemm)
-    and annotates them with Tenstorrent-specific intrinsic metadata for codegen. It:
-
-    - Identifies AttrStmt nodes with matmul markers
-    - Annotates with TT intrinsic type (matmul_tiles, matmul_init)
-    - Stamps matmul_id and accumulation flags
-    - Attaches tt_num_matmuls and tt_has_tensorize metadata
-
-    For Phase 2, actual intrinsic code generation happens in WS4-6 codegen.
+    The current implementation wraps `AttrStmt` nodes labelled `"pragma_gemm"`,
+    `"tl.gemm"`, or `"gemm_operation"` with a TT-specific `"tt.matmul_intrinsic"`
+    attribute and tracks the number of matmul regions (`tt_num_matmuls`,
+    `tt_has_tensorize`). More advanced pattern detection (manual loops, element-wise
+    ops) is still TODO.
 
     Args:
-        mod: The TVM IRModule to process (should have matmul operations)
+        mod: The TVM IRModule to process (should contain GEMM pragmas)
 
     Returns:
-        A new IRModule with matmul intrinsic annotations
-
-    Example:
-        >>> from tilelang.tt import apply_ws3_passes, tensorize_tt
-        >>>
-        >>> mod = create_tilelang_kernel()
-        >>> mod = apply_tt_defaults(mod)  # WS1
-        >>> mod = apply_ws2_passes(mod)  # WS2
-        >>> mod = apply_ws3_passes(mod)  # WS3 (includes tensorize_tt)
+        A new IRModule with TT matmul annotations
     """
     pass_func = tvm.ffi.get_global_func("tl.transform.TensorizeTT")
     return pass_func()(mod)
@@ -328,7 +292,7 @@ def apply_ws3_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """
     # WS3 Transform Pipeline
     mod = grid_to_persistent_tt(mod)
-    mod = tt_shard_to_core_map(mod)
+    mod = tt_tiles_to_core_map(mod)
     mod = memory_space_lower_tt(mod)
     mod = tile_pad_tt(mod)
     mod = tensorize_tt(mod)

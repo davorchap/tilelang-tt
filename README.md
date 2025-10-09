@@ -243,12 +243,11 @@ def sdpa(Q, K, V, O, scale: T.float32, causal: T.int32):
      - Compute `total = grid_x * grid_y`; materialize policy = contiguous/strided/rect.  
      - Replace `bx/by` with expressions of `tid` recovered inside the loop.  
      - Attach PrimFunc attrs:  
-       - `tt.grid = (grid_y, grid_x)`  
-       - `tt.schedule = {policy, order, rect?, stride?, chunk_k_tiles?, qk_chunk_tiles?}`  
-       - `tt.runtime_args = ["start_id","count", …]`  
+       - `tt_grid_{x,y,z}`, `tt_tiles_per_core`, `tt_schedule` map  
+       - `tt_runtime_args = {start_tile, tile_count, grid_shape, iteration_ndims, iteration_symbols, param_order}`  
      - **Error cases:** missing `grid_x/grid_y`; unsupported nest shapes; negative extents.
 
-2. **`TTShardToCoreMap` (new pass)**  
+2. **`TTTilesToCoreMap` (new pass)**  
    - **In:** TT sharding/layout annotations.  
    - **Out:** Concrete **CoreRangeSet** and per‑tensor sharding metadata.  
    - **Spec:**  
@@ -321,7 +320,7 @@ def sdpa(Q, K, V, O, scale: T.float32, causal: T.int32):
 ```
 tilelang-tt/
 ├─ python/tilelang_tt/annotations.py        # annotate_tt_schedule / annotate_tt_sharding
-├─ src/tt/passes/*.cc                       # GridToPersistentTT, TTShardToCoreMap, ...
+├─ src/tt/passes/*.cc                       # GridToPersistentTT, TTTilesToCoreMap, ...
 ├─ src/tt/codegen/*.cc                      # EmitTTKernels + host stubs
 ├─ include/tilelang_tt/*.h
 ├─ cmake/TTMetal.cmake                      # SDK discovery
@@ -395,12 +394,14 @@ T.annotate_tt_sharding({
 **PrimFunc / Buffer attributes (internal)**
 
 ```text
-tt.grid           = (grid_y, grid_x)
-tt.schedule       = { policy, order, rect?, stride?, chunk_k_tiles?, qk_chunk_tiles? }
-tt.core_ranges    = CoreRangeSet(...)
-tt.shards         = { buffer_name: { axis, tiles, placement, order, faces? } }
-tt.runtime_args   = ["start_id","count", ...]
-tt.cb             = { name: { depth, format, l1_bytes } }
+tt_grid_x         = grid_x
+tt_grid_y         = grid_y
+tt_grid_z         = grid_z
+tt_schedule       = { policy, order, grid_shape, assignments=[{core_id, start_tile, tile_count}] }
+tt_core_ranges    = CoreRangeSet(...)
+tt_shard          = { buffer_name: { layout, tile_shape, tiles_height, tiles_width, needs_padding } }
+tt_runtime_args   = { start_tile, tile_count, grid_shape, iteration_ndims, iteration_symbols, param_order }
+tt_circular_buffers = [{ cb_id, num_pages, tile_size, name }, ...]
 ```
 
 **`tt.plan.json` (debug dump)**
@@ -410,8 +411,8 @@ tt.cb             = { name: { depth, format, l1_bytes } }
   "grid": [Mt, Nt],
   "policy": "contiguous",
   "mapping": [
-    {"core": [y,x], "start_id": 0,  "count": 128},
-    {"core": [y,x], "start_id": 128,"count": 128}
+    {"core": [y,x], "start_tile": 0,  "tile_count": 128},
+    {"core": [y,x], "start_tile": 128,"tile_count": 128}
   ]
 }
 ```
@@ -432,4 +433,3 @@ This backend will be contributed under the same license as TileLang. Vendor SDK 
 **Next steps:**  
 - Create the public fork, land **Phase 0** (GEMM) with compile‑time CI + optional hardware smoke tests.  
 - Iterate on annotations/spec, then open an upstream **RFC PR** to integrate as an official backend.
-

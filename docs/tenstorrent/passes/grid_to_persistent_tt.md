@@ -1,104 +1,102 @@
 # GridToPersistentTT Pass
 
-**Status**: ✅ Complete
-**Priority**: CRITICAL
+**Status**: ✅ Complete  
+**Priority**: CRITICAL  
 **File**: `src/transform/tt/grid_to_persistent_tt.cc`
 
 ---
 
 ## Purpose
 
-Transform GPU-style grid kernels (`T.Kernel(grid_x, grid_y)`) into Tenstorrent's persistent loop model where each core iterates over assigned tiles.
+Convert GPU-style grid kernels (`T.Kernel(...)`) into Tenstorrent's persistent execution model. Each Tensix core receives a contiguous range of tiles and iterates over them with a persistent loop.
 
 ---
 
 ## Why Needed
 
-**GPU model**: Launch N threadblocks, each processes one tile
-**TT model**: Launch N cores, each iterates over M tiles
+- **GPU model**: launch N threadblocks, each handles exactly one tile.  
+- **TT model**: launch N cores, each core loops over *M* tiles determined at compile time.
 
-This fundamental difference requires IR transformation to convert block indices `(bx, by)` into tile iteration with dynamic index recovery.
+Bridging the two requires removing `thread_extent` annotations, introducing explicit runtime parameters for tile ranges, and replacing `blockIdx` uses with computed indices.
 
 ---
 
 ## Transformation
 
-**Before** (GPU-style):
+**Before**
 ```python
-with T.Kernel(8, 8) as (bx, by):  # bx, by are block indices
-    C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
+with T.Kernel(8, 8) as (bx, by):
+    C[bx, by] = ...
 ```
 
-**After** (TT persistent loop):
+**After**
 ```python
-core_id = get_core_id()  # 0 to num_cores-1
-start_tile, count = get_tile_assignment(core_id)  # from schedule metadata
-
-for tile_id in range(start_tile, start_tile + count):
-    # Recover block indices from tile_id
-    bx = tile_id // grid_y
-    by = tile_id % grid_y
-
-    # Original kernel body (unchanged)
-    C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
+@T.prim_func
+def kernel(..., tt_start_tile: T.int32, tt_tile_count: T.int32):
+    for tt_tile_iter in T.serial(tt_tile_count):
+        tile_id = tt_start_tile + tt_tile_iter
+        bx = tile_id % 8
+        by = (tile_id // 8) % 8
+        C[bx, by] = ...
 ```
+
+Key additions:
+- New scalar parameters `tt_start_tile` and `tt_tile_count`
+- Persistent `for` loop over `tt_tile_iter`
+- Computed replacements for `blockIdx.{x,y,z}`
+
+The pass supports 1D, 2D, and 3D grids. `tt_runtime_args["iteration_ndims"]` advertises how many dimensions are non-trivial, and `tt_runtime_args["iteration_symbols"]` lists the recovered block indices (`["bx"]`, `["bx", "by"]`, or `["bx", "by", "bz"]`).
 
 ---
 
-## Implementation Details
+## Metadata Emitted
 
-**Steps**:
-1. Read `tt.schedule` metadata (from infer_default_tt_schedule)
-2. Replace `T.Kernel` with persistent for-loop
-3. Insert tile index recovery logic
-4. Preserve original kernel body
-5. Add core ID and tile assignment getters
+- `tt_runtime_args`: map describing runtime parameters
+  - `start_tile` / `tile_count`: `{name, dtype, semantic}`
+  - `grid_shape`: `[grid_x, grid_y, grid_z]`
+  - `iteration_ndims`, `iteration_symbols`, `param_order`
+- `tt_persistent_loop`: `True`
+- `tt_persistent_iteration_ndims`: mirrors `iteration_ndims`
 
-**IR Nodes**:
-- `KernelLaunch` → `For` (persistent loop)
-- `blockIdx.x/y` → Computed from `tile_id`
+The pass does **not** materialize runtime helpers (`get_core_id`, etc.); codegen consumes the metadata to marshal per-core arguments.
+
+---
+
+## Implementation Notes
+
+1. Read grid dimensions (`tt_grid_{x,y,z}`) from WS2.
+2. Append the two runtime scalar parameters to the `PrimFunc`.
+3. Remove `thread_extent` annotations for `blockIdx.x/y/z`.
+4. Wrap the body with a `For` loop over `tt_tile_iter`.
+5. Replace `blockIdx` variable uses with expressions derived from `tile_id = tt_start_tile + tt_tile_iter`.
+6. Attach the metadata listed above.
 
 ---
 
 ## Tests
 
-**File**: `testing/python/tt/test_grid_to_persistent_tt.py`
-**Status**: ✅ 12 tests passing
-
-Tests cover:
-- Basic grid transformation
-- Index recovery correctness
-- Different grid sizes (4×4, 8×8, 16×16)
-- Metadata preservation
-- Multi-dimensional indexing
+**File**: `testing/python/tt/test_ws3_grid_to_persistent.py`  
+**Status**: ✅ Covers 1D, 2D, and 3D kernels, metadata validation, and parameter ordering.
 
 ---
 
 ## Dependencies
 
 **Depends On**:
-- `infer_default_tt_schedule.cc` - Requires schedule metadata
+- `infer_default_tt_schedule.cc` (provides grid shape & tile assignments)
 
 **Depended On By**:
-- All subsequent TT transforms expect persistent loop model
-
----
-
-## Related Files
-
-- `src/transform/tt/grid_to_persistent_tt.cc` - Implementation
-- `tilelang/tt/passes.py` - Python binding
-- `testing/python/tt/test_grid_to_persistent_tt.py` - Tests
+- All TT-specific passes that assume persistent loop form (`tt_tiles_to_core_map`, `memory_space_lower_tt`, etc.)
 
 ---
 
 ## Success Criteria
 
-- [x] Transforms T.Kernel to persistent loop
-- [x] Correctly recovers block indices
-- [x] Preserves kernel semantics
-- [x] All tests passing (12/12)
+- [x] Rewrites grid kernels into persistent loops
+- [x] Emits runtime metadata + parameters consumed by codegen
+- [x] Supports 1D / 2D / 3D tile ranges
+- [x] Verified via WS3 regression tests
 
 ---
 
-**Last Updated**: 2025-10-09
+**Last Updated**: 2026-02-20

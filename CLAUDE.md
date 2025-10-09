@@ -17,7 +17,7 @@ This repository (`tilelang-tt`) is a **public fork** focused on adding first-cla
   - Shard inference (DRAM layout descriptors)
 - ✅ Transform pipeline (39 tests)
   - GridToPersistentTT (persistent loop model)
-  - TTShardToCoreMap (NOC grid mapping)
+  - TTTilesToCoreMap (NOC grid mapping)
   - MemorySpaceLowerTT (DRAM → L1 circular buffers)
   - TilePadTT (32×32 tile alignment)
   - TensorizeTT (pattern detection)
@@ -274,7 +274,7 @@ The format script will show diffs; manually apply changes or use auto-formatting
 
 3. **Transform Pipeline** ✅ COMPLETE
    - `src/transform/tt/grid_to_persistent_tt.cc` - Persistent loop model
-   - `src/transform/tt/tt_shard_to_core_map.cc` - NOC grid mapping
+   - `src/transform/tt/tt_tiles_to_core_map.cc` - NOC grid mapping
    - `src/transform/tt/memory_space_lower_tt.cc` - DRAM → L1 CB
    - `src/transform/tt/tile_pad_tt.cc` - Tile alignment
    - `src/transform/tt/tensorize_tt.cc` - Pattern detection (incomplete)

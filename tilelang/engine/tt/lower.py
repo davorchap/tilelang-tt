@@ -19,7 +19,7 @@ from tilelang.tt.passes import (
     infer_default_tt_schedule,
     infer_default_tt_shard,
     grid_to_persistent_tt,
-    tt_shard_to_core_map,
+    tt_tiles_to_core_map,
     memory_space_lower_tt,
     tile_pad_tt,
     tensorize_tt,
@@ -92,8 +92,8 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     mod = grid_to_persistent_tt(mod)
 
     # WS3 Phase 2: Core topology and memory
-    # Map shards to core coordinates (x, y) on NOC grid
-    mod = tt_shard_to_core_map(mod)
+    # Map scheduled tiles to core coordinates (x, y) on NOC grid
+    mod = tt_tiles_to_core_map(mod)
 
     # Lower memory spaces (DRAM → L1 circular buffers)
     mod = memory_space_lower_tt(mod)

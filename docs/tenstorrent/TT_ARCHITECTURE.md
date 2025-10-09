@@ -104,7 +104,7 @@ TT-Metalium C++ Code
        C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
    ```
 
-4. **`tt_shard_to_core_map`** - Map shards to NOC grid coordinates
+4. **`tt_tiles_to_core_map`** - Map tile assignments to NOC grid coordinates
    - Input: Shard IDs
    - Output: Core (x, y) coordinates on NOC mesh
 
@@ -523,7 +523,7 @@ tilelang-tt/
 │   │   ├── infer_tt_schedule.cc        # Compute tile assignments
 │   │   ├── infer_tt_shard.cc           # DRAM layout descriptors
 │   │   ├── grid_to_persistent_tt.cc    # Grid → persistent loop
-│   │   ├── tt_shard_to_core_map.cc     # Shard → NOC coords
+│   │   ├── tt_tiles_to_core_map.cc     # Tile assignments → NOC coords
 │   │   ├── memory_space_lower_tt.cc    # DRAM → L1 CB
 │   │   ├── tile_pad_tt.cc              # Pad to 32×32
 │   │   ├── tensorize_tt.cc             # Pattern detection (INCOMPLETE)
@@ -538,7 +538,7 @@ tilelang-tt/
     ├── test_target_registration.py      # Target registration (8 tests)
     ├── test_passes.py                   # Metadata inference (7 tests)
     ├── test_grid_to_persistent_tt.py    # Persistent loop (12 tests)
-    ├── test_tt_shard_to_core_map.py     # NOC mapping (5 tests)
+    ├── test_tt_tiles_to_core_map.py     # NOC mapping (5 tests)
     ├── test_memory_space_lower_tt.py    # CB lowering (8 tests)
     ├── test_tile_pad_tt.py              # Tile padding (6 tests)
     ├── test_tensorize_tt.py             # Tensorization (8 tests)

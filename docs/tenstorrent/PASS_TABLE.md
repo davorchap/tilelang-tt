@@ -153,34 +153,24 @@ Applied only for Tenstorrent target via `OptimizeForTargetTT()`.
 | Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
 |------|--------|----------|----------|-----------|---------|---------------|
 | **infer_default_tt_schedule** | ✅ Complete | Device | Grid kernel | Kernel + schedule | Compute per-core tile ranges | [📄 Doc](./passes/infer_default_tt_schedule.md) |
-| **infer_default_tt_shard** | ✅ Complete | Memory | Buffers | Buffers + shard | Generate DRAM layout descriptors | [📄 Doc](./passes/infer_default_tt_shard.md) |
+| **infer_default_tt_shard** | ✅ Complete | Memory | Buffers | Buffers + shard metadata | Generate DRAM layout descriptors | [📄 Doc](./passes/infer_default_tt_shard.md) |
 
-**Annotations Added:**
-```python
-# Schedule annotation
-"tt.schedule": {
-  "policy": "contiguous",
-  "order": "row_major",
-  "assignments": [(core_id, start_tile, count), ...]
-}
-
-# Sharding annotation
-"tt.shard": {
-  "layout": "tiled",
-  "interleaved": true,
-  "tile_shape": [32, 32]
-}
-```
+- Schedule metadata:
+  - `tt_grid_{x,y,z}`, `tt_num_tiles`, `tt_tiles_per_core`
+  - Consolidated `tt_schedule` map: `policy`, `order`, `grid_shape`, `assignments=[{core_id, start_tile, tile_count}]`
+- Sharding metadata:
+  - Legacy per-buffer keys (`tt_buffer_{name}_layout`, etc.)
+  - Consolidated `tt_shard` map keyed by buffer name with layout, tile shape, padding info
 
 ### Transform Pipeline: TIR Transformations
 
 | Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
 |------|--------|----------|----------|-----------|---------|---------------|
-| **grid_to_persistent_tt** | ✅ Complete | Device | GPU grid kernel | TT persistent kernel | Transform grid → persistent loop | [📄 Doc](./passes/grid_to_persistent_tt.md) |
-| **tt_shard_to_core_map** | ✅ Complete | Device | Shard IDs | Core (x, y) coords | Map shards to NOC grid | [📄 Doc](./passes/tt_shard_to_core_map.md) |
-| **memory_space_lower_tt** | ✅ Complete | Memory | DRAM buffers | L1 circular buffers | Lower DRAM → L1 CB | [📄 Doc](./passes/memory_space_lower_tt.md) |
-| **tile_pad_tt** | ✅ Complete | Memory | Arbitrary shapes | Tile-aligned shapes | Pad to 32×32 tiles | [📄 Doc](./passes/tile_pad_tt.md) |
-| **tensorize_tt** | 🟡 Partial | Device | Loops | Loops + intrinsic annos | Detect patterns, annotate | [📄 Doc](./passes/tensorize_tt.md) |
+| **grid_to_persistent_tt** | ✅ Complete | Device | GPU grid kernel | TT persistent kernel | Transform grid → persistent loop (adds runtime params) | [📄 Doc](./passes/grid_to_persistent_tt.md) |
+| **tt_tiles_to_core_map** | ✅ Complete | Device | Tile assignments | Core (x, y) coords | Map scheduled tiles to NOC grid | [📄 Doc](./passes/tt_tiles_to_core_map.md) |
+| **memory_space_lower_tt** | ✅ Complete | Memory | DRAM buffers | TT CB metadata | Record circular-buffer annotations (metadata only) | [📄 Doc](./passes/memory_space_lower_tt.md) |
+| **tile_pad_tt** | ✅ Complete | Memory | Arbitrary shapes | Padding metadata | Record tile padding requirements | [📄 Doc](./passes/tile_pad_tt.md) |
+| **tensorize_tt** | 🟡 Partial | Device | Loops | Loop attrs | Annotate matmul pragmas for TT codegen | [📄 Doc](./passes/tensorize_tt.md) |
 | **rasterization_tt** | ⚠️ Planned | Optimization | Tile iteration | Optimized tile order | Remap tile iteration order | [📄 Spec](#rasterization_tt-specification) |
 | **tt_multicast_reuse** | ⚠️ Planned | Optimization | NOC ops | NOC + multicast | Insert multicast for reuse | [📄 Spec](#tt_multicast_reuse-specification) |
 | **verify_tt_ir** | ✅ Complete | Verification | TT IR | Verified TT IR | Verify TT constraints | [📄 Doc](./passes/verify_tt_ir.md) |
@@ -197,17 +187,20 @@ def kernel(...):
 
 # After
 @T.prim_func
-def kernel(...):
-  core_id = get_core_id()
-  start_tile, tile_count = get_tile_assignment(core_id)
-
-  for tile_id in range(start_tile, start_tile + tile_count):
-    bx = tile_id // 8  # Recover bx from tile_id
-    by = tile_id % 8   # Recover by from tile_id
+def kernel(..., tt_start_tile: int32, tt_tile_count: int32):
+  for tt_tile_iter in range(tt_tile_count):
+    tile_id = tt_start_tile + tt_tile_iter
+    bx = tile_id % 8
+    by = (tile_id // 8) % 8
 
     # Original computation
     C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
 ```
+
+**Runtime Metadata:**
+- Appends scalar params `tt_start_tile`, `tt_tile_count`
+- `tt_runtime_args`: `{start_tile, tile_count, grid_shape, iteration_ndims, iteration_symbols, param_order}`
+- `tt_persistent_iteration_ndims`: Signals 1D/2D/3D tile iteration coverage
 
 **Example Transform (tensorize_tt):**
 

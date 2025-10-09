@@ -117,6 +117,8 @@ PrimFunc InferDefaultTTShardImpl(PrimFunc f) {
 
   PrimFunc new_func = f;
 
+  Map<String, ObjectRef> shard_map;
+
   for (const auto& [param, buffer] : f->buffer_map) {
     // Compute shard info for this buffer
     ShardInfo info = ComputeShardInfo(buffer, TT_TILE_HEIGHT, TT_TILE_WIDTH);
@@ -139,6 +141,23 @@ PrimFunc InferDefaultTTShardImpl(PrimFunc f) {
       new_func = WithAttr(new_func, "tt_buffer_" + buffer_name + "_padded_shape",
                           Array<Integer>({Integer(info.padded_height), Integer(info.padded_width)}));
     }
+
+    Map<String, ObjectRef> shard_entry;
+    shard_entry.Set("layout", String(TT_LAYOUT));
+    shard_entry.Set("tile_shape",
+                    Array<Integer>({Integer(TT_TILE_HEIGHT), Integer(TT_TILE_WIDTH)}));
+    shard_entry.Set("tiles_height", Integer(info.tiles_height));
+    shard_entry.Set("tiles_width", Integer(info.tiles_width));
+    shard_entry.Set("needs_padding", Bool(info.needs_padding));
+    if (info.needs_padding) {
+      shard_entry.Set("padded_shape",
+                      Array<Integer>({Integer(info.padded_height), Integer(info.padded_width)}));
+    }
+    shard_map.Set(buffer_name, shard_entry);
+  }
+
+  if (shard_map.size() > 0) {
+    new_func = WithAttr(new_func, "tt_shard", shard_map);
   }
 
   return new_func;
