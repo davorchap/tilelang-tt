@@ -128,8 +128,9 @@ void ValidateWS2(const PrimFunc& f, ValidationResult& result) {
     if (!schedule.value().count("assignments")) {
       result.AddError("tt_schedule missing assignments array");
     } else {
-      const auto* assignments = schedule.value()["assignments"].as<ArrayNode>();
-      if (assignments == nullptr) {
+      // Check if assignments can be downcast to Array
+      auto assignments_obj = schedule.value()["assignments"];
+      if (!assignments_obj.as<Array<ObjectRef>>()) {
         result.AddError("tt_schedule.assignments should be an array");
       }
     }
@@ -143,15 +144,16 @@ void ValidateWS2(const PrimFunc& f, ValidationResult& result) {
   if (shard.defined()) {
     for (const auto& kv : shard.value()) {
       std::string buffer_name = std::string(kv.first);
-      const auto* map_value = kv.second.as<MapNode>();
-      if (map_value == nullptr) {
+      // Check if buffer metadata can be downcast to Map
+      auto buffer_map = kv.second.as<Map<String, ObjectRef>>();
+      if (!buffer_map) {
         result.AddError("tt_shard entry for buffer " + buffer_name + " must be a map");
         continue;
       }
-      if (!map_value->count(String("layout"))) {
+      if (!buffer_map.value().count(String("layout"))) {
         result.AddError("tt_shard entry for buffer " + buffer_name + " missing layout");
       }
-      if (!map_value->count(String("tile_shape"))) {
+      if (!buffer_map.value().count(String("tile_shape"))) {
         result.AddError("tt_shard entry for buffer " + buffer_name + " missing tile_shape");
       }
     }
