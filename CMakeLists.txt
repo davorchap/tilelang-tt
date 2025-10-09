@@ -65,6 +65,7 @@ endif()
 # include cmake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CheckCXXCompilerFlag)
+include(TTMetal)
 
 # Enable static runtime build if required
 if(TILE_LANG_INSTALL_STATIC_LIB)

@@ -166,14 +166,24 @@ tt::DataFormat::Float16_b
 - Access to TT-Metalium SDK (TT_METAL_HOME set)
 - No hardware required
 
+**CMake Configuration**:
+The build system supports both mock and real SDK modes via `cmake/TTMetal.cmake`:
+- **Mock mode** (default): `cmake -B build -DUSE_LLVM=ON`
+  - Uses stub/mock TT APIs for dry-run testing
+  - No SDK required, runs in CI
+- **Real mode**: `cmake -B build -DUSE_LLVM=ON -DUSE_REAL_METALIUM=ON`
+  - Links against real TT-Metalium SDK
+  - Requires `TT_METAL_HOME` environment variable
+  - Automatically discovers SDK via `cmake/FindMetalium.cmake`
+
 **Tasks**:
-1. Install Metalium SDK
+1. Install Metalium SDK (see [METALIUM_SETUP_GUIDE.md](METALIUM_SETUP_GUIDE.md))
 2. Set environment: `export TT_METAL_HOME=/path/to/tt-metal`
-3. Build with real mode: `cmake -B build -DUSE_REAL_METALIUM=ON`
-4. Attempt compilation
-5. Fix include path errors
-6. Fix namespace errors
-7. Fix enum/type mismatches
+3. Build with real mode: `cmake -B build -DUSE_LLVM=ON -DUSE_REAL_METALIUM=ON`
+4. Attempt compilation of generated artifacts
+5. Fix include path errors (if SDK structure differs)
+6. Fix namespace errors (e.g., `distributed::MeshDevice`)
+7. Fix enum/type mismatches (e.g., `DataFormat`, `BufferType`)
 
 **Expected Issues**:
 - Include path adjustments
@@ -430,11 +440,12 @@ cmake --build build -j4
 
 ### Build Options
 
-| Option | Default | Purpose |
-|--------|---------|---------|
-| `USE_REAL_METALIUM` | OFF | Enable real Metalium APIs |
-| `TT_METAL_HOME` | (env) | Path to Metalium SDK |
-| `USE_LLVM` | OFF | CPU backend (required for TT) |
+| Option | Default | Purpose | Configured By |
+|--------|---------|---------|---------------|
+| `TL_TT_BACKEND` | ON | Enable TT backend | `cmake/TTMetal.cmake` |
+| `USE_REAL_METALIUM` | OFF | Enable real Metalium APIs | `cmake/TTMetal.cmake` |
+| `TT_METAL_HOME` | (env) | Path to Metalium SDK | `cmake/FindMetalium.cmake` |
+| `USE_LLVM` | OFF | CPU backend (required for TT) | Root `CMakeLists.txt` |
 
 ### Validation Checklist
 
@@ -448,6 +459,24 @@ cmake --build build -j4
 - [ ] Phase 1: Dry-run compilation
 - [ ] Phase 2: API completion
 - [ ] Phase 3: Hardware execution
+
+---
+
+## Related Documentation
+
+**Programming Model & Kernel Authoring:**
+- [GPU_vs_Tenstorrent.md](GPU_vs_Tenstorrent.md) - Execution model, memory hierarchy, and compilation flow comparison
+- [kernel_authoring_comparison.md](kernel_authoring_comparison.md) - Side-by-side kernel examples (GEMM, elementwise, reduction)
+
+**Architecture & Implementation:**
+- [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md) - Complete TT backend architecture overview
+- [PASS_TABLE.md](PASS_TABLE.md) - All transform passes with specifications (includes planned RasterizationTT, TTMulticastReuse)
+- [IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md) - GPU vs TT compiler pipeline comparison
+
+**Setup & Testing:**
+- [METALIUM_SETUP_GUIDE.md](METALIUM_SETUP_GUIDE.md) - SDK installation and configuration
+- [local_build_guide.md](local_build_guide.md) - Local build instructions
+- [CI.md](CI.md) - Continuous integration workflows
 
 ---
 

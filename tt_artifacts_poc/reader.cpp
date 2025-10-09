@@ -17,8 +17,8 @@ inline void noc_async_read_barrier() {}
 inline void cb_push_back(uint32_t cb_id, uint32_t n_tiles) {}
 
 // Circular Buffer Indices
-constexpr uint32_t CB_A = 0;
-constexpr uint32_t CB_B = 1;
+constexpr auto cb_in0 = tt::CBIndex::c_0;
+constexpr auto cb_in1 = tt::CBIndex::c_1;
 
 constexpr uint32_t TILE_SIZE_BYTES = 32 * 32 * sizeof(uint16_t);  // fp16
 
@@ -42,19 +42,19 @@ void kernel_main() {
         for (uint32_t kt = 0; kt < Kt; ++kt) {
             // Read A[out_m, kt]
             uint32_t tile_a_idx = out_m * Kt + kt;
-            cb_reserve_back(CB_A, 1);
-            uint32_t l1_write_addr_a = get_write_ptr(CB_A);
+            cb_reserve_back(cb_in0, 1);
+            uint32_t l1_write_addr_a = get_write_ptr(cb_in0);
             noc_async_read_tile(tile_a_idx, dram_addr_a, l1_write_addr_a);
             noc_async_read_barrier();
-            cb_push_back(CB_A, 1);
+            cb_push_back(cb_in0, 1);
             
             // Read B[kt, out_n]
             uint32_t tile_b_idx = kt * Nt + out_n;
-            cb_reserve_back(CB_B, 1);
-            uint32_t l1_write_addr_b = get_write_ptr(CB_B);
+            cb_reserve_back(cb_in1, 1);
+            uint32_t l1_write_addr_b = get_write_ptr(cb_in1);
             noc_async_read_tile(tile_b_idx, dram_addr_b, l1_write_addr_b);
             noc_async_read_barrier();
-            cb_push_back(CB_B, 1);
+            cb_push_back(cb_in1, 1);
         }
     }
 }
