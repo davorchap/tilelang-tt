@@ -268,6 +268,60 @@ Core L1 Memory (1MB)
 - FP16: 32×32 = 1024 elements × 2 bytes = 2KB per tile
 - Efficient for matrix operations (matmul_tiles operates on 32×32 tiles)
 
+### DST Register Double Buffering
+
+**Overview:**
+The **Destination (DST) registers** in Tensix cores are shared between the FPU (math engine) and the Packer. To enable pipelining, DST supports double buffering with an explicit handshake protocol:
+
+**DST Lifecycle:**
+- `acquire_dst()` - FPU reserves half of DST for computation
+- `commit_dst()` - FPU signals computation complete
+- `wait_for_tile()` - Packer waits for FPU (called internally by pack_tile)
+- `release_dst()` - FPU releases DST back to packer
+
+**Pattern 1: Element-Wise Operations**
+```cpp
+for (uint32_t i = 0; i < num_tiles; ++i) {
+    acquire_dst();              // Acquire per tile
+    cb_wait_front(cb_a, 1);
+    cb_wait_front(cb_b, 1);
+    add_tiles(cb_a, cb_b, 0, 0, 0);
+    cb_reserve_back(cb_c, 1);
+    commit_dst();               // Commit per tile
+    pack_tile(0, cb_c);
+    cb_push_back(cb_c, 1);
+    cb_pop_front(cb_a, 1);
+    cb_pop_front(cb_b, 1);
+    release_dst();              // Release per tile
+}
+```
+
+**Pattern 2: K-Loop Matrix Operations**
+```cpp
+for (uint32_t tile_idx = 0; tile_idx < num_output_tiles; ++tile_idx) {
+    acquire_dst();              // Acquire BEFORE K-loop
+    matmul_tiles_init(cb_c);
+
+    for (uint32_t k = 0; k < Kt; ++k) {
+        cb_wait_front(cb_a, 1);
+        cb_wait_front(cb_b, 1);
+        matmul_tiles(cb_a, cb_b, 0, 0, 0, false);
+        cb_pop_front(cb_a, 1);
+        cb_pop_front(cb_b, 1);
+    }
+
+    cb_reserve_back(cb_c, 1);
+    commit_dst();               // Commit AFTER K-loop
+    pack_tile(0, cb_c);
+    cb_push_back(cb_c, 1);
+    release_dst();              // Release after K-loop
+}
+```
+
+**Key Difference:**
+- Element-wise: acquire/commit/release **per tile** (no accumulation)
+- K-loop: acquire/commit/release **per output tile** (accumulation across K dimension)
+
 ### IR-Driven Codegen (Not Templates)
 
 **Approach:** Visitor pattern walks TIR AST and emits code based on IR structure
