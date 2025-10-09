@@ -483,5 +483,5 @@ def matmul_256x256_real(
 ## Related Documents
 
 - [IR Lowering Analysis](./IR_LOWERING_ANALYSIS.md) - Detailed analysis of GPU vs TT
-- [IR Lowering Pass Table](./IR_LOWERING_PASS_TABLE.md) - Complete pass reference
+- [PASS_TABLE.md](./PASS_TABLE.md) - Complete pass reference (60+ passes)
 - [Unified Matmul MVP Plan](./UNIFIED_MATMUL_MVP_PLAN.md) - Original MVP plan
