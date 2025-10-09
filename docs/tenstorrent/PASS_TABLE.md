@@ -148,7 +148,7 @@ Applied only for CUDA/ROCm targets via `OptimizeForTarget()`.
 
 Applied only for Tenstorrent target via `OptimizeForTargetTT()`.
 
-### WS2: Schedule and Sharding Inference
+### Metadata Inference: Schedule and Sharding Inference
 
 | Pass | Category | Input IR | Output IR | Purpose | File |
 |------|----------|----------|-----------|---------|------|
@@ -172,7 +172,7 @@ Applied only for Tenstorrent target via `OptimizeForTargetTT()`.
 }
 ```
 
-### WS3: TIR Transformations
+### Transform Pipeline: TIR Transformations
 
 | Pass | Category | Input IR | Output IR | Purpose | File |
 |------|----------|----------|-----------|---------|------|
@@ -315,7 +315,7 @@ CUDA source (.cu)
 ```
 Phase 0 (TT Defaults)
   ↓
-apply_tt_defaults (WS1)
+apply_tt_defaults (Target Registration)
   ↓
 Phase 1 (Shared)
   ↓
@@ -323,11 +323,11 @@ LowerAndLegalize (12 passes)
   ↓
 Phase 2B (TT-Specific)
   ↓
-WS2: Schedule/Shard Inference (2 passes)
+Metadata Inference: Schedule/Shard Inference (2 passes)
   ↓
-WS3: TIR Transformations (4 passes)
+Transform Pipeline: TIR Transformations (4 passes)
   ↓
-WS3: Tensorization (1 pass) ⭐
+Transform Pipeline: Tensorization (1 pass) ⭐
   ↓
 Common optimizations (11 passes)
   ↓

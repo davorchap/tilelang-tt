@@ -42,6 +42,28 @@ void MAIN() {
     uint32_t Kt = get_arg_val<uint32_t>(2);
     
     for (uint32_t i = 0; i < tt_count; ++i) {
-        C[((((((((int64)tt_start_id) + ((int64)i)) % 8) * 8192) + ((((int64)tx) / 4) * 256)) + (((((int64)tt_start_id) + ((int64)i)) / 8) * 32)) + ((((int64)tx) % 4) * 8))] = (A[((((((((int64)tt_start_id) + ((int64)i)) % 8) * 8192) + ((((int64)tx) / 4) * 256)) + (((((int64)tt_start_id) + ((int64)i)) / 8) * 32)) + ((((int64)tx) % 4) * 8))] + B[((((((((int64)tt_start_id) + ((int64)i)) % 8) * 8192) + ((((int64)tx) / 4) * 256)) + (((((int64)tt_start_id) + ((int64)i)) / 8) * 32)) + ((((int64)tx) % 4) * 8))]);
+        // Acquire tile registers for matmul accumulation
+        // Acquire tile registers for computation
+        tile_regs_acquire();
+        
+        // K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)
+        // Initialize matmul (once before all loops)
+        mm_init(cb_in0, cb_in1, cb_out0);
+        
+        for (uint32_t kt = 0; kt < 1; ++kt) {
+            C[((((((((int64)tt_start_id) + ((int64)i)) % 8) * 8192) + ((((int64)tx) / 4) * 256)) + (((((int64)tt_start_id) + ((int64)i)) / 8) * 32)) + ((((int64)tx) % 4) * 8))] = (A[((((((((int64)tt_start_id) + ((int64)i)) % 8) * 8192) + ((((int64)tx) / 4) * 256)) + (((((int64)tt_start_id) + ((int64)i)) / 8) * 32)) + ((((int64)tx) % 4) * 8))] + B[((((((((int64)tt_start_id) + ((int64)i)) % 8) * 8192) + ((((int64)tx) / 4) * 256)) + (((((int64)tt_start_id) + ((int64)i)) / 8) * 32)) + ((((int64)tx) % 4) * 8))]);
+        }
+        
+        // After K-loop: pack result
+        // Commit tile register computation
+        tile_regs_commit();
+        // Wait for tile register computation to complete
+        tile_regs_wait();
+        cb_reserve_back(cb_out0, 1);
+        pack_tile(0, cb_out0);
+        cb_push_back(cb_out0, 1);
+        // Release tile registers
+        tile_regs_release();
+        
     }
 }
