@@ -1,16 +1,37 @@
 # IR Lowering Implementation Tasks
 
-**Document Version:** 1.0
-**Date:** 2025-10-08
+**Document Version:** 2.0
+**Date:** 2025-10-09
 **Status:** Active
+
+---
 
 ## Overview
 
-Based on the IR lowering analysis, this document tracks the implementation tasks needed to complete the Tenstorrent backend pattern detection and tensorization.
+This document tracks high-level implementation tasks for completing the Tenstorrent backend pattern detection and tensorization.
 
-## Current Status
+**Problem**: TT codegen currently uses heuristics for pattern detection instead of relying on transform pass annotations.
 
-**Problem:** TT codegen tries to do pattern detection (heuristics) AND code emission, which is incomplete and fragile.
+**Solution**: Enhance `tensorize_tt` transform pass to detect and annotate patterns, making codegen "dumb" (just emit based on annotations).
+
+---
+
+## Quick Status
+
+| Component | Status | Documentation |
+|-----------|--------|---------------|
+| **infer_default_tt_schedule** | ✅ Complete | [📄 passes/infer_default_tt_schedule.md](./passes/infer_default_tt_schedule.md) |
+| **infer_default_tt_shard** | ✅ Complete | [📄 passes/infer_default_tt_shard.md](./passes/infer_default_tt_shard.md) |
+| **grid_to_persistent_tt** | ✅ Complete | [📄 passes/grid_to_persistent_tt.md](./passes/grid_to_persistent_tt.md) |
+| **tt_shard_to_core_map** | ✅ Complete | [📄 passes/tt_shard_to_core_map.md](./passes/tt_shard_to_core_map.md) |
+| **memory_space_lower_tt** | ✅ Complete | [📄 passes/memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) |
+| **tile_pad_tt** | ✅ Complete | [📄 passes/tile_pad_tt.md](./passes/tile_pad_tt.md) |
+| **tensorize_tt** | 🟡 Partial | [📄 passes/tensorize_tt.md](./passes/tensorize_tt.md) |
+| **verify_tt_ir** | ✅ Complete | [📄 passes/verify_tt_ir.md](./passes/verify_tt_ir.md) |
+
+---
+
+## Current Problem
 
 **Generated Code Issues:**
 - K-loop structure detected ✅
@@ -18,470 +39,161 @@ Based on the IR lowering analysis, this document tracks the implementation tasks
 - **Body still has raw array operations** ❌
 - Missing intrinsic calls (cb_wait_front, matmul_tiles, cb_pop_front) ❌
 
-**Root Cause:** Pattern detection in codegen visitor instead of transform pass.
-
-## Tasks
-
-### Task 1: Extend TensorizeTT Transform Pass
-
-**File:** `src/transform/tt/tensorize_tt.cc`
-
-**Current Implementation:**
-```cpp
-// Only handles T.gemm() intrinsic calls
-Stmt VisitStmt_(const AttrStmtNode* op) override {
-  if (op->attr_key == "pragma_gemm" || op->attr_key == "tl.gemm") {
-    // Annotate with tt.matmul_intrinsic
-    return AttrStmt(op->node, "tt.matmul_intrinsic", matmul_id, new_body);
-  }
-}
-```
-
-**What to Add:**
-
-```cpp
-class TensorizeTTMutator : public StmtMutator {
- private:
-  int matmul_count_ = 0;
-  int eltwise_count_ = 0;
-
- public:
-  Stmt VisitStmt_(const ForNode* op) override {
-    std::string loop_var = op->loop_var->name_hint;
-
-    // Pattern 1: K-loop for matmul
-    if (IsKLoop(loop_var)) {
-      MatmulPatternMatcher matcher;
-      if (matcher.Match(op->body)) {
-        // Extract A, B, C buffer names from pattern
-        Array<Var> input_bufs = {matcher.GetBufferA(), matcher.GetBufferB()};
-        Var output_buf = matcher.GetBufferC();
-
-        // Create nested annotations
-        Stmt annotated = op->body;
-
-        // Annotate output buffer
-        annotated = AttrStmt(
-          output_buf,
-          "tt.output_buffer",
-          StringImm(output_buf->name_hint),
-          annotated
-        );
-
-        // Annotate input buffers
-        annotated = AttrStmt(
-          input_bufs[0],
-          "tt.input_buffers",
-          Array<PrimExpr>{input_bufs[0], input_bufs[1]},
-          annotated
-        );
-
-        // Annotate K-loop
-        PrimExpr matmul_id = IntImm(DataType::Int(32), matmul_count_++);
-        annotated = AttrStmt(
-          op->loop_var,
-          "tt.matmul_k_loop",
-          matmul_id,
-          annotated
-        );
-
-        // Return new For with annotated body
-        return For(
-          op->loop_var,
-          op->min,
-          op->extent,
-          op->kind,
-          annotated
-        );
-      }
-    }
-
-    // Pattern 2: Element-wise tile operations
-    if (IsOuterTileLoop(op)) {
-      ElementwisePatternMatcher matcher;
-      if (matcher.Match(op->body)) {
-        // Annotate element-wise operation
-        PrimExpr eltwise_id = IntImm(DataType::Int(32), eltwise_count_++);
-        Stmt annotated = AttrStmt(
-          op->loop_var,
-          "tt.elementwise_op",
-          eltwise_id,
-          op->body
-        );
-
-        return For(
-          op->loop_var,
-          op->min,
-          op->extent,
-          op->kind,
-          annotated
-        );
-      }
-    }
-
-    return StmtMutator::VisitStmt_(op);
-  }
-
- private:
-  bool IsKLoop(const std::string& var_name) const {
-    return var_name == "kt" || var_name == "k" ||
-           var_name.find("_k") != std::string::npos;
-  }
-
-  bool IsOuterTileLoop(const ForNode* op) const {
-    // Check if this is the outer loop of a tile operation
-    // (typically 'i' iterating 0 to 32 or similar)
-    return op->extent.as<IntImmNode>() &&
-           op->extent.as<IntImmNode>()->value == 32;
-  }
-};
-```
-
-**Pattern Matchers:**
-
-```cpp
-class MatmulPatternMatcher : public StmtExprVisitor {
- public:
-  bool Match(const Stmt& stmt) {
-    VisitStmt(stmt);
-    return matched_;
-  }
-
-  Var GetBufferA() const { return buffer_a_; }
-  Var GetBufferB() const { return buffer_b_; }
-  Var GetBufferC() const { return buffer_c_; }
-
- private:
-  void VisitStmt_(const BufferStoreNode* op) override {
-    // Look for: C[m,n] = ... or C[m,n] += ...
-    buffer_c_ = op->buffer->data;
-
-    // Analyze RHS to find A[m,k] * B[k,n] pattern
-    if (auto* add = op->value.as<AddNode>()) {
-      if (auto* mul = add->b.as<MulNode>()) {
-        // Found += pattern
-        AnalyzeMultiply(mul);
-      }
-    } else if (auto* mul = op->value.as<MulNode>()) {
-      // Found = pattern
-      AnalyzeMultiply(mul);
-    }
-  }
-
-  void AnalyzeMultiply(const MulNode* mul) {
-    // Check if LHS is A[m,k] and RHS is B[k,n]
-    if (auto* load_a = mul->a.as<BufferLoadNode>()) {
-      if (auto* load_b = mul->b.as<BufferLoadNode>()) {
-        buffer_a_ = load_a->buffer->data;
-        buffer_b_ = load_b->buffer->data;
-        matched_ = true;
-      }
-    }
-  }
-
-  bool matched_ = false;
-  Var buffer_a_;
-  Var buffer_b_;
-  Var buffer_c_;
-};
-```
-
-**Subtasks:**
-- [ ] Implement MatmulPatternMatcher
-- [ ] Implement ElementwisePatternMatcher
-- [ ] Add annotation creation logic
-- [ ] Add tests for pattern detection
-- [ ] Verify annotations appear in IR dump
-
-**Estimated Effort:** 2-3 days
+**Root Cause**: Pattern detection happens in codegen visitor instead of transform pass.
 
 ---
 
-### Task 2: Update Compute Visitor to Read Annotations
+## Implementation Priority
 
-**File:** `src/target/tt/codegen_tt_compute_visitor.cc`
+### Priority 1: Tensorize TT Pass (HIGH) 🔴
 
-**Current Implementation:**
+**What**: Extend `tensorize_tt.cc` to detect manual matmul and element-wise patterns
+
+**Why**: Enables codegen to emit correct intrinsics based on annotations
+
+**Status**: 🟡 Partial (only T.gemm() intrinsic calls detected)
+
+**Details**: See [passes/tensorize_tt.md](./passes/tensorize_tt.md)
+
+**Tasks**:
+1. Implement matmul pattern matcher (3-nested loop with accumulation)
+2. Implement element-wise pattern matcher (T.grid operations)
+3. Add IR annotations (AttrStmt nodes)
+4. Update tests
+
+**Estimated Effort**: 2-3 days
+
+---
+
+### Priority 2: Update Codegen to Read Annotations (MEDIUM) 🟡
+
+**What**: Modify `codegen_tt_compute_visitor.cc` to read annotations instead of using heuristics
+
+**Status**: ⏳ Pending Task 1 completion
+
+**Current Approach** (heuristics):
 ```cpp
-Stmt VisitStmt_(const ForNode* op) override {
-  std::string loop_var = op->loop_var->name_hint;
-  bool is_k_loop = (loop_var == "kt" || loop_var.find("kt") != std::string::npos);
-
-  if (is_k_loop) {
-    // Emit scaffolding
-    EmitLine("for (...) {");
-    VisitStmt(op->body);  // ❌ Emits raw IR
-    EmitLine("}");
-  }
+// BAD: Detects K-loop via variable name
+if (loop_var_name.find("kt") != std::string::npos) {
+  // Assume it's a K-loop for matmul
 }
 ```
 
-**What to Change:**
-
+**Target Approach** (annotation-driven):
 ```cpp
-Stmt VisitStmt_(const ForNode* op) override {
-  // Check if body has tt.matmul_k_loop annotation
-  if (auto* attr = op->body.as<AttrStmtNode>()) {
-    if (attr->attr_key == "tt.matmul_k_loop") {
-      EmitMatmulKLoop(op, attr);
-      return;  // Don't visit body!
-    }
-    else if (attr->attr_key == "tt.elementwise_op") {
-      EmitElementwiseOp(op, attr);
-      return;  // Don't visit body!
-    }
-  }
+// GOOD: Reads annotation from IR
+if (HasAttribute(loop, "tt.matmul_k_loop")) {
+  // Read buffer names from annotations
+  auto input_bufs = GetAttribute(loop, "tt.input_buffers");
+  auto output_buf = GetAttribute(loop, "tt.output_buffer");
 
-  // Fallback: visit normally (for non-annotated loops)
-  return StmtMutator::VisitStmt_(op);
-}
-
-void EmitMatmulKLoop(const ForNode* loop, const AttrStmtNode* attr) {
-  std::string loop_var = loop->loop_var->name_hint;
-
-  // Emit DST lifecycle (if not already emitted)
-  if (!dst_acquired_) {
-    EmitLine("// Acquire tile registers for matmul accumulation");
-    EmitTileRegsAcquire();
-  }
-
-  if (!matmul_init_emitted_) {
-    EmitLine("// Initialize matmul (once before all loops)");
-    EmitLine("mm_init(cb_in0, cb_in1, cb_out0);");
-    matmul_init_emitted_ = true;
-  }
-
-  // Emit K-loop header
-  EmitLine("// K-loop: C[m,n] += sum(A[m,k] * B[k,n] for k in Kt)");
-  EmitLine("for (uint32_t " + loop_var + " = 0; " +
-           loop_var + " < Kt; ++" + loop_var + ") {");
-  indent_++;
-
-  // ✅ Emit intrinsics instead of visiting body
-  EmitLine("// Wait for input tiles in circular buffers");
-  EmitLine("cb_wait_front(cb_in0, 1);");
-  EmitLine("cb_wait_front(cb_in1, 1);");
-  EmitLine("");
-  EmitLine("// Perform tile matmul: accumulate if k > 0");
-  EmitLine("bool accumulate = (" + loop_var + " > 0);");
-  EmitLine("matmul_tiles(cb_in0, cb_in1, 0, 0, 0, accumulate);");
-  EmitLine("");
-  EmitLine("// Pop consumed tiles");
-  EmitLine("cb_pop_front(cb_in0, 1);");
-  EmitLine("cb_pop_front(cb_in1, 1);");
-
-  indent_--;
-  EmitLine("}");
-
-  // After K-loop: commit and pack result
-  EmitLine("");
-  EmitLine("// Commit tile register computation");
-  EmitLine("tile_regs_commit();");
-  EmitLine("// Wait for tile register computation to complete");
-  EmitLine("tile_regs_wait();");
-  EmitLine("// Pack result to output circular buffer");
-  EmitLine("cb_reserve_back(cb_out0, 1);");
-  EmitLine("pack_tile(0, cb_out0);");
-  EmitLine("cb_push_back(cb_out0, 1);");
-  EmitLine("// Release tile registers");
-  EmitLine("tile_regs_release();");
-}
-
-void EmitElementwiseOp(const ForNode* loop, const AttrStmtNode* attr) {
-  // Similar implementation for element-wise operations
-  // ...
+  // Emit intrinsics based on annotations
+  EmitMatmulIntrinsics(input_bufs, output_buf);
 }
 ```
 
-**Subtasks:**
-- [ ] Add annotation checking in VisitStmt_(ForNode*)
-- [ ] Implement EmitMatmulKLoop()
-- [ ] Implement EmitElementwiseOp()
-- [ ] Remove heuristic-based K-loop detection
-- [ ] Update tests to verify intrinsic emission
+**File**: `src/target/tt/codegen_tt_compute_visitor.cc`
 
-**Estimated Effort:** 1-2 days
+**Estimated Effort**: 1-2 days
 
 ---
 
-### Task 3: Add Tests for Annotated IR
+### Priority 3: Add Integration Tests (MEDIUM) 🟡
 
-**File:** `testing/python/tt/test_tensorize_tt.py` (new)
+**What**: End-to-end tests for annotated IR → correct codegen
 
-**Test Cases:**
+**Status**: ⏳ Pending Task 1-2 completion
 
-```python
-def test_tensorize_matmul_k_loop():
-    """Test that tensorize_tt annotates K-loops correctly."""
+**Test Cases**:
+1. Manual matmul loop → matmul_tiles intrinsic
+2. Element-wise add → add_tiles intrinsic
+3. Mixed patterns in single kernel
+4. Verify no heuristics remain in codegen
 
-    @T.prim_func
-    def matmul_manual(
-        A: T.Buffer((256, 256), "float16"),
-        B: T.Buffer((256, 256), "float16"),
-        C: T.Buffer((256, 256), "float16")
-    ):
-        with T.Kernel(8, 8) as (bx, by):
-            for kt in T.serial(8):  # K-loop
-                for i, j in T.Parallel(32, 32):
-                    C[bx*32+i, by*32+j] += A[bx*32+i, kt*32+j] * B[kt*32+i, by*32+j]
+**File**: `testing/python/tt/test_ir_to_codegen_integration.py` (new)
 
-    # Apply TT lowering pipeline through tensorize_tt
-    mod = IRModule({"main": matmul_manual})
-    mod = apply_tt_defaults(mod)
-    # ... (other passes)
-    mod = tensorize_tt(mod)
-
-    # Check IR contains annotation
-    ir_str = str(mod)
-    assert "tt.matmul_k_loop" in ir_str
-    assert "tt.input_buffers" in ir_str
-    assert "tt.output_buffer" in ir_str
-
-
-def test_tensorize_elementwise():
-    """Test that tensorize_tt annotates element-wise ops correctly."""
-
-    @T.prim_func
-    def elementwise_add(
-        A: T.Buffer((256, 256), "float16"),
-        B: T.Buffer((256, 256), "float16"),
-        C: T.Buffer((256, 256), "float16")
-    ):
-        with T.Kernel(8, 8) as (bx, by):
-            for i, j in T.Parallel(32, 32):
-                C[bx*32+i, by*32+j] = A[bx*32+i, by*32+j] + B[bx*32+i, by*32+j]
-
-    mod = IRModule({"main": elementwise_add})
-    mod = apply_tt_defaults(mod)
-    # ... (other passes)
-    mod = tensorize_tt(mod)
-
-    # Check IR contains annotation
-    ir_str = str(mod)
-    assert "tt.elementwise_op" in ir_str
-
-
-def test_codegen_emits_intrinsics():
-    """Test that codegen emits Metalium intrinsics for annotated IR."""
-
-    @T.prim_func
-    def matmul_manual(...):
-        # Same as above
-        pass
-
-    # Full pipeline
-    mod = IRModule({"main": matmul_manual})
-    artifacts = compile_to_tt(mod)
-
-    compute_kernel = artifacts["compute.cpp"]
-
-    # Verify intrinsics in generated code
-    assert "mm_init(cb_in0, cb_in1, cb_out0)" in compute_kernel
-    assert "cb_wait_front(cb_in0, 1)" in compute_kernel
-    assert "cb_wait_front(cb_in1, 1)" in compute_kernel
-    assert "matmul_tiles(cb_in0, cb_in1, 0, 0, 0, accumulate)" in compute_kernel
-    assert "cb_pop_front(cb_in0, 1)" in compute_kernel
-    assert "cb_pop_front(cb_in1, 1)" in compute_kernel
-
-    # Verify NO raw array operations inside K-loop
-    assert "C[((((((((int64)" not in compute_kernel
-```
-
-**Subtasks:**
-- [ ] Create test file
-- [ ] Add test for K-loop annotation
-- [ ] Add test for element-wise annotation
-- [ ] Add test for intrinsic emission
-- [ ] Add test for NO raw array ops in output
-
-**Estimated Effort:** 1 day
+**Estimated Effort**: 1 day
 
 ---
 
-### Task 4: Update Test Matmul to Use Real Operations
+### Priority 4: Update Example Matmul (LOW) 🟢
 
-**File:** `testing/python/tt/test_matmul_codegen.py`
+**What**: Update `examples/tenstorrent/example_matmul_tt_poc.py` to use real TileLang operations
 
-**Current Workaround:**
-```python
-# Uses for kt in T.serial(1) with element-wise add to trigger K-loop detection
-```
+**Status**: ⏳ Pending Task 1-3 completion
 
-**What to Change:**
-```python
-@T.prim_func
-def matmul_256x256_real(
-    A: T.Buffer((256, 256), "float16"),
-    B: T.Buffer((256, 256), "float16"),
-    C: T.Buffer((256, 256), "float16")
-):
-    """Real matmul with accumulation loop."""
-    with T.Kernel(T.ceildiv(256, 32), T.ceildiv(256, 32)) as (bx, by):
-        # Allocate accumulator
-        C_tile = T.alloc_fragment((32, 32), "float16", scope="local")
+**Current**: Uses placeholder operations
+**Target**: Uses actual `T.gemm()` or manual loops
 
-        # Clear accumulator
-        for i, j in T.Parallel(32, 32):
-            C_tile[i, j] = T.float16(0)
+**File**: `examples/tenstorrent/example_matmul_tt_poc.py`
 
-        # K-loop with accumulation
-        for kt in T.serial(T.ceildiv(256, 32)):  # 8 iterations
-            for i, j in T.Parallel(32, 32):
-                # Load A tile
-                a_val = A[bx * 32 + i, kt * 32 + j]
-                # Load B tile
-                b_val = B[kt * 32 + i, by * 32 + j]
-                # Accumulate
-                C_tile[i, j] += a_val * b_val
-
-        # Store result
-        for i, j in T.Parallel(32, 32):
-            C[bx * 32 + i, by * 32 + j] = C_tile[i, j]
-```
-
-**Subtasks:**
-- [ ] Remove workaround comment
-- [ ] Use real K-loop with accumulation
-- [ ] Verify pattern detection works
-- [ ] Update validation checks
-
-**Estimated Effort:** 0.5 days
+**Estimated Effort**: 0.5 days
 
 ---
-
-## Implementation Order
-
-1. **Task 3** (Tests) - Write tests first (TDD approach)
-2. **Task 1** (TensorizeTT) - Implement pattern detection
-3. **Task 2** (Codegen) - Update codegen to read annotations
-4. **Task 4** (Test Update) - Use real matmul operations
 
 ## Success Criteria
 
-- [ ] `tensorize_tt` pass annotates K-loops with `tt.matmul_k_loop`
-- [ ] `tensorize_tt` pass annotates element-wise ops with `tt.elementwise_op`
-- [ ] Compute visitor emits Metalium intrinsics for annotated loops
-- [ ] Generated compute kernel has NO raw array operations
-- [ ] Generated compute kernel has correct intrinsic calls:
-  - `mm_init()`
-  - `cb_wait_front()`
-  - `matmul_tiles()`
-  - `cb_pop_front()`
-- [ ] All 95+ tests pass
-- [ ] New tests for tensorization pass
+**Task 1 (Tensorize TT)**:
+- [ ] Detects manual matmul loops (3-nested with accumulation)
+- [ ] Detects element-wise operations (T.grid patterns)
+- [ ] Generates correct nested annotations
+- [ ] Existing tests pass + new pattern detection tests pass
+
+**Task 2 (Update Codegen)**:
+- [ ] Codegen reads annotations (no heuristics)
+- [ ] Emits `matmul_tiles()` for annotated matmul
+- [ ] Emits `add_tiles()` for annotated element-wise
+- [ ] Emits correct CB operations (wait/pop)
+- [ ] Generated code matches Metalium examples
+
+**Task 3 (Integration Tests)**:
+- [ ] IR → codegen pipeline tested end-to-end
+- [ ] All patterns covered
+- [ ] No regressions in existing tests
+
+**Task 4 (Example Update)**:
+- [ ] Example uses real operations
+- [ ] Generates correct Metalium code
+- [ ] Demonstrates full pipeline
+
+---
 
 ## Timeline
 
-**Total Estimated Effort:** 5-6 days
+| Task | Estimated | Dependencies |
+|------|-----------|--------------|
+| Task 1: Extend tensorize_tt | 2-3 days | None |
+| Task 2: Update codegen | 1-2 days | Task 1 |
+| Task 3: Integration tests | 1 day | Tasks 1-2 |
+| Task 4: Update example | 0.5 days | Tasks 1-3 |
+| **Total** | **4.5-6.5 days** | Sequential |
 
-- Day 1: Task 3 (write tests)
-- Day 2-3: Task 1 (pattern detection in tensorize_tt)
-- Day 4: Task 2 (update codegen)
-- Day 5: Task 4 (update test matmul)
-- Day 6: Integration and debugging
+---
+
+## Detailed Pass Documentation
+
+For detailed specifications, implementation notes, and tests for each transform pass, see:
+
+- **Metadata Inference**:
+  - [infer_default_tt_schedule.md](./passes/infer_default_tt_schedule.md) - Per-core tile assignment
+  - [infer_default_tt_shard.md](./passes/infer_default_tt_shard.md) - DRAM layout descriptors
+
+- **Transform Pipeline**:
+  - [grid_to_persistent_tt.md](./passes/grid_to_persistent_tt.md) - Grid → persistent loop
+  - [tt_shard_to_core_map.md](./passes/tt_shard_to_core_map.md) - Shard → NOC coordinates
+  - [memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) - DRAM → L1 circular buffers
+  - [tile_pad_tt.md](./passes/tile_pad_tt.md) - Tile alignment (32×32)
+  - [tensorize_tt.md](./passes/tensorize_tt.md) - Pattern detection & annotation ⭐
+  - [verify_tt_ir.md](./passes/verify_tt_ir.md) - Constraint verification
+
+---
 
 ## Related Documents
 
 - [IR Lowering Analysis](./IR_LOWERING_ANALYSIS.md) - Detailed analysis of GPU vs TT
 - [PASS_TABLE.md](./PASS_TABLE.md) - Complete pass reference (60+ passes)
-- [Unified Matmul MVP Plan](./UNIFIED_MATMUL_MVP_PLAN.md) - Original MVP plan
+- [TT_ARCHITECTURE.md](./TT_ARCHITECTURE.md) - Complete TT backend architecture
+
+---
+
+**Last Updated**: 2025-10-09

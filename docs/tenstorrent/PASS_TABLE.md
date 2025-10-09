@@ -150,10 +150,10 @@ Applied only for Tenstorrent target via `OptimizeForTargetTT()`.
 
 ### Metadata Inference: Schedule and Sharding Inference
 
-| Pass | Category | Input IR | Output IR | Purpose | File |
-|------|----------|----------|-----------|---------|------|
-| **infer_default_tt_schedule** | Device | Grid kernel | Kernel + schedule | Compute per-core tile ranges | `src/transform/tt/infer_tt_schedule.cc` |
-| **infer_default_tt_shard** | Memory | Buffers | Buffers + shard | Generate DRAM layout descriptors | `src/transform/tt/infer_tt_shard.cc` |
+| Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
+|------|--------|----------|----------|-----------|---------|---------------|
+| **infer_default_tt_schedule** | ✅ Complete | Device | Grid kernel | Kernel + schedule | Compute per-core tile ranges | [📄 Doc](./passes/infer_default_tt_schedule.md) |
+| **infer_default_tt_shard** | ✅ Complete | Memory | Buffers | Buffers + shard | Generate DRAM layout descriptors | [📄 Doc](./passes/infer_default_tt_shard.md) |
 
 **Annotations Added:**
 ```python
@@ -174,14 +174,14 @@ Applied only for Tenstorrent target via `OptimizeForTargetTT()`.
 
 ### Transform Pipeline: TIR Transformations
 
-| Pass | Category | Input IR | Output IR | Purpose | File |
-|------|----------|----------|-----------|---------|------|
-| **grid_to_persistent_tt** | Device | GPU grid kernel | TT persistent kernel | Transform grid → persistent loop | `src/transform/tt/grid_to_persistent_tt.cc` |
-| **tt_shard_to_core_map** | Device | Shard IDs | Core (x, y) coords | Map shards to NOC grid | `src/transform/tt/tt_shard_to_core_map.cc` |
-| **memory_space_lower_tt** | Memory | DRAM buffers | L1 circular buffers | Lower DRAM → L1 CB | `src/transform/tt/memory_space_lower_tt.cc` |
-| **tile_pad_tt** | Memory | Arbitrary shapes | Tile-aligned shapes | Pad to 32×32 tiles | `src/transform/tt/tile_pad_tt.cc` |
-| **tensorize_tt** | Device | Loops | Loops + intrinsic annos | Detect patterns, annotate | `src/transform/tt/tensorize_tt.cc` |
-| **verify_tt_ir** | Verification | TT IR | Verified TT IR | Verify TT constraints | `src/transform/tt/verify_tt_ir.cc` |
+| Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
+|------|--------|----------|----------|-----------|---------|---------------|
+| **grid_to_persistent_tt** | ✅ Complete | Device | GPU grid kernel | TT persistent kernel | Transform grid → persistent loop | [📄 Doc](./passes/grid_to_persistent_tt.md) |
+| **tt_shard_to_core_map** | ✅ Complete | Device | Shard IDs | Core (x, y) coords | Map shards to NOC grid | [📄 Doc](./passes/tt_shard_to_core_map.md) |
+| **memory_space_lower_tt** | ✅ Complete | Memory | DRAM buffers | L1 circular buffers | Lower DRAM → L1 CB | [📄 Doc](./passes/memory_space_lower_tt.md) |
+| **tile_pad_tt** | ✅ Complete | Memory | Arbitrary shapes | Tile-aligned shapes | Pad to 32×32 tiles | [📄 Doc](./passes/tile_pad_tt.md) |
+| **tensorize_tt** | 🟡 Partial | Device | Loops | Loops + intrinsic annos | Detect patterns, annotate | [📄 Doc](./passes/tensorize_tt.md) |
+| **verify_tt_ir** | ✅ Complete | Verification | TT IR | Verified TT IR | Verify TT constraints | [📄 Doc](./passes/verify_tt_ir.md) |
 
 **Example Transform (grid_to_persistent_tt):**
 
