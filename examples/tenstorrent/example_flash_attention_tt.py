@@ -24,10 +24,10 @@ def flash_attention_tt(Q: T.Buffer((256, 64), "float16"), K: T.Buffer((256, 64),
     """FlashAttention: O = softmax(Q @ K^T) @ V (Phase 4.1 foundation)"""
     with T.Kernel(T.ceildiv(256, 32), T.ceildiv(64, 32)) as (bx, by):
         Q_tile = T.alloc_fragment((32, 32), "float16")
-        K_tile = T.alloc_fragment((32, 32), "float16")
-        V_tile = T.alloc_fragment((32, 32), "float16")
+        T.alloc_fragment((32, 32), "float16")
+        T.alloc_fragment((32, 32), "float16")
         S_tile = T.alloc_fragment((32, 32), "float16")
-        O_tile = T.alloc_fragment((32, 32), "float16")
+        T.alloc_fragment((32, 32), "float16")
 
         # Simplified FlashAttention pattern
         # Full implementation requires online softmax normalization

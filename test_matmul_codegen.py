@@ -45,7 +45,7 @@ def matmul_256x256(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "
     """
     with T.Kernel(T.ceildiv(256, 32), T.ceildiv(256, 32)) as (bx, by):
         # K-loop with 'kt' variable name to trigger matmul pattern detection
-        for kt in T.serial(1):  # Simplified: only 1 iteration to avoid complex reduction
+        for _kt in T.serial(1):  # Simplified: only 1 iteration to avoid complex reduction
             # Tile-level element-wise operation
             for i, j in T.Parallel(32, 32):
                 C[bx * 32 + i, by * 32 + j] = (

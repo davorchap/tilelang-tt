@@ -173,7 +173,7 @@ def test_verify_tt_ir_large_grid_warning():
     func = mod["main"]
 
     # May pass validation but should have warnings
-    warning_count = int(func.attrs["tt_validation_warning_count"])
+    int(func.attrs["tt_validation_warning_count"])
     # Large grid dimensions may trigger warnings (implementation dependent)
     # Just verify warning_count exists and is accessible
 

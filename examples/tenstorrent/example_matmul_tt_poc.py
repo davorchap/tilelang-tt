@@ -28,8 +28,8 @@ except ImportError:
 
 
 @T.prim_func
-def matmul_tt(A: T.Buffer[(256, 256), "float16"], B: T.Buffer[(256, 256), "float16"],
-              C: T.Buffer[(256, 256), "float16"]):
+def matmul_tt(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"), C: T.Buffer(
+    (256, 256), "float16")):
     """
     Simple matmul kernel for Tenstorrent backend.
 
