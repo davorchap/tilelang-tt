@@ -61,7 +61,7 @@ cores and report inconsistencies.
 ## Tests
 
 - `testing/python/tt/test_layout_aware_metadata.py` ensures metadata is present.
-- `testing/python/tt/test_ws3_grid_to_persistent.py` verifies persistent
+- `testing/python/tt/test_persistent_lowering.py` verifies persistent
   lowering consumes the canonical runtime argument list.
 
 Additional shard-aware tests will arrive alongside the `local_shard` feature.

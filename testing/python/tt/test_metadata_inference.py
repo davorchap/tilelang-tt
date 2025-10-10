@@ -216,7 +216,7 @@ class TestShardInference:
 class TestMetadataInferenceStageIntegration:
     """Test integration of TT defaults stage + metadata inference stage passes."""
 
-    def test_full_ws2_pipeline(self):
+    def test_full_metadata_inference_pipeline(self):
         """Test full TT defaults stage -> metadata inference stage pipeline on realistic GEMM."""
 
         @T.prim_func
@@ -252,7 +252,7 @@ class TestMetadataInferenceStageIntegration:
         assert "tt_buffer_A_tile_shape" in func.attrs
         assert "tt_buffer_A_num_tiles_height" in func.attrs
 
-    def test_ws2_convenience_function(self):
+    def test_metadata_inference_convenience_function(self):
         """Test the apply_tt_metadata_passes convenience function."""
 
         @T.prim_func
