@@ -1,6 +1,5 @@
 """Test TTWriterCodegenVisitor (Task 4: IR-Driven Codegen)."""
 
-import pytest
 import tvm
 from tvm import tir
 

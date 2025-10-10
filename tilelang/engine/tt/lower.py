@@ -121,8 +121,7 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     # TT supports vectorization with 32-element tiles
     pass_ctx = tilelang.transform.get_pass_context()
     from tilelang.engine.phase import allow_vectorize
-    mod = tilelang.transform.VectorizeLoop(
-        enable_vectorize=allow_vectorize(pass_ctx=pass_ctx))(mod)
+    mod = tilelang.transform.VectorizeLoop(enable_vectorize=allow_vectorize(pass_ctx=pass_ctx))(mod)
 
     # Rewrite storage allocations for better memory usage
     # Should work with TT's circular buffer model

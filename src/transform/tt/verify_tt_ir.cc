@@ -86,7 +86,7 @@ bool CheckAttribute(const PrimFunc& f, const std::string& key, ValidationResult&
 /*!
  * \brief Validate TT Defaults stage metadata
  */
-void ValidateTT Defaults stage(const PrimFunc& f, ValidationResult& result) {
+void ValidateTTDefaultsStage(const PrimFunc& f, ValidationResult& result) {
   CheckAttribute<String>(f, "tt_schedule_policy", result);
   CheckAttribute<String>(f, "tt_schedule_order", result);
   CheckAttribute<String>(f, "tt_layout_type", result);
@@ -97,7 +97,7 @@ void ValidateTT Defaults stage(const PrimFunc& f, ValidationResult& result) {
 /*!
  * \brief Validate Metadata Inference stage metadata
  */
-void ValidateMetadata Inference stage(const PrimFunc& f, ValidationResult& result) {
+void ValidateMetadataInferenceStage(const PrimFunc& f, ValidationResult& result) {
   CheckAttribute<Integer>(f, "tt_grid_x", result);
   CheckAttribute<Integer>(f, "tt_grid_y", result);
   CheckAttribute<Integer>(f, "tt_num_tiles", result);
@@ -163,7 +163,7 @@ void ValidateMetadata Inference stage(const PrimFunc& f, ValidationResult& resul
 /*!
  * \brief Validate Persistent Transform stage transformation metadata
  */
-void ValidatePersistent Transform stage(const PrimFunc& f, ValidationResult& result) {
+void ValidatePersistentTransformStage(const PrimFunc& f, ValidationResult& result) {
   // Check for persistent loop marker
   auto persistent = f->attrs.GetAttr<Bool>("tt_persistent_loop");
   if (!persistent.defined()) {
@@ -230,9 +230,9 @@ PrimFunc VerifyTTIRImpl(PrimFunc f) {
   ValidationResult result;
   result.is_valid = true;
 
-  ValidateTT Defaults stage(f, result);
-  ValidateMetadata Inference stage(f, result);
-  ValidatePersistent Transform stage(f, result);
+  ValidateTTDefaultsStage(f, result);
+  ValidateMetadataInferenceStage(f, result);
+  ValidatePersistentTransformStage(f, result);
 
   // Step 3: Log results
   if (!result.errors.empty()) {

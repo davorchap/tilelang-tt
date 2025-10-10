@@ -30,16 +30,13 @@ for (tile_id in tiles) {
 """
 
 import tvm
-from tvm import tir
 import tilelang.language as T
 import tilelang.tt as tt
 
+
 @T.prim_func
-def elementwise_add_tt(
-    A: T.Buffer((256, 256), "float16"),
-    B: T.Buffer((256, 256), "float16"),
-    C: T.Buffer((256, 256), "float16")
-):
+def elementwise_add_tt(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                       C: T.Buffer((256, 256), "float16")):
     """
     Elementwise addition for Tenstorrent backend.
 
@@ -58,10 +55,10 @@ def elementwise_add_tt(
         C_tile = T.alloc_fragment((32, 32), "float16")
 
         # Load A[by, bx] tile from DRAM
-        T.copy(A[by * 32:(by+1)*32, bx * 32:(bx+1)*32], A_tile)
+        T.copy(A[by * 32:(by + 1) * 32, bx * 32:(bx + 1) * 32], A_tile)
 
         # Load B[by, bx] tile from DRAM
-        T.copy(B[by * 32:(by+1)*32, bx * 32:(bx+1)*32], B_tile)
+        T.copy(B[by * 32:(by + 1) * 32, bx * 32:(bx + 1) * 32], B_tile)
 
         # Compute C = A + B (element-wise)
         # This should generate: add_tiles_init(); add_tiles(CB_A, CB_B, 0, 0, 0);
@@ -69,11 +66,13 @@ def elementwise_add_tt(
             C_tile[i, j] = A_tile[i, j] + B_tile[i, j]
 
         # Store result tile to DRAM
-        T.copy(C_tile, C[by * 32:(by+1)*32, bx * 32:(bx+1)*32])
+        T.copy(C_tile, C[by * 32:(by + 1) * 32, bx * 32:(bx + 1) * 32])
+
 
 def create_elementwise_add_module(M=256, N=256):
     """Create TileLang IR for elementwise add."""
     return tvm.IRModule({"main": elementwise_add_tt})
+
 
 def main():
     print("=" * 70)
@@ -136,6 +135,7 @@ def main():
     else:
         print("❌ FAIL: No DST double buffering found")
         return 1
+
 
 if __name__ == "__main__":
     exit(main())

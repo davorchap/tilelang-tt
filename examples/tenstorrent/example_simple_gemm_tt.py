@@ -49,16 +49,13 @@ pattern: GEMM with K-loop accumulation.
 """
 
 import tvm
-from tvm import tir
 import tilelang.language as T
 import tilelang.tt as tt
 
+
 @T.prim_func
-def simple_gemm_tt(
-    A: T.Buffer((256, 256), "float16"),
-    B: T.Buffer((256, 256), "float16"),
-    C: T.Buffer((256, 256), "float16")
-):
+def simple_gemm_tt(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                   C: T.Buffer((256, 256), "float16")):
     """
     Simple GEMM for Tenstorrent backend.
 
@@ -88,20 +85,22 @@ def simple_gemm_tt(
         # K-loop for matrix multiplication
         for k in T.serial(T.ceildiv(256, 32)):
             # Load A[bx, k] tile
-            T.copy(A[bx * 32:(bx+1)*32, k * 32:(k+1)*32], A_shared)
+            T.copy(A[bx * 32:(bx + 1) * 32, k * 32:(k + 1) * 32], A_shared)
 
             # Load B[k, by] tile
-            T.copy(B[k * 32:(k+1)*32, by * 32:(by+1)*32], B_shared)
+            T.copy(B[k * 32:(k + 1) * 32, by * 32:(by + 1) * 32], B_shared)
 
             # Compute: C_local += A_shared @ B_shared
             T.gemm(A_shared, B_shared, C_local, transpose_A=False, transpose_B=False)
 
         # Store result
-        T.copy(C_local, C[bx * 32:(bx+1)*32, by * 32:(by+1)*32])
+        T.copy(C_local, C[bx * 32:(bx + 1) * 32, by * 32:(by + 1) * 32])
+
 
 def create_simple_gemm_module(M=256, K=256, N=256):
     """Create TileLang IR for simple GEMM."""
     return tvm.IRModule({"main": simple_gemm_tt})
+
 
 def main():
     print("=" * 70)
@@ -231,6 +230,7 @@ def main():
     else:
         print()
         print("⚠ PARTIAL: Significant work needed")
+
 
 if __name__ == "__main__":
     main()

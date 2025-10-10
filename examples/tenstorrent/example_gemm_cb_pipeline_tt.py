@@ -78,16 +78,13 @@ by the compiler, ready for hardware execution.
 """
 
 import tvm
-from tvm import tir
 import tilelang.language as T
 import tilelang.tt as tt
 
+
 @T.prim_func
-def gemm_cb_pipeline_tt(
-    A: T.Buffer((256, 256), "float16"),
-    B: T.Buffer((256, 256), "float16"),
-    C: T.Buffer((256, 256), "float16")
-):
+def gemm_cb_pipeline_tt(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                        C: T.Buffer((256, 256), "float16")):
     """
     GEMM with CB double-buffering for Tenstorrent backend.
 
@@ -108,11 +105,12 @@ def gemm_cb_pipeline_tt(
 
         # K-loop enables CB pipelining
         for k in T.serial(T.ceildiv(256, 32)):
-            T.copy(A[bx * 32:(bx+1)*32, k * 32:(k+1)*32], A_shared)
-            T.copy(B[k * 32:(k+1)*32, by * 32:(by+1)*32], B_shared)
+            T.copy(A[bx * 32:(bx + 1) * 32, k * 32:(k + 1) * 32], A_shared)
+            T.copy(B[k * 32:(k + 1) * 32, by * 32:(by + 1) * 32], B_shared)
             T.gemm(A_shared, B_shared, C_local, transpose_A=False, transpose_B=False)
 
-        T.copy(C_local, C[bx * 32:(bx+1)*32, by * 32:(by+1)*32])
+        T.copy(C_local, C[bx * 32:(bx + 1) * 32, by * 32:(by + 1) * 32])
+
 
 def main():
     print("=" * 70)
@@ -225,6 +223,7 @@ def main():
     else:
         print()
         print("⚠ PARTIAL: Some CB pipelining checks failed")
+
 
 if __name__ == "__main__":
     main()

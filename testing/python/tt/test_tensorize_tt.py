@@ -3,7 +3,6 @@
 This pass lowers high-level matmul operations to TT intrinsics.
 """
 
-import pytest
 import tvm
 from tvm import tir
 

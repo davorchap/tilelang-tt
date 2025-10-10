@@ -3,7 +3,6 @@
 This pass maps logical tile assignments to physical core coordinates.
 """
 
-import pytest
 import tvm
 from tvm import tir
 

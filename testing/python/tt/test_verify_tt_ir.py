@@ -3,7 +3,6 @@
 This pass validates that transformed TT IR has all required metadata.
 """
 
-import pytest
 import tvm
 from tvm import tir
 
@@ -142,7 +141,8 @@ def test_verify_tt_ir_detects_missing_ws1():
 
     # Should detect missing TT defaults stage attributes
     assert "tt_ir_validated" in func.attrs, "Should have validation result"
-    assert not bool(func.attrs["tt_ir_validated"]), "Validation should fail with missing TT defaults stage"
+    assert not bool(
+        func.attrs["tt_ir_validated"]), "Validation should fail with missing TT defaults stage"
     assert int(func.attrs["tt_validation_error_count"]) > 0, "Should have errors"
 
 
@@ -157,7 +157,8 @@ def test_verify_tt_ir_detects_missing_ws2():
     func = mod["main"]
 
     # Should detect missing metadata inference stage attributes
-    assert not bool(func.attrs["tt_ir_validated"]), "Validation should fail with missing metadata inference stage"
+    assert not bool(func.attrs["tt_ir_validated"]
+                   ), "Validation should fail with missing metadata inference stage"
     assert int(func.attrs["tt_validation_error_count"]) > 0, "Should have errors"
 
 

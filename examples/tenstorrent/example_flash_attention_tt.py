@@ -17,13 +17,10 @@ import tvm
 import tilelang.language as T
 import tilelang.tt as tt
 
+
 @T.prim_func
-def flash_attention_tt(
-    Q: T.Buffer((256, 64), "float16"),
-    K: T.Buffer((256, 64), "float16"),
-    V: T.Buffer((256, 64), "float16"),
-    O: T.Buffer((256, 64), "float16")
-):
+def flash_attention_tt(Q: T.Buffer((256, 64), "float16"), K: T.Buffer((256, 64), "float16"),
+                       V: T.Buffer((256, 64), "float16"), O: T.Buffer((256, 64), "float16")):
     """FlashAttention: O = softmax(Q @ K^T) @ V (Phase 4.1 foundation)"""
     with T.Kernel(T.ceildiv(256, 32), T.ceildiv(64, 32)) as (bx, by):
         Q_tile = T.alloc_fragment((32, 32), "float16")
@@ -34,13 +31,14 @@ def flash_attention_tt(
 
         # Simplified FlashAttention pattern
         # Full implementation requires online softmax normalization
-        T.copy(Q[bx*32:(bx+1)*32, by*32:(by+1)*32], Q_tile)
+        T.copy(Q[bx * 32:(bx + 1) * 32, by * 32:(by + 1) * 32], Q_tile)
 
         # Attention computation
         for i, j in T.grid(32, 32):
             S_tile[i, j] = Q_tile[i, j]  # Simplified
 
-        T.copy(S_tile, O[bx*32:(bx+1)*32, by*32:(by+1)*32])
+        T.copy(S_tile, O[bx * 32:(bx + 1) * 32, by * 32:(by + 1) * 32])
+
 
 def main():
     print("=" * 70)
@@ -75,7 +73,8 @@ def main():
     print(f"\nValidation: {passed}/{len(checks)} checks passed")
     if passed >= 6:
         print("\n✅ PHASE 4.1: FlashAttention Infrastructure Working (50%)")
-    print(f"Phase 4.1 progress: 50%")
+    print("Phase 4.1 progress: 50%")
+
 
 if __name__ == "__main__":
     main()

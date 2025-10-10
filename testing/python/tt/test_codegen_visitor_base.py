@@ -229,9 +229,9 @@ if __name__ == "__main__":
 
     print("Running parametrized tests...")
     for dtype, expected_size in [
-            ("float16", 2),
-            ("float32", 4),
-            ("int32", 4),
+        ("float16", 2),
+        ("float32", 4),
+        ("int32", 4),
     ]:
         test_visitor_dtype_handling(dtype, expected_size)
 
