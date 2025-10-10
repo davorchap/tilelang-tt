@@ -7,6 +7,7 @@ import tilelang.language as T
 
 from tilelang.tt import (
     annotate_tt_layout,
+    annotate_tt_schedule,
     apply_tt_defaults,
     apply_tt_metadata_passes,
     apply_layout_aware_metadata_passes,

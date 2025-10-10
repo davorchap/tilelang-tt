@@ -70,10 +70,10 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Why**: Without shard-aware lowering the new metadata is unused; codegen must rely on the canonical runtime args for determinism.
 
-**Status**: 🟡 Partial – persistent pass now reads layout metadata for global mode; shard-local + host wiring pending
+**Status**: 🟡 Partial – persistent pass handles global + basic local_shard; host/runtime wiring still pending
 
 **Tasks**:
-1. Extend persistent lowering to branch on `tt.partition_mode` and recover shard-local/global indices. ⚠️ Global path done; shard-local math still TODO
+1. Extend persistent lowering to branch on `tt_partition_mode` and recover shard-local/global indices. ✅ (local_shard math emitted; more validation still needed)
 2. Update host/kernel generation to plumb the expanded runtime arg payload, enforce TA guardrails, and refresh templates. ⛔ Not started
 3. Document the final runtime argument contract (architecture + pass docs). ⚠️ PASS_TABLE + pass doc updated; architecture doc pending
 
@@ -164,7 +164,7 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 - [ ] Documentation updated (`README`, `TT_ARCHITECTURE`) to reflect shipped behavior (PASS_TABLE updated; remaining docs pending).
 
 **Task 2 (Persistent + Codegen Updates)**:
-- [ ] `GridToPersistentTT` recovers `(m, n)` for both `global` and `local_shard` modes (global path implemented).
+- [x] `GridToPersistentTT` recovers `(m, n)` for both `global` and `local_shard` modes.
 - [ ] Host codegen builds TensorAccessor compile args from actual buffers.
 - [ ] Runtime args include shard geometry when required; guardrail prevents default TA usage.
 - [ ] Runtime argument contract documented for host + kernels.

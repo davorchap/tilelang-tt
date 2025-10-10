@@ -55,7 +55,7 @@ if mode == "global":
    - Global mode: convert `tid` into `(m, n)` using `Nt`.
    - Local shard mode: derive shard coordinates `(sy, sx)` from core position and compute global `(m, n)` from shard-local `(m_l, n_l)`, `Sm`, `Sn`.
 4. Respect the requested traversal `order` (currently `row_major`; shard-aware and `block_linear(k)` will be layered via `RasterizationTT`).
-5. Append runtime argument descriptors to `tt.runtime_args` / `tt.runtime_arg_names` in canonical order so that host codegen and kernels agree on indices.
+5. Append runtime argument descriptors to `tt.runtime_args` / `tt.runtime_arg_names` in canonical order so that host codegen and kernels agree on indices. For `local_shard`, shard coordinates are materialised as additional scalar parameters.
 
 **Runtime Arguments**:
 
@@ -66,11 +66,12 @@ if mode == "global":
 | 2 | `Mt` | Global tiles in M dimension (recorded in `tt.runtime_constants`) |
 | 3 | `Kt` | Tiles in reduction dimension (placeholder = 1 until tensorization drives it) |
 | 4 | `Nt` | Global tiles in N dimension (`tt.runtime_constants["Nt"]`) |
-| 5.. | `Sm`, `Sn`, `Gy`, `Gx`, `sy`, `sx` | Reserved for shard-aware execution (`local_shard`, TODO) |
+| 5.. | `Sm`, `Sn`, `Gy`, `Gx`, `tt_shard_coord_y`, `tt_shard_coord_x` | Present when `partition_mode="local_shard"` |
 
-Only the first two entries result in additional PrimFunc parameters today; the
-remaining names are recorded so host/codegen can align on a canonical argument
-ordering when shard-aware execution is implemented.
+The first two entries (`tt_start_tile`, `tt_tile_count`) are always appended as
+PrimFunc parameters. When `partition_mode="local_shard"`, two additional
+parameters (`tt_shard_coord_y`, `tt_shard_coord_x`) carry the shard coordinates
+for the executing core; the remaining values are kept as constants/metadata.
 
 The pass is responsible for ordering these fields and recording the argument names in `tt.runtime_args`.
 

@@ -191,7 +191,7 @@ Legacy schedule/shard passes remain for compatibility:
 
 | Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
 |------|--------|----------|----------|-----------|---------|---------------|
-| **grid_to_persistent_tt** | 🟡 Partial | Device | Persistent kernel metadata | Persistent loop + runtime metadata | Consume layout-aware attributes (global path implemented) | [📄 Doc](./passes/grid_to_persistent_tt.md) |
+| **grid_to_persistent_tt** | 🟡 Partial | Device | Persistent kernel metadata | Persistent loop + runtime metadata | Consume layout-aware attributes (global + basic local shard) | [📄 Doc](./passes/grid_to_persistent_tt.md) |
 | **tt_tiles_to_core_map** | 🟡 Legacy | Device | Tile assignments | Core (x, y) coords | Legacy NOC mapping (to be replaced) | [📄 Doc](./passes/tt_tiles_to_core_map.md) |
 | **memory_space_lower_tt** | ✅ Complete | Memory | DRAM buffers | L1 circular buffers | Lower DRAM → L1 CB (consumes `tt.cb.*`) | [📄 Doc](./passes/memory_space_lower_tt.md) |
 | **tile_pad_tt** | ✅ Complete | Memory | Arbitrary shapes | Tile-aligned shapes | Pad to 32×32 tiles | [📄 Doc](./passes/tile_pad_tt.md) |
