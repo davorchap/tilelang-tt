@@ -1,6 +1,6 @@
 # InferTTLayout Pass
 
-**Status**: 🟡 Partial (defaults only)  
+**Status**: 🟡 Partial (defaults + N-D projection)  
 **Priority**: P0  
 **File**: Python helper in `tilelang/tt/passes.py`
 
@@ -9,76 +9,85 @@
 ## Purpose
 
 Normalize user-provided layout annotations into canonical `tt.buffer.<name>`
-attributes. The current Python implementation establishes sensible defaults,
-bridging `annotate_tt_layout` hints to backend metadata:
+attributes. The pass now:
 
 - Records memory space, layout kind, dtype, and tile shape for every buffer.
-- Accepts explicit overrides when the user supplies `tt.user_layout`.
-- Defers N‑D shard projection, L1-capacity checks, and halo diagnostics to
-  future iterations.
+- Accepts explicit overrides via `annotate_tt_layout`.
+- Projects N‑D sharding metadata onto the 2‑D compute plane (`projected_grid`
+  and `projected_shard_tiles`).
+- Enforces basic L1 shard guardrails (tile alignment) and rejects unsupported
+  hints such as halo regions.
 
 ---
 
 ## Metadata Written
 
-Each buffer currently receives a simple dictionary:
+Each buffer receives a dictionary of the form:
 
 ```json
 {
-  "memory": "DRAM",
-  "layout": "interleaved",
+  "memory": "DRAM" | "L1",
+  "layout": "interleaved" | "sharded",
   "tile_shape": [32, 32],
-  "dtype": "float16"
+  "dtype": "float16",
+  "nd_shard": {
+    "axes": ["B", "M", "N"],
+    "grid": [1, 2, 4],
+    "shard_shape_elems": [1, 64, 128],
+    "projected_grid": [2, 4],
+    "projected_shard_tiles": [2, 4]
+  }
 }
 ```
 
 Notes:
-- Tile shape is hard-coded to the TT default (32×32) until tile inference is wired in.
-- Sharded metadata (axes, projected grids, shard tile counts) is not emitted yet.
-- Unsupported hints (e.g. halo) are silently ignored for now; diagnostics should
-  be added once projection logic lands.
+- Tile shape remains fixed at 32×32 until tensor-level inference is added.
+- `projected_*` helper fields are only present when sharding metadata is
+  supplied.
+- L1 shards must be tile-aligned; misaligned shard sizes raise a `ValueError`.
 
 ---
 
 ## High-Level Algorithm
 
-1. Read `tt.user_layout` (if present) for each buffer, otherwise fall back to
+1. Read `tt.user_layout` (if present) for each buffer; otherwise fall back to
    defaults (`memory="DRAM"`, `layout="interleaved"`).
-2. Derive dtype from the buffer type; set `tile_shape=[32,32]`.
-3. Attach the resulting dictionary as `tt.buffer.<buffer_name>` on the PrimFunc.
-4. TODO: add validation for halo hints, incomplete shard metadata, and L1
-   capacity alignment once those features are implemented.
+2. Derive dtype and tile shape (32×32).
+3. When `nd_shard` metadata is present:
+   - Validate required keys (`axes`, `grid`, `shard_shape_elems`).
+   - Ensure axes include `M` and `N` and compute projected grid/tile counts.
+   - Enforce tile alignment for L1 shards.
+4. Attach the resulting dictionary as `tt.buffer.<buffer_name>` on the PrimFunc.
+5. Reject unsupported hints (e.g. halo).
 
 ---
 
 ## Diagnostics
 
-Currently none. Future revisions should surface:
-- `halo unsupported`
-- `nd_shard incomplete`
-- `L1 shard exceeds capacity` / `requires tile alignment`
+- `nd_shard metadata for buffer ... must include 'axes', 'grid', 'shard_shape_elems'`
+- `nd_shard metadata ... must include axes 'M' and 'N'`
+- `L1 shard for buffer ... must be tile-aligned`
+- `halo unsupported` (future TODO when halo metadata is surfaced)
 
 ---
 
 ## Tests
 
-Covered by `testing/python/tt/test_layout_aware_metadata.py` (default DRAM
-scenario). Sharded/L1-focused cases remain to be added alongside the missing
-functionality.
+See `testing/python/tt/test_layout_aware_metadata.py` for coverage of the default
+and sharded cases, plus negative tests for L1 misalignment.
 
 ---
 
 ## Dependencies
 
-- Python helper `annotate_tt_layout` (exported via `tilelang.tt`).
+- `annotate_tt_layout` helper (exported via `tilelang.tt`).
 - Tile shape constants and dtype → byte-size helper reused across TT passes.
 
 ---
 
 ## Downstream Consumers
 
-- `PropagateTTLayout` consumes `tt.buffer.*` when emitting CB metadata.
-- `LayoutAwareWorkPartitionTT` reads layout fields today and will use shard
-  projections once they exist.
-- Host/codegen passes eventually rely on this metadata to choose Metalium buffer
-  configurations.
+- `PropagateTTLayout` consumes `tt.buffer.*` to stamp CB metadata.
+- `LayoutAwareWorkPartitionTT` reads the projected grid/tile information.
+- Host/codegen layers will eventually use this metadata to choose Metalium
+  buffer configurations.
