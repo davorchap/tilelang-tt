@@ -295,9 +295,11 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 # Building tvm_cython modules
-if(NOT DEFINED TVM_PREBUILD_PATH)
-  add_dependencies(tilelang tvm_cython)
-endif()
+# NOTE: tvm_cython target may not exist in all TVM versions (e.g., tilelang_codebase branch)
+# Commenting out to allow build to proceed
+# if(NOT DEFINED TVM_PREBUILD_PATH)
+#   add_dependencies(tilelang tvm_cython)
+# endif()
 
 # Module shared library
 add_library(tilelang_module SHARED $<TARGET_OBJECTS:tilelang_objs>)
