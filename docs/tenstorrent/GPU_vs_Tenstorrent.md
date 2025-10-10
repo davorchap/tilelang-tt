@@ -262,21 +262,22 @@ TileLang DSL (Python)
     ↓
 TVM TIR (IR)
     ↓
-TT Transform Passes:
-  - InferTTSchedule: Assign tiles to cores
-  - InferTTShard: Compute DRAM layouts
-  - GridToPersistentTT: Convert grid→persistent loop
-  - TTTilesToCoreMap: Derive CoreRangeSet
-  - MemorySpaceLowerTT: Lower T.copy → CBs + NOC ops
-  - TilePadTT: Insert padding for non-tile-aligned shapes
-  - TensorizeTT: Replace patterns with matmul_tiles, etc.
-  - VerifyTTIR: Validate constraints
+TT Transform Passes (see [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md#layout-aware-metadata) for canonical ordering):
+  - infer_default_tt_schedule / infer_default_tt_shard *(legacy defaults)*
+  - apply_layout_aware_metadata_passes *(InferTTLayout → PropagateTTLayout → LayoutAwareWorkPartitionTT)*
+  - grid_to_persistent_tt *(GPU grid → persistent loop, shard-aware)*
+  - tt_tiles_to_core_map *(legacy fallback when layout metadata is absent)*
+  - memory_space_lower_tt *(Lower T.copy → CB/NOC ops using `tt.cb.*`)*
+  - tile_pad_tt *(Insert padding for non-tile-aligned shapes)*
+  - tensorize_tt *(Replace patterns with `matmul_tiles`, etc.; matcher upgrades pending)*
+  - verify_tt_ir *(Validate constraints and runtime args)*
     ↓
-TT Codegen:
-  - Reader kernel (data_movement.cpp)
-  - Compute kernel (compute.cpp)
-  - Writer kernel (data_movement.cpp)
-  - Host program (CreateProgram, CBs, SetRuntimeArgs)
+TT Codegen (detailed in [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md#code-generation)): 
+  - Reader kernel (`reader.cpp`)
+  - Compute kernel (`compute.cpp`)
+  - Writer kernel (`writer.cpp`)
+  - Host metadata summary (`main.cpp`) with TensorAccessor payloads
+  - Execution plan (`tt.plan.json`)
     ↓
 TT-Metalium SDK (Compile & Link)
     ↓

@@ -78,28 +78,26 @@ TileLang DSL (Python)
     ↓
 TVM IRModule
     ↓
-Apply TT Defaults → Stamp default schedule/shard metadata
+Apply TT Defaults → Stamp legacy schedule/shard metadata (compatibility path)
     ↓
-Layout-Aware Metadata (planned)
+Layout-Aware Metadata
     ├─ InferTTLayout (buffer + shard schema)
     ├─ PropagateTTLayout (CB metadata)
-    └─ LayoutAwareWorkPartitionTT (core ranges, partition mode)
+    └─ LayoutAwareWorkPartitionTT (core ranges, partition mode, runtime args)
     ↓
-Transform Pipeline (6 TT-specific + 11 shared passes)
-    ├─ infer_default_tt_schedule (legacy defaults)
-    ├─ infer_default_tt_shard (legacy layout descriptors)
+Transform Pipeline (TT-specific + shared passes)
     ├─ grid_to_persistent_tt (GPU grid → persistent loop)
-    ├─ tt_tiles_to_core_map (legacy NOC mapping)
     ├─ memory_space_lower_tt (DRAM → L1 circular buffers)
     ├─ tile_pad_tt (pad to 32×32 tiles)
-    ├─ tensorize_tt (pattern detection)
-    └─ verify_tt_ir (constraint verification)
+    ├─ tensorize_tt (pattern detection; matcher upgrades in progress)
+    ├─ verify_tt_ir (constraint verification)
+    └─ infer_default_tt_schedule / infer_default_tt_shard (legacy fallbacks)
     ↓
 Code Generation (IR-Driven Visitors)
     ├─ Reader Kernel (NOC DRAM→L1)
     ├─ Compute Kernel (Tensix tile math)
     ├─ Writer Kernel (NOC L1→DRAM)
-    ├─ Host Program (device setup)
+    ├─ Host Metadata Summary (per-core runtime tables)
     └─ Execution Plan (JSON metadata)
     ↓
 5 Generated Files:
