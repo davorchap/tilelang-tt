@@ -7,7 +7,14 @@ that converts grid-style kernels to persistent per-core loops.
 import pytest
 from tilelang import tvm
 import tilelang.language as T
-from tilelang.tt import apply_tt_defaults, apply_tt_metadata_passes, grid_to_persistent_tt, apply_tt_transform_passes
+from tilelang.tt import (
+    apply_tt_defaults,
+    apply_tt_metadata_passes,
+    apply_layout_aware_metadata_passes,
+    grid_to_persistent_tt,
+    apply_tt_transform_passes,
+    annotate_tt_schedule,
+)
 
 
 class TestGridToPersistentTT:
@@ -92,6 +99,45 @@ class TestGridToPersistentTT:
         assert int(func.attrs["tt_persistent_iteration_ndims"]) == 1
         assert [int(x) for x in runtime_args["grid_tiles"]] == [1, 32]
         assert runtime_args["partition_mode"] == "global"
+
+    def test_grid_to_persistent_local_shard(self):
+        @T.prim_func
+        def shard_kernel(A: T.Buffer((128, 256), "float16")):
+            with T.Kernel(2, 4) as (bx, by):
+                T.evaluate(A[bx + by])
+
+        prim = annotate_tt_schedule(
+            shard_kernel,
+            {
+                "partition_mode": "local_shard",
+            },
+        ).with_attr("global_symbol", "main")
+
+        mod = tvm.IRModule.from_expr(prim)
+        mod = apply_tt_defaults(mod)
+        mod = apply_tt_metadata_passes(mod)
+        mod = apply_layout_aware_metadata_passes(mod)
+        mod = grid_to_persistent_tt(mod)
+
+        func = mod["main"]
+        runtime_args = func.attrs["tt_runtime_args"]
+        assert str(runtime_args["partition_mode"]) == "local_shard"
+        param_order = [str(x) for x in runtime_args["param_order"]]
+        assert param_order[:4] == [
+            "tt_start_tile",
+            "tt_tile_count",
+            "Mt",
+            "Kt",
+        ]
+        assert param_order[-2:] == ["tt_shard_coord_y", "tt_shard_coord_x"]
+
+        param_names = [p.name for p in func.params]
+        assert param_names[-4:] == [
+            "tt_start_tile",
+            "tt_tile_count",
+            "tt_shard_coord_y",
+            "tt_shard_coord_x",
+        ]
 
     def test_grid_to_persistent_three_dim(self):
         """Ensure 3D kernels expose full iteration metadata."""

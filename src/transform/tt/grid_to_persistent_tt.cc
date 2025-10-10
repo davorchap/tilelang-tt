@@ -36,6 +36,7 @@
 
 #include <algorithm>
 #include <string>
+#include <tvm/runtime/logging.h>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -266,17 +267,47 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
   runtime_arg_names.Set(0, String(start_param->name_hint));
   runtime_arg_names.Set(1, String(count_param->name_hint));
 
+  Var shard_y_param("tt_shard_coord_y", DataType::Int(32));
+  Var shard_x_param("tt_shard_coord_x", DataType::Int(32));
+
   // Step 2: Apply the transformation
   GridToPersistentMutator mutator(start_param, count_param, grid_x, grid_y, grid_z);
-  Stmt new_body = mutator.Transform(f->body);
+  Stmt persistent_loop = mutator.Transform(f->body);
+
+  if (partition_mode == "local_shard") {
+    const ForNode* for_node = persistent_loop.as<ForNode>();
+    ICHECK(for_node) << "Expected persistent loop";
+    const LetStmtNode* let_node = for_node->body.as<LetStmtNode>();
+    ICHECK(let_node) << "Expected tile_id let statement";
+
+    PrimExpr tid_local = start_param + for_node->loop_var;
+    PrimExpr sn_const = Integer(local_tiles_n);
+    PrimExpr sm_const = Integer(local_tiles_m);
+    PrimExpr nt_const = Integer(grid_tiles_n);
+
+    PrimExpr m_local = floordiv(tid_local, sn_const);
+    PrimExpr n_local = floormod(tid_local, sn_const);
+    PrimExpr global_m = shard_y_param * sm_const + m_local;
+    PrimExpr global_n = shard_x_param * sn_const + n_local;
+    PrimExpr global_tile = global_m * nt_const + global_n;
+
+    Stmt new_let = LetStmt(let_node->var, global_tile, let_node->body);
+    persistent_loop = For(for_node->loop_var, for_node->min, for_node->extent,
+                          for_node->kind, new_let, for_node->thread_binding,
+                          for_node->annotations);
+  }
 
   // Step 3: Create new function with transformed body and params
   auto n = make_object<PrimFuncNode>(*f.get());
   Array<Var> new_params = n->params;
   new_params.push_back(start_param);
   new_params.push_back(count_param);
+  if (partition_mode == "local_shard") {
+    new_params.push_back(shard_y_param);
+    new_params.push_back(shard_x_param);
+  }
   n->params = new_params;
-  n->body = new_body;
+  n->body = persistent_loop;
   PrimFunc new_func = PrimFunc(n);
 
   // Step 4: Attach updated runtime metadata

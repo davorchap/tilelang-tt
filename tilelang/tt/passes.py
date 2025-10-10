@@ -500,8 +500,29 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
         Mt_default = max(grid_y * grid_z, 1)
         Nt_default = max(grid_x, 1)
 
+        # Detect sharded buffers to auto-enable local_shard mode
+        has_l1_shard = False
+        detected_grid: Optional[list[int]] = None
+        detected_tiles: Optional[list[int]] = None
+        for _, buffer in func.buffer_map.items():
+            meta_obj = _get_attr(attrs, f"tt.buffer.{buffer.name}")
+            if meta_obj is None:
+                continue
+            meta = _convert_to_python(meta_obj)
+            layout_kind = str(meta.get("layout", "interleaved")).lower()
+            memory_kind = str(meta.get("memory", "DRAM")).upper()
+            nd_shard = meta.get("nd_shard")
+            if layout_kind == "sharded" and nd_shard:
+                pg = nd_shard.get("projected_grid")
+                pt = nd_shard.get("projected_shard_tiles")
+                if pg and pt:
+                    detected_grid = [int(pg[0]), int(pg[1])]
+                    detected_tiles = [int(pt[0]), int(pt[1])]
+            if layout_kind == "sharded" and memory_kind == "L1" and detected_grid and detected_tiles:
+                has_l1_shard = True
+
         schedule_raw = _get_attr(attrs, "tt.user_schedule")
-        partition_mode = "global"
+        partition_mode = "local_shard" if has_l1_shard else "global"
         grid_tiles = [Mt_default, Nt_default]
         shard_grid = [1, 1]
         local_tiles = grid_tiles[:]
@@ -519,11 +540,19 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
             if schedule_raw.get("runtime_args", None) is not None:
                 runtime_arg_names = [str(x) for x in schedule_raw["runtime_args"]]
 
+        if partition_mode == "local_shard":
+            if detected_grid is None or detected_tiles is None:
+                raise ValueError(
+                    "layout-aware partitioning requires sharded buffer metadata"
+                )
+            shard_grid = detected_grid
+            local_tiles = detected_tiles
+
         if runtime_arg_names is None:
             if partition_mode == "local_shard":
                 runtime_arg_names = [
-                    "start_id",
-                    "count",
+                    "tt_start_tile",
+                    "tt_tile_count",
                     "Mt",
                     "Kt",
                     "Nt",
@@ -531,11 +560,11 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
                     "Sn",
                     "Gy",
                     "Gx",
-                    "sy",
-                    "sx",
+                    "tt_shard_coord_y",
+                    "tt_shard_coord_x",
                 ]
             else:
-                runtime_arg_names = ["start_id", "count", "Mt", "Kt", "Nt"]
+                runtime_arg_names = ["tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt"]
 
         Mt = int(grid_tiles[0])
         Nt = int(grid_tiles[1])
@@ -559,11 +588,40 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
             count = _to_int(assignment[1], 0)
             x = core_id % mesh_width
             y = core_id // mesh_width
-            core_ranges.append([x, y, x, y, start, count])
-            core_runtime_args.append([start, count])
 
-        new_func = func
-        new_func = new_func.with_attr("tt.partition_mode", convert(partition_mode))
+            if partition_mode == "local_shard":
+                if y < Gy and x < Gx:
+                    start = 0
+                    count = Sm * Sn
+                    shard_sy = y
+                    shard_sx = x
+                else:
+                    start = 0
+                    count = 0
+                    shard_sy = 0
+                    shard_sx = 0
+
+                core_ranges.append([x, y, x, y, start, count])
+                core_runtime_args.append(
+                    [
+                        start,
+                        count,
+                        Mt,
+                        1,
+                        Nt,
+                        Sm,
+                        Sn,
+                        Gy,
+                        Gx,
+                        shard_sy,
+                        shard_sx,
+                    ]
+                )
+            else:
+                core_ranges.append([x, y, x, y, start, count])
+                core_runtime_args.append([start, count, Mt, 1, Nt])
+
+        new_func = func.with_attr("tt.partition_mode", convert(partition_mode))
         new_func = new_func.with_attr("tt.grid_tiles", convert(grid_tiles))
         new_func = new_func.with_attr("tt.local_shape_tiles", convert(local_tiles))
         new_func = new_func.with_attr("tt.shard_grid", convert(shard_grid))
