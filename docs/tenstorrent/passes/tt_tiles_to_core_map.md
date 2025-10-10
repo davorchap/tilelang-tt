@@ -8,7 +8,7 @@
 
 ## Purpose
 
-Translate the legacy tile scheduling metadata from WS2 (`tt_tiles_per_core`) into the physical
+Translate the legacy tile scheduling metadata (`tt_tiles_per_core`) into the physical
 topology required by the Tenstorrent runtime (core range sets and per-core runtime arguments).
 When layout-aware metadata is available, `LayoutAwareWorkPartitionTT` emits the canonical
 `tt.core_ranges` and `tt.runtime_args`, making this pass a fallback for unannotated kernels.
@@ -18,7 +18,7 @@ When layout-aware metadata is available, `LayoutAwareWorkPartitionTT` emits the 
 ## Why Needed
 
 Tenstorrent devices address cores by `(x, y)` coordinates on an 8 × 8 mesh (for Grayskull/Wormhole).
-WS2 produces linear tile assignments per core; the runtime expects:
+The legacy metadata inference path produces linear tile assignments per core; the runtime expects:
 - Physical `CoreRange` descriptors describing which cores participate.
 - An ordered list of per-core runtime arguments (`start_id`, `count`).
 
@@ -56,7 +56,7 @@ pipeline this responsibility moves to `LayoutAwareWorkPartitionTT`, which can em
 ## Tests
 
 **File**: `testing/python/tt/test_tt_tiles_to_core_map.py`  
-**Status**: ✅ Covers basic mapping, coordinate validation, runtime arg structure, and WS2 integration.
+**Status**: ✅ Covers basic mapping, coordinate validation, runtime arg structure, and legacy metadata integration.
 
 ---
 
@@ -74,7 +74,7 @@ pipeline this responsibility moves to `LayoutAwareWorkPartitionTT`, which can em
 
 ## Success Criteria
 
-- [x] Converts WS2 tile assignments into physical coordinates
+- [x] Converts legacy tile assignments into physical coordinates
 - [x] Emits per-core runtime arguments aligned with the persistent loop contract
 - [x] Leaves inactive cores with zero tiles
 - [x] Validated by unit tests
