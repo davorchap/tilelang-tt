@@ -62,6 +62,7 @@ std::string TTComputeCodegenVisitor::GetFullKernel() {
 
   // Emit runtime argument extraction
   EmitLine("// Runtime arguments");
+  bool is_local_shard = partition_mode() == "local_shard";
   int start_idx = GetRuntimeArgIndex("tt_start_tile");
   ICHECK_GE(start_idx, 0) << "Missing tt_start_tile runtime argument";
   EmitLine("uint32_t tt_start_tile = get_arg_val<uint32_t>(" + std::to_string(start_idx) + ");");
@@ -77,11 +78,17 @@ std::string TTComputeCodegenVisitor::GetFullKernel() {
     EmitLine("uint32_t Kt = " + std::to_string(GetRuntimeConst<int>("Kt", 1)) + ";");
   }
 
-  if (HasRuntimeArg("tt_shard_coord_y")) {
+  bool has_shard_coord_y = HasRuntimeArg("tt_shard_coord_y");
+  bool has_shard_coord_x = HasRuntimeArg("tt_shard_coord_x");
+  if (is_local_shard) {
+    ICHECK(has_shard_coord_y) << "local_shard partition mode requires tt_shard_coord_y arg";
+    ICHECK(has_shard_coord_x) << "local_shard partition mode requires tt_shard_coord_x arg";
+  }
+  if (has_shard_coord_y) {
     EmitLine("uint32_t tt_shard_coord_y = get_arg_val<uint32_t>(" +
              std::to_string(GetRuntimeArgIndex("tt_shard_coord_y")) + ");");
   }
-  if (HasRuntimeArg("tt_shard_coord_x")) {
+  if (has_shard_coord_x) {
     EmitLine("uint32_t tt_shard_coord_x = get_arg_val<uint32_t>(" +
              std::to_string(GetRuntimeArgIndex("tt_shard_coord_x")) + ");");
   }
