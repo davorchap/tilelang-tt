@@ -92,7 +92,7 @@ def test_visitor_basic_construction():
     # Note: The visitor is in C++, so we test via FFI if available,
     # or skip if not yet registered. For now, we verify the test setup.
     func = create_simple_func_with_loop()
-    mod = tvm.IRModule({"main": func})
+    tvm.IRModule({"main": func})
 
     # Verify func is valid
     assert func is not None
@@ -170,7 +170,7 @@ def test_visitor_expression_handling():
     expr = tir.BufferLoad(A, [i * 2 + 1])
     store = tir.BufferStore(B, expr, [i])
 
-    func = tir.PrimFunc([A, B], store)
+    tir.PrimFunc([A, B], store)
 
     # Verify expression structure
     assert isinstance(store.value, tir.BufferLoad)
@@ -229,9 +229,9 @@ if __name__ == "__main__":
 
     print("Running parametrized tests...")
     for dtype, expected_size in [
-            ("float16", 2),
-            ("float32", 4),
-            ("int32", 4),
+        ("float16", 2),
+        ("float32", 4),
+        ("int32", 4),
     ]:
         test_visitor_dtype_handling(dtype, expected_size)
 

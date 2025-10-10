@@ -176,8 +176,7 @@ def test_program_creation_and_launch():
 
     # Verify kernel loading (commented placeholders or actual kernel creation)
     # Note: In refactored version, AddKernel is replaced with CreateKernel placeholders
-    assert ("program.Build()" in main_cpp or
-            "CreateKernel" in main_cpp or
+    assert ("program.Build()" in main_cpp or "CreateKernel" in main_cpp or
             "Kernels created" in main_cpp), "Kernel creation missing"
 
     # Verify command queue and launch

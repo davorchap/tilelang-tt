@@ -16,7 +16,6 @@ Phase 2: Will use IR-driven codegen with real Metalium runtime
 import sys
 import json
 import tvm
-from tvm import tir
 
 # Note: These imports may need adjustment based on actual tilelang structure
 try:
@@ -29,9 +28,8 @@ except ImportError:
 
 
 @T.prim_func
-def matmul_tt(A: T.Buffer[(256, 256), "float16"],
-              B: T.Buffer[(256, 256), "float16"],
-              C: T.Buffer[(256, 256), "float16"]):
+def matmul_tt(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"), C: T.Buffer(
+    (256, 256), "float16")):
     """
     Simple matmul kernel for Tenstorrent backend.
 
@@ -54,16 +52,16 @@ def matmul_tt(A: T.Buffer[(256, 256), "float16"],
         # K-loop: iterate over 8 tiles in K dimension
         for k in range(T.ceildiv(256, 32)):
             # Load A[by, k] tile from DRAM
-            T.copy(A[by * 32:(by+1)*32, k * 32:(k+1)*32], A_tile)
+            T.copy(A[by * 32:(by + 1) * 32, k * 32:(k + 1) * 32], A_tile)
 
             # Load B[k, bx] tile from DRAM
-            T.copy(B[k * 32:(k+1)*32, bx * 32:(bx+1)*32], B_tile)
+            T.copy(B[k * 32:(k + 1) * 32, bx * 32:(bx + 1) * 32], B_tile)
 
             # Accumulate: C_tile += A_tile @ B_tile
             T.gemm(A_tile, B_tile, C_tile)
 
         # Store result tile to DRAM
-        T.copy(C_tile, C[by * 32:(by+1)*32, bx * 32:(bx+1)*32])
+        T.copy(C_tile, C[by * 32:(by + 1) * 32, bx * 32:(bx + 1) * 32])
 
 
 def print_section(title):
@@ -84,7 +82,7 @@ def main():
         mod = tvm.IRModule({"main": matmul_tt})
         func = mod["main"]
         print(f"  ✓ Function parameters: {len(func.params)} buffers")
-        print(f"  ✓ Buffer shapes:")
+        print("  ✓ Buffer shapes:")
         for i, param in enumerate(func.params):
             if hasattr(param, 'shape') and hasattr(param, 'dtype'):
                 print(f"      {['A', 'B', 'C'][i]}: shape={list(param.shape)}, dtype={param.dtype}")
@@ -140,9 +138,13 @@ def main():
 
             tiles_per_core = func.attrs.get("tt_tiles_per_core", None)
             if tiles_per_core and len(tiles_per_core) > 0:
-                print(f"  ✓ Core 0 assignment: start_tile={tiles_per_core[0][0]}, count={tiles_per_core[0][1]}")
+                print(
+                    f"  ✓ Core 0 assignment: start_tile={tiles_per_core[0][0]}, count={tiles_per_core[0][1]}"
+                )
                 if len(tiles_per_core) > 63:
-                    print(f"  ✓ Core 63 assignment: start_tile={tiles_per_core[63][0]}, count={tiles_per_core[63][1]}")
+                    print(
+                        f"  ✓ Core 63 assignment: start_tile={tiles_per_core[63][0]}, count={tiles_per_core[63][1]}"
+                    )
         else:
             print("  ⚠ Could not access schedule metadata")
     except AttributeError as e:
@@ -181,7 +183,7 @@ def main():
     try:
         artifacts = tt.emit_tt_artifacts(mod)
 
-        print(f"  ✓ Generated artifacts:")
+        print("  ✓ Generated artifacts:")
         for name, content in artifacts.items():
             if isinstance(content, str):
                 print(f"      - {name}: {len(content)} bytes")
@@ -195,7 +197,8 @@ def main():
 
         # Create mock artifacts for demonstration
         artifacts = {
-            "compute.cpp": """// Mock compute kernel
+            "compute.cpp":
+                """// Mock compute kernel
 void MAIN() {
     // K-loop for matmul
     for (uint32_t kt = 0; kt < Kt; ++kt) {
@@ -206,27 +209,43 @@ void MAIN() {
         cb_pop_front(CB_B, 1);
     }
 }""",
-            "reader.cpp": """// Mock reader kernel
+            "reader.cpp":
+                """// Mock reader kernel
 void kernel_main() {
     // Load A[m,k] and B[k,n] tiles
     uint32_t tile_a_idx = out_m * Kt + kt;
     uint32_t tile_b_idx = kt * Nt + out_n;
 }""",
-            "writer.cpp": """// Mock writer kernel
+            "writer.cpp":
+                """// Mock writer kernel
 void kernel_main() {
     // Write output tiles
     noc_async_write_tile(tile_idx, l1_addr, dram_addr_c);
 }""",
-            "main.cpp": """// Mock host program
+            "main.cpp":
+                """// Mock host program
 int main() {
     CircularBufferConfig cb_a(0, TILE_SIZE, 2);
     // ...
 }""",
-            "tt.plan.json": json.dumps({
-                "grid": {"x": 8, "y": 8, "total_tiles": 64},
-                "cores": {"num_cores": 64},
-                "buffers": {"A": {}, "B": {}, "C": {}}
-            }, indent=2)
+            "tt.plan.json":
+                json.dumps(
+                    {
+                        "grid": {
+                            "x": 8,
+                            "y": 8,
+                            "total_tiles": 64
+                        },
+                        "cores": {
+                            "num_cores": 64
+                        },
+                        "buffers": {
+                            "A": {},
+                            "B": {},
+                            "C": {}
+                        }
+                    },
+                    indent=2)
         }
 
         print("  (Mock artifacts created for demonstration)")

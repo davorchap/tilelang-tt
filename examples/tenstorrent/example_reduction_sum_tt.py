@@ -40,11 +40,9 @@ import tvm
 import tilelang.language as T
 import tilelang.tt as tt
 
+
 @T.prim_func
-def reduction_sum_tt(
-    A: T.Buffer((256, 256), "float16"),
-    B: T.Buffer((256,), "float16")
-):
+def reduction_sum_tt(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256,), "float16")):
     """Sum reduction: B[m] = sum(A[m, :]) (Phase 2.3 foundation)"""
     with T.Kernel(T.ceildiv(256, 32), 1) as (bx, by):
         A_tile = T.alloc_fragment((32, 32), "float16")
@@ -56,14 +54,15 @@ def reduction_sum_tt(
 
         # Reduction loop
         for k in T.serial(T.ceildiv(256, 32)):
-            T.copy(A[bx*32:(bx+1)*32, k*32:(k+1)*32], A_tile)
+            T.copy(A[bx * 32:(bx + 1) * 32, k * 32:(k + 1) * 32], A_tile)
 
             # Accumulate
             for i, j in T.grid(32, 32):
                 B_tile[i] = B_tile[i] + A_tile[i, j]
 
         # Store result
-        T.copy(B_tile, B[bx*32:(bx+1)*32])
+        T.copy(B_tile, B[bx * 32:(bx + 1) * 32])
+
 
 def main():
     print("=" * 70)
@@ -182,7 +181,8 @@ def main():
         print("⚠ PARTIAL: Some validation checks failed")
 
     print()
-    print(f"Phase 2.3 progress: 80% (validation + infrastructure complete)")
+    print("Phase 2.3 progress: 80% (validation + infrastructure complete)")
+
 
 if __name__ == "__main__":
     main()

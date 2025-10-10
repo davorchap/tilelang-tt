@@ -243,7 +243,7 @@ def test_cb_synchronization_pattern():
     # This test is for template-based codegen. For IR-driven, CB operations come from IR.
     compute_lines = compute_cpp.split('\n')
     main_start = next(i for i, line in enumerate(compute_lines) if "void MAIN()" in line)
-    main_section = '\n'.join(compute_lines[main_start:main_start + 40])
+    '\n'.join(compute_lines[main_start:main_start + 40])
 
     # IR-driven: Check for operations if present (empty body won't have them)
     if "for (uint32_t" in compute_cpp:

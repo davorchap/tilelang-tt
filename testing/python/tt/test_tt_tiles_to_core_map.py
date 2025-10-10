@@ -3,7 +3,6 @@
 This pass maps logical tile assignments to physical core coordinates.
 """
 
-import pytest
 import tvm
 from tvm import tir
 
@@ -205,8 +204,8 @@ def test_tt_tiles_to_core_map_integration_with_ws2():
     C = tir.decl_buffer((256, 256), "float16", name="C")
 
     # Mock grid dimensions
-    bx = tir.Var("bx", "int32")
-    by = tir.Var("by", "int32")
+    tir.Var("bx", "int32")
+    tir.Var("by", "int32")
 
     body = tir.Evaluate(0)
     func = tir.PrimFunc([A, B, C], body)

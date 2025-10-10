@@ -13,12 +13,10 @@ import tvm
 import tilelang.language as T
 import tilelang.tt as tt
 
+
 @T.prim_func
-def gemv_tt(
-    A: T.Buffer((256, 256), "float16"),
-    x: T.Buffer((256,), "float16"),
-    y: T.Buffer((256,), "float16")
-):
+def gemv_tt(A: T.Buffer((256, 256), "float16"), x: T.Buffer((256,), "float16"), y: T.Buffer(
+    (256,), "float16")):
     """GEMV: y = A @ x (Phase 3.1 foundation)"""
     with T.Kernel(T.ceildiv(256, 32), 1) as (bx, by):
         A_tile = T.alloc_fragment((32, 32), "float16")
@@ -29,14 +27,15 @@ def gemv_tt(
             y_tile[i] = 0.0
 
         for k in T.serial(T.ceildiv(256, 32)):
-            T.copy(A[bx*32:(bx+1)*32, k*32:(k+1)*32], A_tile)
-            T.copy(x[k*32:(k+1)*32], x_tile)
+            T.copy(A[bx * 32:(bx + 1) * 32, k * 32:(k + 1) * 32], A_tile)
+            T.copy(x[k * 32:(k + 1) * 32], x_tile)
 
             # Matrix-vector multiply
             for i, j in T.grid(32, 32):
                 y_tile[i] = y_tile[i] + A_tile[i, j] * x_tile[j]
 
-        T.copy(y_tile, y[bx*32:(bx+1)*32])
+        T.copy(y_tile, y[bx * 32:(bx + 1) * 32])
+
 
 def main():
     print("=" * 70)
@@ -150,7 +149,8 @@ def main():
         print("⚠ PARTIAL: Some validation checks failed")
 
     print()
-    print(f"Phase 3.1 progress: 80% (validation complete)")
+    print("Phase 3.1 progress: 80% (validation complete)")
+
 
 if __name__ == "__main__":
     main()

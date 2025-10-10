@@ -38,23 +38,22 @@ import tvm
 import tilelang.language as T
 import tilelang.tt as tt
 
+
 @T.prim_func
-def cast_fp32_to_bf16_tt(
-    A: T.Buffer((256, 256), "float32"),
-    B: T.Buffer((256, 256), "bfloat16")
-):
+def cast_fp32_to_bf16_tt(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256, 256), "bfloat16")):
     """Type conversion: FP32 → BF16 (Phase 2.2 foundation)"""
     with T.Kernel(T.ceildiv(256, 32), T.ceildiv(256, 32)) as (bx, by):
         A_tile = T.alloc_fragment((32, 32), "float32")
         B_tile = T.alloc_fragment((32, 32), "bfloat16")
 
-        T.copy(A[bx*32:(bx+1)*32, by*32:(by+1)*32], A_tile)
+        T.copy(A[bx * 32:(bx + 1) * 32, by * 32:(by + 1) * 32], A_tile)
 
         # Cast operation (element-wise pattern)
         for i, j in T.grid(32, 32):
             B_tile[i, j] = T.cast(A_tile[i, j], "bfloat16")
 
-        T.copy(B_tile, B[bx*32:(bx+1)*32, by*32:(by+1)*32])
+        T.copy(B_tile, B[bx * 32:(bx + 1) * 32, by * 32:(by + 1) * 32])
+
 
 def main():
     print("=" * 70)
@@ -167,7 +166,8 @@ def main():
         print("⚠ PARTIAL: Some validation checks failed")
 
     print()
-    print(f"Phase 2.2 progress: 80% (validation + infrastructure complete)")
+    print("Phase 2.2 progress: 80% (validation + infrastructure complete)")
+
 
 if __name__ == "__main__":
     main()

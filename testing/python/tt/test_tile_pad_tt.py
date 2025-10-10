@@ -3,7 +3,6 @@
 This pass computes padding metadata for non-tile-aligned buffers.
 """
 
-import pytest
 import tvm
 from tvm import tir
 

@@ -3,7 +3,6 @@
 This pass lowers abstract buffer allocations to TT circular buffer configurations.
 """
 
-import pytest
 import tvm
 from tvm import tir
 

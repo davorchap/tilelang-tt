@@ -5,7 +5,6 @@ These tests validate that the complete TT defaults stage-4 infrastructure is wor
 on representative GEMM workloads.
 """
 
-import pytest
 import tvm
 from tvm import tir
 import tilelang.tt as tt
@@ -173,26 +172,31 @@ def test_mvp_gemm_256x256_full_pipeline():
     assert plan_data["target"] == "tenstorrent", "artifact generation stage: Incorrect target"
     assert plan_data["grid"]["x"] == 8, "artifact generation stage: Incorrect grid X"
     assert plan_data["grid"]["y"] == 8, "artifact generation stage: Incorrect grid Y"
-    assert plan_data["grid"]["total_tiles"] == 64, "artifact generation stage: Incorrect total tiles"
+    assert plan_data["grid"][
+        "total_tiles"] == 64, "artifact generation stage: Incorrect total tiles"
     assert plan_data["cores"]["num_cores"] == 64, "artifact generation stage: Incorrect num cores"
-    assert plan_data["schedule"]["policy"] == "contiguous", "artifact generation stage: Incorrect schedule policy"
-    assert plan_data["schedule"]["order"] == "row_major", "artifact generation stage: Incorrect schedule order"
+    assert plan_data["schedule"][
+        "policy"] == "contiguous", "artifact generation stage: Incorrect schedule policy"
+    assert plan_data["schedule"][
+        "order"] == "row_major", "artifact generation stage: Incorrect schedule order"
 
     core_assignments = plan_data["cores"]["assignments"]
     assert len(core_assignments) == 64, "artifact generation stage: Should have 64 core assignments"
 
     # Verify first and last core assignments
     assert core_assignments[0]["core_id"] == 0, "artifact generation stage: First core ID incorrect"
-    assert core_assignments[0]["start_tile"] == 0, "artifact generation stage: First core should start at tile 0"
-    assert core_assignments[63]["core_id"] == 63, "artifact generation stage: Last core ID incorrect"
+    assert core_assignments[0][
+        "start_tile"] == 0, "artifact generation stage: First core should start at tile 0"
+    assert core_assignments[63][
+        "core_id"] == 63, "artifact generation stage: Last core ID incorrect"
 
     print("✅ baseline feature set Acceptance Test PASSED: 256×256 GEMM")
-    print(f"   - TT defaults stage: Default annotations applied")
-    print(f"   - metadata inference stage: Schedule inferred (8×8 grid, 64 cores, 64 tiles)")
-    print(f"   - metadata inference stage: Sharding inferred (3 buffers, DRAM interleaved)")
-    print(f"   - persistent transform stage: Transform pipeline applied")
-    print(f"   - artifact generation stage: Artifacts generated (compute.cpp + tt.plan.json)")
-    print(f"   - All metadata validated ✓")
+    print("   - TT defaults stage: Default annotations applied")
+    print("   - metadata inference stage: Schedule inferred (8×8 grid, 64 cores, 64 tiles)")
+    print("   - metadata inference stage: Sharding inferred (3 buffers, DRAM interleaved)")
+    print("   - persistent transform stage: Transform pipeline applied")
+    print("   - artifact generation stage: Artifacts generated (compute.cpp + tt.plan.json)")
+    print("   - All metadata validated ✓")
 
 
 def test_mvp_gemm_512x512_scalability():

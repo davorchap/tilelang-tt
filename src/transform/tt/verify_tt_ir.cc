@@ -31,10 +31,14 @@
  * - No unsupported IR constructs
  *
  * Validation Checks:
- * 1. TT Defaults stage: tt_schedule_policy, tt_layout_type, tt_tile_* dimensions
- * 2. Metadata Inference stage: tt_grid_*, tt_num_tiles, tt_tiles_per_core, tt_num_cores
- * 3. Persistent Transform stage: tt_persistent_loop, tt_runtime_args, tt_core_ranges
- * 4. Persistent Transform stage: tt_circular_buffers, tt_padding_info (if applicable)
+ * 1. TT Defaults stage: tt_schedule_policy, tt_layout_type, tt_tile_*
+ * dimensions
+ * 2. Metadata Inference stage: tt_grid_*, tt_num_tiles, tt_tiles_per_core,
+ * tt_num_cores
+ * 3. Persistent Transform stage: tt_persistent_loop, tt_runtime_args,
+ * tt_core_ranges
+ * 4. Persistent Transform stage: tt_circular_buffers, tt_padding_info (if
+ * applicable)
  *
  * See: docs/tenstorrent/passes/verify_tt_ir.md for detailed specification
  */
@@ -60,21 +64,20 @@ struct ValidationResult {
   std::vector<std::string> errors;
   std::vector<std::string> warnings;
 
-  void AddError(const std::string& msg) {
+  void AddError(const std::string &msg) {
     is_valid = false;
     errors.push_back(msg);
   }
 
-  void AddWarning(const std::string& msg) {
-    warnings.push_back(msg);
-  }
+  void AddWarning(const std::string &msg) { warnings.push_back(msg); }
 };
 
 /*!
  * \brief Check for required attribute
  */
-template<typename T>
-bool CheckAttribute(const PrimFunc& f, const std::string& key, ValidationResult& result) {
+template <typename T>
+bool CheckAttribute(const PrimFunc &f, const std::string &key,
+                    ValidationResult &result) {
   auto attr = f->attrs.GetAttr<T>(key);
   if (!attr.defined()) {
     result.AddError("Missing required attribute: " + key);
@@ -86,7 +89,7 @@ bool CheckAttribute(const PrimFunc& f, const std::string& key, ValidationResult&
 /*!
  * \brief Validate TT Defaults stage metadata
  */
-void ValidateTT Defaults stage(const PrimFunc& f, ValidationResult& result) {
+void ValidateTTDefaultsStage(const PrimFunc &f, ValidationResult &result) {
   CheckAttribute<String>(f, "tt_schedule_policy", result);
   CheckAttribute<String>(f, "tt_schedule_order", result);
   CheckAttribute<String>(f, "tt_layout_type", result);
@@ -97,7 +100,8 @@ void ValidateTT Defaults stage(const PrimFunc& f, ValidationResult& result) {
 /*!
  * \brief Validate Metadata Inference stage metadata
  */
-void ValidateMetadata Inference stage(const PrimFunc& f, ValidationResult& result) {
+void ValidateMetadataInferenceStage(const PrimFunc &f,
+                                    ValidationResult &result) {
   CheckAttribute<Integer>(f, "tt_grid_x", result);
   CheckAttribute<Integer>(f, "tt_grid_y", result);
   CheckAttribute<Integer>(f, "tt_num_tiles", result);
@@ -142,19 +146,22 @@ void ValidateMetadata Inference stage(const PrimFunc& f, ValidationResult& resul
   // Validate tt_shard structure (per-buffer metadata)
   auto shard = f->attrs.GetAttr<Map<String, ObjectRef>>("tt_shard");
   if (shard.defined()) {
-    for (const auto& kv : shard.value()) {
+    for (const auto &kv : shard.value()) {
       std::string buffer_name = std::string(kv.first);
       // Check if buffer metadata can be downcast to Map
       auto buffer_map = kv.second.as<Map<String, ObjectRef>>();
       if (!buffer_map) {
-        result.AddError("tt_shard entry for buffer " + buffer_name + " must be a map");
+        result.AddError("tt_shard entry for buffer " + buffer_name +
+                        " must be a map");
         continue;
       }
       if (!buffer_map.value().count(String("layout"))) {
-        result.AddError("tt_shard entry for buffer " + buffer_name + " missing layout");
+        result.AddError("tt_shard entry for buffer " + buffer_name +
+                        " missing layout");
       }
       if (!buffer_map.value().count(String("tile_shape"))) {
-        result.AddError("tt_shard entry for buffer " + buffer_name + " missing tile_shape");
+        result.AddError("tt_shard entry for buffer " + buffer_name +
+                        " missing tile_shape");
       }
     }
   }
@@ -163,26 +170,32 @@ void ValidateMetadata Inference stage(const PrimFunc& f, ValidationResult& resul
 /*!
  * \brief Validate Persistent Transform stage transformation metadata
  */
-void ValidatePersistent Transform stage(const PrimFunc& f, ValidationResult& result) {
+void ValidatePersistentTransformStage(const PrimFunc &f,
+                                      ValidationResult &result) {
   // Check for persistent loop marker
   auto persistent = f->attrs.GetAttr<Bool>("tt_persistent_loop");
   if (!persistent.defined()) {
-    result.AddWarning("Missing tt_persistent_loop marker (may be Phase 1 template mode)");
+    result.AddWarning(
+        "Missing tt_persistent_loop marker (may be Phase 1 template mode)");
   }
 
   // Validate runtime args structure
-  auto runtime_args = f->attrs.GetAttr<Map<String, ObjectRef>>("tt_runtime_args");
+  auto runtime_args =
+      f->attrs.GetAttr<Map<String, ObjectRef>>("tt_runtime_args");
   if (!runtime_args.defined()) {
     result.AddError("Missing tt_runtime_args metadata");
   } else {
-    if (!runtime_args.value().count("start_tile") || !runtime_args.value().count("tile_count")) {
-      result.AddError("tt_runtime_args must include start_tile and tile_count entries");
+    if (!runtime_args.value().count("start_tile") ||
+        !runtime_args.value().count("tile_count")) {
+      result.AddError(
+          "tt_runtime_args must include start_tile and tile_count entries");
     }
     if (!runtime_args.value().count("grid_shape")) {
       result.AddError("tt_runtime_args must include grid_shape");
     }
     if (!runtime_args.value().count("param_order")) {
-      result.AddWarning("tt_runtime_args missing param_order (required for codegen mapping)");
+      result.AddWarning(
+          "tt_runtime_args missing param_order (required for codegen mapping)");
     }
   }
 
@@ -190,20 +203,23 @@ void ValidatePersistent Transform stage(const PrimFunc& f, ValidationResult& res
   auto core_ranges = f->attrs.GetAttr<Array<Array<Integer>>>("tt_core_ranges");
   if (core_ranges.defined()) {
     // Validate core range format
-    for (const auto& range : core_ranges.value()) {
+    for (const auto &range : core_ranges.value()) {
       if (range.size() != 6) {
-        result.AddError("Core range must have 6 elements: [start_x, start_y, end_x, end_y, start_tile, count]");
+        result.AddError("Core range must have 6 elements: [start_x, start_y, "
+                        "end_x, end_y, start_tile, count]");
       }
     }
   }
 
   // Check for circular buffers (Phase 2)
-  auto cb_configs = f->attrs.GetAttr<Array<Map<String, ObjectRef>>>("tt_circular_buffers");
+  auto cb_configs =
+      f->attrs.GetAttr<Array<Map<String, ObjectRef>>>("tt_circular_buffers");
   if (cb_configs.defined()) {
     int num_cbs = static_cast<int>(cb_configs.value().size());
     auto num_cbs_attr = f->attrs.GetAttr<Integer>("tt_num_cbs");
 
-    if (num_cbs_attr.defined() && num_cbs != static_cast<int>(num_cbs_attr.value()->value)) {
+    if (num_cbs_attr.defined() &&
+        num_cbs != static_cast<int>(num_cbs_attr.value()->value)) {
       result.AddError("Mismatch between tt_num_cbs and actual CB count");
     }
   }
@@ -230,15 +246,15 @@ PrimFunc VerifyTTIRImpl(PrimFunc f) {
   ValidationResult result;
   result.is_valid = true;
 
-  ValidateTT Defaults stage(f, result);
-  ValidateMetadata Inference stage(f, result);
-  ValidatePersistent Transform stage(f, result);
+  ValidateTTDefaultsStage(f, result);
+  ValidateMetadataInferenceStage(f, result);
+  ValidatePersistentTransformStage(f, result);
 
   // Step 3: Log results
   if (!result.errors.empty()) {
     std::ostringstream oss;
     oss << "TT IR Validation FAILED:\n";
-    for (const auto& err : result.errors) {
+    for (const auto &err : result.errors) {
       oss << "  ERROR: " << err << "\n";
     }
     LOG(ERROR) << oss.str();
@@ -247,7 +263,7 @@ PrimFunc VerifyTTIRImpl(PrimFunc f) {
   if (!result.warnings.empty()) {
     std::ostringstream oss;
     oss << "TT IR Validation Warnings:\n";
-    for (const auto& warn : result.warnings) {
+    for (const auto &warn : result.warnings) {
       oss << "  WARNING: " << warn << "\n";
     }
     LOG(WARNING) << oss.str();
@@ -259,8 +275,10 @@ PrimFunc VerifyTTIRImpl(PrimFunc f) {
 
   // Step 4: Attach validation result to function
   PrimFunc new_func = WithAttr(f, "tt_ir_validated", Bool(result.is_valid));
-  new_func = WithAttr(new_func, "tt_validation_error_count", Integer(static_cast<int>(result.errors.size())));
-  new_func = WithAttr(new_func, "tt_validation_warning_count", Integer(static_cast<int>(result.warnings.size())));
+  new_func = WithAttr(new_func, "tt_validation_error_count",
+                      Integer(static_cast<int>(result.errors.size())));
+  new_func = WithAttr(new_func, "tt_validation_warning_count",
+                      Integer(static_cast<int>(result.warnings.size())));
 
   return new_func;
 }
@@ -273,7 +291,7 @@ using namespace tir::transform;
  * \return The TIR pass
  */
 Pass VerifyTTIR() {
-  auto pass_func = [=](PrimFunc f, const IRModule& m, const PassContext& ctx) {
+  auto pass_func = [=](PrimFunc f, const IRModule &m, const PassContext &ctx) {
     return VerifyTTIRImpl(std::move(f));
   };
   return CreatePrimFuncPass(pass_func, 0, "tl.VerifyTTIR", {});
@@ -285,5 +303,5 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef().def("tl.transform.VerifyTTIR", VerifyTTIR);
 });
 
-}  // namespace tl
-}  // namespace tvm
+} // namespace tl
+} // namespace tvm

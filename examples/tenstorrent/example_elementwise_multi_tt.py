@@ -46,17 +46,13 @@ Phase 1.2 Goal:
 """
 
 import tvm
-from tvm import tir
 import tilelang.language as T
 import tilelang.tt as tt
 
+
 @T.prim_func
-def elementwise_multi_tt(
-    A: T.Buffer((256, 256), "float16"),
-    B: T.Buffer((256, 256), "float16"),
-    C: T.Buffer((256, 256), "float16"),
-    D: T.Buffer((256, 256), "float16")
-):
+def elementwise_multi_tt(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                         C: T.Buffer((256, 256), "float16"), D: T.Buffer((256, 256), "float16")):
     """
     Multi-operand element-wise addition for Tenstorrent backend.
 
@@ -77,13 +73,13 @@ def elementwise_multi_tt(
         D_tile = T.alloc_fragment((32, 32), "float16")
 
         # Load A[by, bx] tile from DRAM
-        T.copy(A[by * 32:(by+1)*32, bx * 32:(bx+1)*32], A_tile)
+        T.copy(A[by * 32:(by + 1) * 32, bx * 32:(bx + 1) * 32], A_tile)
 
         # Load B[by, bx] tile from DRAM
-        T.copy(B[by * 32:(by+1)*32, bx * 32:(bx+1)*32], B_tile)
+        T.copy(B[by * 32:(by + 1) * 32, bx * 32:(bx + 1) * 32], B_tile)
 
         # Load C[by, bx] tile from DRAM
-        T.copy(C[by * 32:(by+1)*32, bx * 32:(bx+1)*32], C_tile)
+        T.copy(C[by * 32:(by + 1) * 32, bx * 32:(bx + 1) * 32], C_tile)
 
         # Compute D = A + B + C (element-wise)
         # This should generate:
@@ -95,11 +91,13 @@ def elementwise_multi_tt(
             D_tile[i, j] = temp + C_tile[i, j]
 
         # Store result tile to DRAM
-        T.copy(D_tile, D[by * 32:(by+1)*32, bx * 32:(bx+1)*32])
+        T.copy(D_tile, D[by * 32:(by + 1) * 32, bx * 32:(bx + 1) * 32])
+
 
 def create_elementwise_multi_module(M=256, N=256):
     """Create TileLang IR for multi-operand elementwise."""
     return tvm.IRModule({"main": elementwise_multi_tt})
+
 
 def main():
     print("=" * 70)
@@ -152,9 +150,15 @@ def main():
     has_chained_adds = compute.count("add_tiles") >= 2
     has_dst_lifecycle = "tile_regs_acquire()" in compute and "tile_regs_release()" in compute
 
-    print(f"  CB wait for 3+ inputs: {'✓' if has_multi_cb_wait else '✗'} {'Found' if has_multi_cb_wait else 'Missing'}")
-    print(f"  Chained add_tiles:     {'✓' if has_chained_adds else '✗'} {'Found' if has_chained_adds else 'Missing'}")
-    print(f"  DST lifecycle:         {'✓' if has_dst_lifecycle else '✗'} {'Found' if has_dst_lifecycle else 'Missing'}")
+    print(
+        f"  CB wait for 3+ inputs: {'✓' if has_multi_cb_wait else '✗'} {'Found' if has_multi_cb_wait else 'Missing'}"
+    )
+    print(
+        f"  Chained add_tiles:     {'✓' if has_chained_adds else '✗'} {'Found' if has_chained_adds else 'Missing'}"
+    )
+    print(
+        f"  DST lifecycle:         {'✓' if has_dst_lifecycle else '✗'} {'Found' if has_dst_lifecycle else 'Missing'}"
+    )
 
     if has_multi_cb_wait and has_chained_adds and has_dst_lifecycle:
         print()
@@ -164,6 +168,7 @@ def main():
         print("⚠ PARTIAL: Multi-operand pattern needs additional work")
 
     print()
+
 
 if __name__ == "__main__":
     main()

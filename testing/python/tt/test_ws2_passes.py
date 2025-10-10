@@ -213,7 +213,7 @@ class TestShardInference:
             assert int(padded_shape[1]) == 128  # 4 tiles * 32 = 128
 
 
-class TestMetadata Inference stageIntegration:
+class TestMetadataInferenceStageIntegration:
     """Test integration of TT defaults stage + metadata inference stage passes."""
 
     def test_full_ws2_pipeline(self):
