@@ -3,30 +3,30 @@
 Guidelines for Claude Code when collaborating on this repository.
 
 ## Repository Snapshot
-- This fork (`davorchap/tilelang-tt`) tracks the Tenstorrent backend work: layout-aware metadata passes, shard-aware persistent lowering, and the IR-driven code generators (reader/compute/writer/host).
-- The codebase mixes C++ (under `src/`) with Python orchestration (`tilelang/tt`). Tests live primarily in `testing/python/tt`.
-- Recent updates moved the host artifact to a metadata summary (`main.cpp`) and tightened shard guardrails in every visitor; keep these contracts in mind when editing runtime arguments.
+- Fork `davorchap/tilelang-tt` hosts the Tenstorrent backend effort: layout-aware metadata passes, shard-aware persistent lowering, and IR-driven reader/compute/writer/host generators.
+- Python orchestration lives in `tilelang/tt`, compiler passes in `src/transform/tt/`, and codegen visitors in `src/target/tt/`. Tests reside under `testing/python/tt/`.
+- As of 2025-10-10 the host artifact emits a metadata summary (`main.cpp`) aligned with runtime argument schemas; guardrails ensure shard completeness across visitors.
 
 ## Build & Test Quickstart
-1. Create a virtual environment (`python -m venv .venv && source .venv/bin/activate`).
+1. Create an isolated environment: `python -m venv .venv && source .venv/bin/activate`.
 2. Install development dependencies: `pip install -e ".[dev]"`.
-3. For CI-parity mock builds, run `bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4`.
-4. To exercise the real SDK, export `TT_METAL_HOME` and add `--with-metalium` to the script.
-5. Standalone tests: `LD_LIBRARY_PATH=build/tvm:$LD_LIBRARY_PATH pytest testing/python/tt -q`.
-6. Enforce formatting with `bash format.sh` before staging commits.
+3. Run the mock-mode CI replica: `bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4`.
+4. For SDK-backed runs, export `TT_METAL_HOME` and add `--with-metalium`.
+5. Standalone tests: `LD_LIBRARY_PATH=build/tvm:$LD_LIBRARY_PATH pytest testing/python/tt/ -v`.
+6. Enforce formatting and lint baselines with `bash format.sh` before staging commits.
 
 ## Workflow Expectations
-- Always branch from `main` and open PRs against `davorchap/tilelang-tt`; upstream (`tile-ai/tilelang`) is read-only for this effort.
-- Keep commits focused, imperative, and documented (note impacted docs/scripts when relevant).
-- PR descriptions should summarise behaviour changes, list validation commands, and link documentation updates (e.g., `docs/tenstorrent/CI.md`).
-- Coordinate significant interface changes (runtime metadata, pass ordering) with updates to tests and docs in the same PR.
+- Branch from `main` and open PRs against `davorchap/tilelang-tt`; upstream `tile-ai/tilelang` stays read-only for TT backend development.
+- Keep commits focused, imperative, and documented—reference any touched docs or scripts when workflows change.
+- PR descriptions must summarise behavioural changes, list validation commands (e.g., `pytest testing/python/tt/ -v`), and link doc updates such as `docs/tenstorrent/CI.md`.
+- Coordinate interface changes (runtime metadata, pass ordering) with matching test and documentation updates in the same PR.
 
 ## Reference Documents
-- Architecture overview: `docs/tenstorrent/TT_ARCHITECTURE.md`
-- Layout-aware roadmap: `docs/tenstorrent/IR_LOWERING_TASKS.md`
-- CI and local build parity: `docs/tenstorrent/CI.md`
-- SDK setup: `docs/tenstorrent/METALIUM_SETUP_GUIDE.md`
-- Contributor tips for Tenstorrent-specific flows: `docs/tenstorrent/README.md`
+- Architecture & runtime contracts: `docs/tenstorrent/TT_ARCHITECTURE.md`
+- Backend overview & doc index: `docs/tenstorrent/README.md`
+- CI/local parity workflows: `docs/tenstorrent/CI.md`
+- SDK setup for hardware validation: `docs/tenstorrent/METALIUM_SETUP_GUIDE.md`
+- Pass roadmaps & analysis: `docs/tenstorrent/IR_LOWERING_TASKS.md`, `docs/tenstorrent/IR_LOWERING_ANALYSIS.md`, `docs/tenstorrent/PASS_TABLE.md`
+- Build deep-dive & scripts: `docs/tenstorrent/local_build_guide.md`
 
 Review these files when making changes; update them if instructions drift from reality.
-
