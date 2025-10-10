@@ -26,6 +26,7 @@
 
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
+#include <tvm/runtime/logging.h>
 
 #include <sstream>
 
@@ -61,9 +62,32 @@ std::string TTComputeCodegenVisitor::GetFullKernel() {
 
   // Emit runtime argument extraction
   EmitLine("// Runtime arguments");
-  EmitLine("uint32_t out_tile_start_id = get_arg_val<uint32_t>(0);");
-  EmitLine("uint32_t num_output_tiles = get_arg_val<uint32_t>(1);");
-  EmitLine("uint32_t Kt = get_arg_val<uint32_t>(2);");
+  int start_idx = GetRuntimeArgIndex("tt_start_tile");
+  ICHECK_GE(start_idx, 0) << "Missing tt_start_tile runtime argument";
+  EmitLine("uint32_t tt_start_tile = get_arg_val<uint32_t>(" + std::to_string(start_idx) + ");");
+
+  int count_idx = GetRuntimeArgIndex("tt_tile_count");
+  ICHECK_GE(count_idx, 0) << "Missing tt_tile_count runtime argument";
+  EmitLine("uint32_t tt_tile_count = get_arg_val<uint32_t>(" + std::to_string(count_idx) + ");");
+
+  int kt_idx = GetRuntimeArgIndex("Kt");
+  if (kt_idx >= 0) {
+    EmitLine("uint32_t Kt = get_arg_val<uint32_t>(" + std::to_string(kt_idx) + ");");
+  } else {
+    EmitLine("uint32_t Kt = " + std::to_string(GetRuntimeConst<int>("Kt", 1)) + ";");
+  }
+
+  if (HasRuntimeArg("tt_shard_coord_y")) {
+    EmitLine("uint32_t tt_shard_coord_y = get_arg_val<uint32_t>(" +
+             std::to_string(GetRuntimeArgIndex("tt_shard_coord_y")) + ");");
+  }
+  if (HasRuntimeArg("tt_shard_coord_x")) {
+    EmitLine("uint32_t tt_shard_coord_x = get_arg_val<uint32_t>(" +
+             std::to_string(GetRuntimeArgIndex("tt_shard_coord_x")) + ");");
+  }
+
+  EmitLine("uint32_t out_tile_start_id = tt_start_tile;");
+  EmitLine("uint32_t num_output_tiles = tt_tile_count;");
   EmitLine("");
 
   // Walk the function body (should contain persistent loop + K-loop)

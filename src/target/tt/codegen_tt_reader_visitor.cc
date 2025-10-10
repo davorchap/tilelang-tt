@@ -25,6 +25,7 @@
 #include "codegen_tt_reader_visitor.h"
 
 #include <sstream>
+#include <tvm/runtime/logging.h>
 
 namespace tvm {
 namespace tl {
@@ -50,11 +51,34 @@ std::string TTReaderCodegenVisitor::GetFullKernel() {
   EmitLine("// Runtime arguments");
   EmitLine("uint32_t dram_addr_a = get_arg_val<uint32_t>(0);");
   EmitLine("uint32_t dram_addr_b = get_arg_val<uint32_t>(1);");
-  EmitLine("uint32_t Mt = get_arg_val<uint32_t>(2);");
-  EmitLine("uint32_t Kt = get_arg_val<uint32_t>(3);");
-  EmitLine("uint32_t Nt = get_arg_val<uint32_t>(4);");
-  EmitLine("uint32_t out_tile_start_id = get_arg_val<uint32_t>(5);");
-  EmitLine("uint32_t num_out_tiles = get_arg_val<uint32_t>(6);");
+  int mt_idx = GetRuntimeArgIndex("Mt");
+  if (mt_idx >= 0) {
+    EmitLine("uint32_t Mt = get_arg_val<uint32_t>(" + std::to_string(mt_idx) + ");");
+  } else {
+    EmitLine("uint32_t Mt = " + std::to_string(GetRuntimeConst<int>("Mt", 1)) + ";");
+  }
+
+  int kt_idx = GetRuntimeArgIndex("Kt");
+  if (kt_idx >= 0) {
+    EmitLine("uint32_t Kt = get_arg_val<uint32_t>(" + std::to_string(kt_idx) + ");");
+  } else {
+    EmitLine("uint32_t Kt = " + std::to_string(GetRuntimeConst<int>("Kt", 1)) + ";");
+  }
+
+  int nt_idx = GetRuntimeArgIndex("Nt");
+  if (nt_idx >= 0) {
+    EmitLine("uint32_t Nt = get_arg_val<uint32_t>(" + std::to_string(nt_idx) + ");");
+  } else {
+    EmitLine("uint32_t Nt = " + std::to_string(GetRuntimeConst<int>("Nt", 1)) + ";");
+  }
+
+  int start_idx = GetRuntimeArgIndex("tt_start_tile");
+  ICHECK_GE(start_idx, 0) << "Missing tt_start_tile runtime argument";
+  EmitLine("uint32_t out_tile_start_id = get_arg_val<uint32_t>(" + std::to_string(start_idx) + ");");
+
+  int count_idx = GetRuntimeArgIndex("tt_tile_count");
+  ICHECK_GE(count_idx, 0) << "Missing tt_tile_count runtime argument";
+  EmitLine("uint32_t num_out_tiles = get_arg_val<uint32_t>(" + std::to_string(count_idx) + ");");
   EmitLine("");
 
   // Emit persistent loop structure
