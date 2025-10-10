@@ -32,9 +32,11 @@
  * See: docs/tenstorrent/workstream4/Artifact Generation stage_STATUS.md
  */
 
+#include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
@@ -189,8 +191,6 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
         value = int_imm->value;
       } else if (const auto* float_imm = value_ref.as<FloatImmNode>()) {
         value = static_cast<int64_t>(float_imm->value);
-      } else if (value_ref->IsInstance<IntegerObj>()) {
-        value = Downcast<Integer>(value_ref).IntValue();
       }
       runtime_constants.emplace_back(key, value);
     }
@@ -206,7 +206,7 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   std::vector<std::vector<int64_t>> core_runtime_args;
   if (auto core_attr = func->attrs.GetAttr<Array<ObjectRef>>("tt_core_runtime_args")) {
     for (const ObjectRef& row_obj : core_attr.value()) {
-      if (!row_obj->IsInstance<ArrayNode>()) continue;
+      if (!row_obj.as<ffi::ArrayObj>()) continue;
       Array<Integer> row_array = Downcast<Array<Integer>>(row_obj);
       std::vector<int64_t> row;
       row.reserve(row_array.size());
@@ -227,7 +227,7 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   if (core_runtime_args.empty()) {
     if (auto tiles_attr = func->attrs.GetAttr<Array<ObjectRef>>("tt_tiles_per_core")) {
       for (const ObjectRef& row_obj : tiles_attr.value()) {
-        if (!row_obj->IsInstance<ArrayNode>()) continue;
+        if (!row_obj.as<ffi::ArrayObj>()) continue;
         Array<Integer> row_array = Downcast<Array<Integer>>(row_obj);
         int64_t start = row_array.size() > 0 ? row_array[0].IntValue() : 0;
         int64_t count = row_array.size() > 1 ? row_array[1].IntValue() : 0;
