@@ -338,7 +338,11 @@ def infer_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
 
             layout_kind = str(metadata.get("layout", "interleaved"))
             layout_kind = layout_kind.lower()
-            if layout_kind in ("dram_interleaved", "interleaved") or layout_kind != "sharded":
+            if layout_kind in ("dram_interleaved", "interleaved"):
+                layout_kind = "interleaved"
+            elif layout_kind == "sharded":
+                layout_kind = "sharded"
+            else:
                 layout_kind = "interleaved"
 
             dtype_str = str(metadata.get("dtype", buffer.dtype))
