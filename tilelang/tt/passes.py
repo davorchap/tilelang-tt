@@ -10,8 +10,7 @@ import math
 from typing import Any, Dict, Optional
 
 from tilelang import tvm as tvm
-from tvm.ffi import dtype
-from tvm.runtime import convert
+from tvm.runtime import DataType, convert
 from tvm.tir import IntImm, FloatImm
 from tvm.tir.analysis import simplify
 
@@ -44,10 +43,10 @@ def annotate_tt_schedule(func: tvm.tir.PrimFunc, schedule: Dict[str, Any]) -> tv
 
 
 def _dtype_num_bytes(dtype_str: str) -> int:
-    dtype_obj = dtype(dtype_str)
-    if dtype_obj.bits % 8 != 0:
+    dt = DataType(dtype_str)
+    if dt.bits % 8 != 0:
         raise ValueError(f"Unsupported dtype bit-width for {dtype_str}")
-    return (dtype_obj.bits // 8) * dtype_obj.lanes
+    return (dt.bits // 8) * dt.lanes
 
 
 def _infer_data_format(dtype_str: str) -> str:
