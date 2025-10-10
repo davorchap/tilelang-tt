@@ -1,6 +1,6 @@
 # TileLang Tenstorrent Backend Documentation
 
-**Last Updated**: 2025-10-08
+**Last Updated**: 2025-10-10  
 **Status**: Production-Ready (95 tests passing)
 
 ---
@@ -40,7 +40,7 @@ pip install -e . --no-build-isolation
 |----------|---------|----------|
 | **[TT_ARCHITECTURE.md](TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture | All developers |
 | **[IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md)** | GPU vs TT lowering pipeline comparison | Compiler engineers |
-| **[PASS_TABLE.md](PASS_TABLE.md)** | Comprehensive pass reference (60+ passes) | Transform developers |
+| **[PASS_TABLE.md](PASS_TABLE.md)** | Comprehensive pass reference (layout-aware roadmap) | Transform developers |
 | **[IR_LOWERING_TASKS.md](IR_LOWERING_TASKS.md)** | Pattern detection implementation tasks | Contributors |
 
 ### 🚀 Setup & Usage
@@ -66,8 +66,8 @@ pip install -e . --no-build-isolation
 **IR Pipeline:**
 - ✅ Target registration (8 tests)
 - ✅ Metadata inference (7 tests)
-  - Schedule inference (per-core tile assignments)
-  - Shard inference (DRAM layout descriptors)
+  - Schedule inference (per-core tile assignments, legacy path)
+  - Shard inference (DRAM layout descriptors, legacy path)
 - ✅ Transform pipeline (39 tests)
   - GridToPersistentTT (persistent loop model)
   - TTTilesToCoreMap (NOC grid mapping)
@@ -92,17 +92,21 @@ pip install -e . --no-build-isolation
 
 ### 🚧 Next Steps
 
-**Pattern Detection (Priority):**
-- Extend `tensorize_tt.cc` to detect manual matmul loops
-- Add element-wise operation detection
-- Replace codegen heuristics with IR annotations
-- See [IR_LOWERING_TASKS.md](IR_LOWERING_TASKS.md) for roadmap
+**Layout-Aware Metadata (P0):**
+- Implement `InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT`.
+- Update `GridToPersistentTT` and `EmitTTKernels` to consume new attributes.
+- Add Python annotation helpers (`annotate_tt_layout`, `annotate_tt_schedule`).
+- Track progress in [IR_LOWERING_TASKS.md](IR_LOWERING_TASKS.md).
+
+**Pattern Detection (P1):**
+- Extend `tensorize_tt.cc` to detect manual matmul loops.
+- Add element-wise detection and remove codegen heuristics.
 
 **SDK Validation (Blocked):**
-- Phase 1: Dry-run compilation (fix namespaces, includes)
-- Phase 2: API completion (EnqueueWriteBuffer, SetRuntimeArgs)
-- Phase 3: Hardware execution (Grayskull/Wormhole)
-- See [METALIUM_SDK_VALIDATION_PLAN.md](METALIUM_SDK_VALIDATION_PLAN.md)
+- Phase 1: Dry-run compilation (fix namespaces, includes).
+- Phase 2: API completion (EnqueueWriteBuffer, SetRuntimeArgs).
+- Phase 3: Hardware execution (Grayskull/Wormhole).  
+See [METALIUM_SDK_VALIDATION_PLAN.md](METALIUM_SDK_VALIDATION_PLAN.md).
 
 ---
 
@@ -113,13 +117,18 @@ TileLang DSL (Python)
     ↓
 TVM IRModule
     ↓
-Apply TT Defaults → Stamp schedule/shard metadata
+Apply TT Defaults → Stamp default schedule/shard metadata
+    ↓
+Layout-Aware Metadata (planned)
+    ├─ InferTTLayout (buffer + shard schema)
+    ├─ PropagateTTLayout (CB metadata)
+    └─ LayoutAwareWorkPartitionTT (core ranges, partition mode)
     ↓
 Transform Pipeline (6 TT-specific + 11 shared passes)
-    ├─ infer_default_tt_schedule (per-core tile assignments)
-    ├─ infer_default_tt_shard (DRAM layout descriptors)
+    ├─ infer_default_tt_schedule (legacy defaults)
+    ├─ infer_default_tt_shard (legacy layout descriptors)
     ├─ grid_to_persistent_tt (GPU grid → persistent loop)
-    ├─ tt_tiles_to_core_map (tile assignments → NOC coordinates)
+    ├─ tt_tiles_to_core_map (legacy NOC mapping)
     ├─ memory_space_lower_tt (DRAM → L1 circular buffers)
     ├─ tile_pad_tt (pad to 32×32 tiles)
     ├─ tensorize_tt (pattern detection)

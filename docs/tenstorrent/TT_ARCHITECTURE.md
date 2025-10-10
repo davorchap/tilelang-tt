@@ -73,21 +73,58 @@ TT-Metalium C++ Code
 
 **Purpose:** Ensure backward compatibility - GPU-style kernels run on TT with sensible defaults.
 
+### Phase 2.5: Layout-Aware Metadata (Planned)
+
+**Why add a new stage?** Default schedule/shard metadata does not capture user intent for DRAM vs L1 residency, ND sharding, or tile-order annotations. The layout-aware stage introduces explicit buffer- and function-level attributes that downstream passes and codegen can rely on.
+
+**Passes (new):**
+- `InferTTLayout` – Normalize user annotations (`annotate_tt_layout`) and emit `tt.buffer.<name>` dictionaries with memory space, layout, dtype, tile shape, and optional N‑D shard metadata. Validates L1 shards and rejects halo hints.
+- `PropagateTTLayout` – Reads buffer metadata and stamps `tt.cb.<name>` attributes describing circular buffer geometry (`page_size`, `depth`, `data_format`) for each DRAM↔L1 copy.
+- `LayoutAwareWorkPartitionTT` – Chooses per-core work assignments based on buffer residency. Emits `tt.partition_mode` (`global` vs `local_shard`), `tt.core_ranges`, `tt.grid_tiles`, `tt.shard_grid`, `tt.local_shape_tiles`, and canonical `tt.runtime_args`.
+
+**PrimFunc Attributes after this stage:**
+```json
+{
+  "tt.partition_mode": "global" | "local_shard",
+  "tt.grid_tiles": [Mt, Nt],
+  "tt.shard_grid": [Gy, Gx],
+  "tt.local_shape_tiles": [Sm, Sn],
+  "tt.runtime_args": ["start_id","count","Mt","Kt","Nt","Sm","Sn","Gy","Gx","sy","sx"],
+  "tt.core_ranges": [[y0,x0],[y1,x1], ...]
+}
+```
+
+**Buffer Attributes:**
+```json
+"tt.buffer.A": {
+  "memory": "DRAM",
+  "layout": "sharded",
+  "tile_shape": [32,32],
+  "dtype": "bf16",
+  "nd_shard": {
+    "axes": ["B","H","M","N"],
+    "grid": [gB,gH,gM,gN],
+    "shard_shape_elems": [sB,sH,sM,sN],
+    "order": "row_major",
+    "align_tiles": true,
+    "projected_grid": [Gy,Gx],
+    "projected_shard_tiles": [Sm,Sn]
+  }
+}
+```
+
+This metadata becomes the authoritative source for later stages, allowing legacy heuristics to be removed.
+
 ### Phase 3: TT-Specific Optimization
 
 **Entry Point:** `tilelang/engine/tt/lower.py` → `OptimizeForTargetTT()`
 
-**TT-Specific Transform Passes (6):**
+**TT-Specific Transform Passes (updated set):**
 
-1. **`infer_default_tt_schedule`** - Compute per-core tile assignments
-   - Input: Grid kernel (8x8 blocks)
-   - Output: Per-core tile ranges [(core_id, start_tile, count)]
-
-2. **`infer_default_tt_shard`** - Generate DRAM layout descriptors
-   - Input: Buffers
-   - Output: Sharding metadata (tiled, interleaved, 32×32)
-
-3. **`grid_to_persistent_tt`** - Transform GPU grid to persistent loop
+1. **`InferTTLayout`** *(new)* – Canonicalize buffer layout schema, validate N‑D sharding, enforce L1 constraints.
+2. **`PropagateTTLayout`** *(new)* – Derive circular buffer (`tt.cb.*`) metadata from layout information.
+3. **`LayoutAwareWorkPartitionTT`** *(new)* – Select cores and runtime ranges based on residency (`global` vs `local_shard`).
+4. **`grid_to_persistent_tt`** *(updated)* – Transform GPU grid to persistent loop using shard-aware `(m, n)` recovery.
    - Input: GPU-style grid kernel (`with T.Kernel(8, 8) as (bx, by)`)
    - Output: Persistent kernel with tile iteration
    ```python
@@ -104,10 +141,6 @@ TT-Metalium C++ Code
        C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
    ```
 
-4. **`tt_tiles_to_core_map`** - Map tile assignments to NOC grid coordinates
-   - Input: Shard IDs
-   - Output: Core (x, y) coordinates on NOC mesh
-
 5. **`memory_space_lower_tt`** - Lower DRAM to L1 circular buffers
    - Input: DRAM buffer allocations
    - Output: L1 circular buffer allocations
@@ -122,6 +155,8 @@ TT-Metalium C++ Code
 6. **`tile_pad_tt`** - Pad buffers to 32×32 tile boundaries
    - Input: Arbitrary buffer shapes
    - Output: Tile-aligned shapes (multiples of 32)
+
+Legacy passes `infer_default_tt_schedule` and `tt_tiles_to_core_map` remain available for backward compatibility but will be phased out once the layout-aware stack ships.
 
 **Common Optimization Passes (11, shared with CUDA):**
 - `FlattenBuffer` - Flatten multi-dim buffers to 1D
@@ -141,6 +176,89 @@ TT-Metalium C++ Code
 
 **Total:** 6 TT-specific + 11 shared + 1 verification = 18 passes
 
+---
+
+## Layout Attribute Schema (Details)
+
+### Buffer Attributes (`tt.buffer.<name>`)
+
+| Field | Meaning | Notes |
+|-------|---------|-------|
+| `memory` | `"DRAM"` or `"L1"` | Drives buffer residency and host API choice. |
+| `layout` | `"interleaved"` or `"sharded"` | Mirrors TT-Metalium layout enums. |
+| `tile_shape` | `[height, width]` | Defaults to `[32, 32]`; configurable in future. |
+| `dtype` | Element type | `bf16`, `fp16`, `fp32`, etc. |
+| `nd_shard.axes` | Logical axis labels | User-defined names to keep intent clear. |
+| `nd_shard.grid` | Cores per axis | Product equals total shards. |
+| `nd_shard.shard_shape_elems` | Elements per shard per axis | Prior to tilization. |
+| `nd_shard.order` | Traversal hint | `row_major`, `match_shard`, `block_linear(k)`. |
+| `nd_shard.align_tiles` | Bool | Must be true for L1 shards in v1. |
+| `nd_shard.projected_grid` | `[Gy, Gx]` | 2-D projection on compute plane (derived). |
+| `nd_shard.projected_shard_tiles` | `[Sm, Sn]` | Tiles per shard over compute plane (derived). |
+
+### PrimFunc Attributes
+
+| Attribute | Source Pass | Consumer | Description |
+|-----------|-------------|----------|-------------|
+| `tt.partition_mode` | LayoutAwareWorkPartitionTT | GridToPersistentTT, host | `"global"` vs `"local_shard"`. |
+| `tt.grid_tiles` | LayoutAwareWorkPartitionTT | GridToPersistentTT, kernels | `[Mt, Nt]` global tile counts. |
+| `tt.shard_grid` | LayoutAwareWorkPartitionTT | Host + kernels | `[Gy, Gx]` shard projection dims. |
+| `tt.local_shape_tiles` | LayoutAwareWorkPartitionTT | Kernels | `[Sm, Sn]` tiles within one shard. |
+| `tt.core_ranges` | LayoutAwareWorkPartitionTT | Host | CoreRangeSet for launches. |
+| `tt.runtime_args` | LayoutAwareWorkPartitionTT | Host + kernels | Ordered runtime arg names. |
+| `tt.cb.<buffer>` | PropagateTTLayout | MemorySpaceLowerTT, kernels | Circular buffer geometry. |
+
+### Diagnostics & Guardrails
+
+- Halo metadata is rejected (*"halo unsupported"*).
+- L1 shards must be tile-aligned and fit within capacity (*"L1 shard exceeds capacity"*).
+- Default-constructed `TensorAccessorArgs()` for DRAM buffers triggers a guardrail failure.
+
+---
+
+## Host & Kernel Responsibilities (Layout-Aware)
+
+### Buffer Creation APIs
+
+| Residency | Layout | Host API | Notes |
+|-----------|--------|----------|-------|
+| DRAM | interleaved | `CreateBuffer(InterleavedBufferConfig{...}, BufferType::DRAM)` | Default configuration. |
+| DRAM | sharded | `CreateBuffer(ShardedBufferConfig{...}, BufferType::DRAM)` | Accepts ND shard metadata. |
+| L1 | sharded | `CreateBuffer(ShardedBufferConfig{...}, BufferType::L1)` | Opt-in; enforced alignments. |
+
+### TensorAccessor Policy
+
+- Compile-time blobs must be built via `TensorAccessorArgs(*buffer)` so layout metadata is captured.
+- Runtime args supply base addresses plus tile geometry fields (global + shard).
+- Local L1 shards (owned by the executing core) use CB pointers directly; no TA required.
+
+### Runtime Argument Payload
+
+| Mode | Arguments |
+|------|-----------|
+| Global | `start_id`, `count`, `Mt`, `Kt`, `Nt` |
+| Local shard | Above + `Sm`, `Sn`, `Gy`, `Gx`, `sy`, `sx` |
+
+### Tile Order Options
+
+- `row_major` remains the default (global or shard-local).
+- `match_shard` iterates shard-local tiles in-row-major order then follows shard assignment.
+- `block_linear(k)` reserved for future `RasterizationTT` pass.
+
+---
+
+## Test Matrix (Planned)
+
+| Scenario | Goal | Expected Verification |
+|----------|------|-----------------------|
+| DRAM interleaved | Preserve legacy behavior | `tt.partition_mode="global"`, TA compile-args present, default CB geometry. |
+| DRAM sharded | Treat sharding as first-class | Host uses `ShardedBufferConfig`, runtime args remain global, tile IDs map via TensorAccessor. |
+| L1 sharded | Enforce opt-in residency | `tt.partition_mode="local_shard"`, `tt.core_ranges` == shard grid, runtime args include shard offsets. |
+| ND sharding projection | Validate axis → compute mapping | `[Gy,Gx]`, `[Sm,Sn]` derived correctly for mixed axes. |
+| Negative halo | Diagnostics | Pass errors with *"halo unsupported"*. |
+| L1 overflow | Diagnostics | Fails capacity check. |
+| Guardrail | Prevent DRAM TA misuse | Unit test fails on default-constructed TensorAccessorArgs. |
+
 ### Phase 4: Code Generation (IR-Driven)
 
 **Entry Point:** `src/target/tt/codegen_tt.cc` → `CodegenTT::Build()`
@@ -155,6 +273,9 @@ TT-Metalium C++ Code
    void kernel_main() {
        uint32_t dram_addr_a = get_arg_val<uint32_t>(0);
        uint32_t dram_addr_b = get_arg_val<uint32_t>(1);
+       uint32_t Mt = get_arg_val<uint32_t>(2);
+       uint32_t Kt = get_arg_val<uint32_t>(3);
+       uint32_t Nt = get_arg_val<uint32_t>(4);
 
        for (uint32_t tile = 0; tile < num_tiles; ++tile) {
            cb_reserve_back(cb_in0, 1);
@@ -165,6 +286,7 @@ TT-Metalium C++ Code
        }
    }
    ```
+   > **Upcoming change:** Reader/Writer kernels will instantiate `TensorAccessor` objects using compile-time blobs provided via `TensorAccessorArgs(*buffer)` to handle DRAM interleaved vs sharded layouts transparently.
 
 2. **Compute Kernel** (`compute.cpp`)
    - **Visitor:** `TTComputeCodegenVisitor`
