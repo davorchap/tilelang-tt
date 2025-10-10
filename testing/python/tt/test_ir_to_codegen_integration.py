@@ -67,4 +67,3 @@ def test_emit_tt_artifacts_requires_shard_runtime_args():
 
     with pytest.raises(tvm.error.TVMError, match="tt_shard_coord_y"):
         tt.emit_tt_artifacts(mod)
-
