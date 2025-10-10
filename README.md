@@ -233,78 +233,23 @@ def sdpa(Q, K, V, O, scale: T.float32, causal: T.int32):
 
 ---
 
-## Compiler & Codegen Plan (TVM/TileLang)
+## Roadmap & Remaining Work
 
-> We integrate via TVM’s **BYOC** (external codegen), keeping the TT backend cleanly modular.
+We no longer track the backend via phased milestones. Instead, the authoritative plan is maintained in
+[docs/tenstorrent/IR_LOWERING_TASKS.md](docs/tenstorrent/IR_LOWERING_TASKS.md). A condensed snapshot:
 
-### Phase 0 — baseline feature set (GEMM, Elementwise)
+| Track | Status | Notes |
+|-------|--------|-------|
+| Layout-aware metadata core | ✅ Complete | `InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT` stamp canonical runtime metadata consumed by codegen. |
+| Shard-aware persistent lowering & host metadata | ✅ Complete | Runtime arg guardrails, shard coordinate handling, and the metadata-first host artifact (`main.cpp`) are live. |
+| Tensorization upgrades | 🟡 In progress | `tensorize_tt.cc` still relies on visitor heuristics; loop matchers and docs are being tracked in the task list. |
+| Integration/regression tests | 🟡 In progress | Guardrail and shard scenarios are covered; halo/L1 diagnostics and documentation matrix remain open. |
+| Legacy pass deprecation | 🟡 Planned | Default schedule/shard helpers stay for compatibility until the layout-aware stack bakes. |
+| Real SDK validation | ⏸️ Blocked | Requires access to Tenstorrent hardware; see [METALIUM_SDK_VALIDATION_PLAN.md](docs/tenstorrent/METALIUM_SDK_VALIDATION_PLAN.md). |
 
-1. **`GridToPersistentTT` (new pass)**  
-   - **In:** TIR/TileLang PrimFunc using `T.Kernel(grid_x, grid_y)` and `bx/by`.  
-   - **Out:** Function wrapped in a **per‑core outer loop** driven by the selected schedule.  
-   - **Spec:**  
-     - Compute `total = grid_x * grid_y`; materialize policy = contiguous/strided/rect.  
-     - Replace `bx/by` with expressions of `tid` recovered inside the loop.  
-     - Attach PrimFunc attrs:  
-       - `tt_grid_{x,y,z}`, `tt_tiles_per_core`, `tt_schedule` map  
-       - `tt_runtime_args = {start_tile, tile_count, grid_shape, iteration_ndims, iteration_symbols, param_order}`  
-     - **Error cases:** missing `grid_x/grid_y`; unsupported nest shapes; negative extents.
-
-2. **`TTTilesToCoreMap` (new pass)**  
-   - **In:** TT sharding/layout annotations.  
-   - **Out:** Concrete **CoreRangeSet** and per‑tensor sharding metadata.  
-   - **Spec:**  
-     - Translate high‑level `TTShard` into `(axis, tilization, order, placement)` + core ranges.  
-     - Attach `tt.core_ranges`, `tt.shards` to buffers/PrimFunc.  
-     - **Error cases:** non‑tile‑multiple shapes (defer to `TilePadTT`), inconsistent placements.
-
-3. **`TilePadTT` (new pass)**  
-   - **In:** Tensors with extents not multiple of 32 on tiled axes.  
-   - **Out:** Insert pad/unpad around compute or request zero‑fill tails in readers/writers.  
-   - **Spec:** dtype‑aware tile bytes; optionally fuse pad into reader; mark effective shape.
-
-4. **`MemorySpaceLowerTT` (new pass)**  
-   - **In:** TIR with `T.copy` & shared/fragment allocations.  
-   - **Out:** Explicit **DRAM↔L1** moves, **circular buffer** descriptors, syncs.  
-   - **Spec:**  
-     - Map `T.alloc_shared` → L1 CB segments; compute depths from schedule/chunk knobs.  
-     - Lower copies to reader/writer enqueue ops; add attrs `tt.cb.{depth,format,bytes}`.
-
-5. **`TensorizeTT` (new pass)**  
-   - **In:** Canonical tile GEMM/epilogue patterns.  
-   - **Out:** Calls to TT tile micro‑kernels (e.g., `matmul_tiles`).  
-   - **Spec:** pattern match, replace with intrinsic calls; keep fallbacks if not matched.
-
-6. **`EmitTTKernels` (codegen)**  
-   - **Out:**  
-     - **Compute kernel** C++ source with the generated **outer scheduler loop** + intrinsic calls.  
-     - **Reader/Writer kernels** C++ sources with DRAM address math from `(bx,by)` or rectangles.  
-     - **Host stub** that builds the Program, creates kernels on **CoreRange/CoreRangeSet**, allocates CBs, sets **runtime args** (`start_id`, `count`, `grid`, `Kt`/chunk), and enqueues.
-
-7. **Runtime glue**  
-   - Produce a `tvm.runtime.Module` that compiles the host stub and kernels, resolves TT‑Metalium SDK, and exposes a callable `run(...)`.  
-   - CMake guards: `-DTL_TT_BACKEND=ON`, `TT_METAL_HOME` discovery; non‑TT builds remain unaffected.
-
-### Phase 1 — SDPA, Dequant‑GEMM, Reuse/Multicast
-
-8. **`SDPAFusionTT` (new pass)**  
-   - Fuse `Q·Kᵀ → softmax → P·V` into a streaming loop over **(B×H, Q tiles)** with **K‑chunking**.  
-   - Emit per‑core persistent outer loop; map `qk_chunk_tiles` into reader/compute loops.
-
-9. **`TTMulticastReuse` (opt pass)**  
-   - Where layout implies neighbor reuse (A/B in GEMM, Q or K in SDPA), introduce sender/receiver ranges and multicast paths; synthesize variant readers/writers per range.
-
-10. **`RasterizationTT` (opt pass)**  
-    - Switch `tid → (by,bx)` mapping to `block_linear(k)` or other locality‑aware orders.
-
-### Phase 2 — Ergonomics, Safety, Diagnostics
-
-11. **Legalize & Guards**  
-    - Insert masks/tails where partial tiles are unavoidable; fall back to scalar or smaller vectors.
-
-12. **Diagnostics**  
-    - Validate shard/schedule feasibility; emit actionable errors.  
-    - Dump `tt.plan.json` containing per‑core `(start_id, count)` or rectangle maps for inspection.
+Refer to the documents above—plus the architecture overview in
+[docs/tenstorrent/TT_ARCHITECTURE.md](docs/tenstorrent/TT_ARCHITECTURE.md) and the contributor-centric
+[docs/tenstorrent/README.md](docs/tenstorrent/README.md)—for deeper detail and live task ownership.
 
 ---
 

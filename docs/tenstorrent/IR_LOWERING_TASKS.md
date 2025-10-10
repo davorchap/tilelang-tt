@@ -20,10 +20,14 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 | Component | Status | Documentation |
 |-----------|--------|---------------|
-| **InferTTLayout** | 🚧 Planned | [📄 passes/infer_layout_tt.md](./passes/infer_layout_tt.md) |
-| **PropagateTTLayout** | 🚧 Planned | [📄 passes/propagate_layout_tt.md](./passes/propagate_layout_tt.md) |
-| **LayoutAwareWorkPartitionTT** | 🚧 Planned | [📄 passes/layout_aware_partition_tt.md](./passes/layout_aware_partition_tt.md) |
-| **grid_to_persistent_tt** | 🛠️ Update required | [📄 passes/grid_to_persistent_tt.md](./passes/grid_to_persistent_tt.md) |
+| **InferTTLayout** | ✅ Complete | [📄 passes/infer_layout_tt.md](./passes/infer_layout_tt.md) |
+| **PropagateTTLayout** | ✅ Complete | [📄 passes/propagate_layout_tt.md](./passes/propagate_layout_tt.md) |
+| **LayoutAwareWorkPartitionTT** | ✅ Complete | [📄 passes/layout_aware_partition_tt.md](./passes/layout_aware_partition_tt.md) |
+| **grid_to_persistent_tt** | 🟡 Follow-up diagnostics | [📄 passes/grid_to_persistent_tt.md](./passes/grid_to_persistent_tt.md) |
+
+> For a holistic view of the metadata + transform pipeline, refer to
+> [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md). This table is deliberately terse so that future edits can
+> stay in sync by updating the architecture doc once and linking from strategy trackers like this one.
 | **memory_space_lower_tt** | ✅ Complete (consume new metadata) | [📄 passes/memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) |
 | **tensorize_tt** | 🟡 Partial | [📄 passes/tensorize_tt.md](./passes/tensorize_tt.md) |
 | **verify_tt_ir** | ✅ Complete | [📄 passes/verify_tt_ir.md](./passes/verify_tt_ir.md) |
@@ -47,22 +51,16 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 ## Implementation Priority
 
-### Priority 1: Land Layout-Aware Metadata Core (HIGH) 🔴
+### Priority 1: Layout-Aware Metadata Core (COMPLETE)
 
-**What**: Implement the new metadata passes (`InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT`) and their Python annotations so PrimFuncs/buffers gain canonical layout+runtime attributes.
+**What**: Ship the metadata passes (`InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT`) and Python helpers so PrimFuncs/buffers expose canonical layout + runtime attributes. The canonical pipeline is documented in [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md).
 
-**Why**: These passes are the prerequisite for shard-aware lowering, TensorAccessor correctness, and eventual retirement of the legacy metadata inference path.
+**Status**: ✅ Complete – core functionality and guardrails landed; remaining follow-ups are targeted diagnostics (halo hints, role-aware CB policy) tracked under future tasks.
 
-**Status**: 🟡 Partial – helpers + N-D projection landed; halo diagnostics and advanced validation still pending
-
-**Tasks**:
-1. Add `annotate_tt_layout` / `annotate_tt_schedule` helpers with input validation. ✅ (basic helpers merged; extra validation still TODO)
-2. Implement `InferTTLayout` with diagnostics, projection helpers, and N-D shard normalization. ✅ (projection + tile-alignment checks shipped; halo/capacity diagnostics still pending)
-3. Implement `PropagateTTLayout` to emit `tt.cb.*` metadata per buffer. ⚠️ Emits defaults (depth=2) but lacks role-aware policy
-4. Implement `LayoutAwareWorkPartitionTT` to stamp `tt.partition_mode`, `tt.core_ranges`, `tt.runtime_args`, etc. ⚠️ Global mode only; shard-aware path TODO
-5. Update docs (`README`, `TT_ARCHITECTURE`, `PASS_TABLE`) to describe the shipped behavior. ⚠️ PASS_TABLE partially updated; remaining docs pending
-
-**Estimated Effort**: 3-4 days
+**Next follow-ups**:
+1. Strengthen halo/L1 capacity diagnostics (see Priority 4).
+2. Triage CB depth policy improvements once reuse/multicast design is finalized.
+3. Keep documentation in sync by pointing to shared sources instead of duplicating snippets (this file now references the architecture doc directly).
 
 ### Priority 2: Shard-Aware Persistent Lowering & Codegen (HIGH) 🟢
 
@@ -70,12 +68,12 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Why**: Without shard-aware lowering the new metadata is unused; codegen must rely on the canonical runtime args for determinism.
 
-**Status**: 🟢 Active – persistent pass handles global + local_shard, and host/runtime wiring with TensorAccessor guardrails has landed (docs refresh still pending)
+**Status**: 🟢 Active – persistent pass handles global + local_shard, and host/runtime wiring with TensorAccessor guardrails has landed (see the runtime metadata section in [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md#host--kernel-responsibilities)).
 
 **Tasks**:
 1. Extend persistent lowering to branch on `tt_partition_mode` and recover shard-local/global indices. ✅ (local_shard math emitted; more validation still needed)
 2. Update host/kernel generation to plumb the expanded runtime arg payload, enforce TA guardrails, and refresh templates. ✅ Complete (host metadata summary replaces legacy mock)
-3. Document the final runtime argument contract (architecture + pass docs). ⚠️ PASS_TABLE + pass doc updated; architecture doc pending
+3. Document the final runtime argument contract (architecture + pass docs). ✅ Covered in [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md#host--kernel-responsibilities) and linked throughout this tracker.
 
 **Estimated Effort**: 2-3 days
 
@@ -161,7 +159,7 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 - [x] `InferTTLayout` emits `tt.buffer.*` for all tensors (now includes N-D projection + L1 alignment checks; halo/capacity diagnostics pending).
 - [x] `PropagateTTLayout` attaches `tt.cb.*` with default page size/depth for each buffer (policy tuning pending).
 - [x] `LayoutAwareWorkPartitionTT` stamps `tt.partition_mode`, `tt.core_ranges`, and canonical runtime arg names for global mode (local_shard TODO).
-- [ ] Documentation updated (`README`, `TT_ARCHITECTURE`) to reflect shipped behavior (PASS_TABLE updated; remaining docs pending).
+- [x] Documentation centralized; refer to `README.md` for summary and `docs/tenstorrent/TT_ARCHITECTURE.md` for canonical pipeline (this file now links instead of duplicating details).
 
 **Task 2 (Persistent + Codegen Updates)**:
 - [x] `GridToPersistentTT` recovers `(m, n)` for both `global` and `local_shard` modes.

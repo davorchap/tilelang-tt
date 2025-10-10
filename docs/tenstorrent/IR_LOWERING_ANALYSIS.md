@@ -329,15 +329,16 @@ with target:
 
 ```python
 def OptimizeForTargetTT(mod: IRModule, target: Target) -> IRModule:
-    # === Metadata Inference: Schedule and Sharding Inference ===
-    mod = infer_default_tt_schedule(mod)  # Compute per-core tile ranges
-    mod = infer_default_tt_shard(mod)     # DRAM layout descriptors
+    # === Metadata Inference ===
+    mod = infer_default_tt_schedule(mod)          # Compatibility defaults
+    mod = infer_default_tt_shard(mod)             # Compatibility defaults
+    mod = apply_layout_aware_metadata_passes(mod) # Authoritative metadata
 
-    # === Transform Pipeline: TT-Specific TIR Transformations ===
-    mod = grid_to_persistent_tt(mod)      # Grid → persistent loop
-    mod = tt_tiles_to_core_map(mod)       # Tile assignments → core (x, y)
-    mod = memory_space_lower_tt(mod)      # DRAM → L1 circular buffers
-    mod = tile_pad_tt(mod)                # Pad to 32×32 tiles
+    # === Transform Pipeline (TT specific) ===
+    mod = grid_to_persistent_tt(mod)
+    mod = tt_tiles_to_core_map(mod)
+    mod = memory_space_lower_tt(mod)
+    mod = tile_pad_tt(mod)
 
     # ⭐ CRITICAL: Tensorization (pattern detection)
     mod = tensorize_tt(mod)
@@ -363,14 +364,14 @@ def OptimizeForTargetTT(mod: IRModule, target: Target) -> IRModule:
 ```
 
 **TT-Specific Passes:**
-- **infer_default_tt_schedule**: Compute per-core tile assignments
-- **infer_default_tt_shard**: Generate DRAM sharding descriptors
-- **grid_to_persistent_tt**: Transform GPU grid to TT persistent loops
-- **tt_tiles_to_core_map**: Map tile assignments to NOC grid coordinates
-- **memory_space_lower_tt**: Lower DRAM allocations to L1 circular buffers
-- **tile_pad_tt**: Pad buffers to 32×32 tile boundaries
-- **tensorize_tt**: ⭐ Pattern detection and intrinsic annotation
-- **verify_tt_ir**: Verify TT constraints (grid size, CB counts, etc.)
+- **infer_default_tt_schedule** / **infer_default_tt_shard** *(legacy defaults)*: Seed metadata when annotations are missing.
+- **apply_layout_aware_metadata_passes**: Runs `InferTTLayout`, `PropagateTTLayout`, and `LayoutAwareWorkPartitionTT` (see [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md#layout-aware-metadata) for details).
+- **grid_to_persistent_tt**: Transform GPU grid to TT persistent loops using the emitted partition mode.
+- **tt_tiles_to_core_map** *(legacy fallback)*: Provide core assignments when layout-aware metadata is absent.
+- **memory_space_lower_tt**: Lower DRAM allocations to L1 circular buffers.
+- **tile_pad_tt**: Pad buffers to 32×32 tile boundaries.
+- **tensorize_tt**: ⭐ Pattern detection and intrinsic annotation (loop matchers in progress).
+- **verify_tt_ir**: Verify TT constraints (grid size, CB counts, runtime args).
 
 ### Phase 4: TensorizeTT Pass (INCOMPLETE)
 
