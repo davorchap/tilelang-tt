@@ -338,9 +338,7 @@ def infer_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
 
             layout_kind = str(metadata.get("layout", "interleaved"))
             layout_kind = layout_kind.lower()
-            if layout_kind in ("dram_interleaved", "interleaved"):
-                layout_kind = "interleaved"
-            elif layout_kind != "sharded":
+            if layout_kind in ("dram_interleaved", "interleaved") or layout_kind != "sharded":
                 layout_kind = "interleaved"
 
             dtype_str = str(metadata.get("dtype", buffer.dtype))
@@ -407,11 +405,9 @@ def infer_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
                     max(1, math.ceil(shard_n / tile_shape[1])),
                 ]
 
-                if buffer_meta["memory"].upper() == "L1":
-                    if shard_m % tile_shape[0] != 0 or shard_n % tile_shape[1] != 0:
-                        raise ValueError(
-                            f"L1 shard for buffer '{buffer_name}' must be tile-aligned"
-                        )
+                if buffer_meta["memory"].upper() == "L1" and (shard_m % tile_shape[0] != 0 or
+                                                              shard_n % tile_shape[1] != 0):
+                    raise ValueError(f"L1 shard for buffer '{buffer_name}' must be tile-aligned")
 
                 nd_shard_processed = dict(nd_shard)
                 nd_shard_processed["projected_grid"] = projected_grid
@@ -474,9 +470,7 @@ def propagate_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
 
         return new_func
 
-    pass_obj = tvm.tir.transform.prim_func_pass(
-        transform, opt_level=0, name="tl.PropagateTTLayout"
-    )
+    pass_obj = tvm.tir.transform.prim_func_pass(transform, opt_level=0, name="tl.PropagateTTLayout")
     return pass_obj(mod)
 
 
@@ -577,7 +571,7 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
         if partition_mode == "local_shard":
             runtime_constants.update({"Sm": Sm, "Sn": Sn, "Gy": Gy, "Gx": Gx})
 
-        mesh_width = int(round(num_cores ** 0.5))
+        mesh_width = int(round(num_cores**0.5))
         if mesh_width * mesh_width != num_cores:
             mesh_width = grid_x if grid_x > 0 else max(num_cores, 1)
 
@@ -633,8 +627,7 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
         return new_func
 
     pass_obj = tvm.tir.transform.prim_func_pass(
-        transform, opt_level=0, name="tl.LayoutAwareWorkPartitionTT"
-    )
+        transform, opt_level=0, name="tl.LayoutAwareWorkPartitionTT")
     return pass_obj(mod)
 
 
