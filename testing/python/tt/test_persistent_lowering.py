@@ -101,6 +101,7 @@ class TestGridToPersistentTT:
         assert runtime_args["partition_mode"] == "global"
 
     def test_grid_to_persistent_local_shard(self):
+
         @T.prim_func
         def shard_kernel(A: T.Buffer((128, 256), "float16")):
             with T.Kernel(2, 4) as (bx, by):

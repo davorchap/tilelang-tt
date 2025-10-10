@@ -536,9 +536,7 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
 
         if partition_mode == "local_shard":
             if detected_grid is None or detected_tiles is None:
-                raise ValueError(
-                    "layout-aware partitioning requires sharded buffer metadata"
-                )
+                raise ValueError("layout-aware partitioning requires sharded buffer metadata")
             shard_grid = detected_grid
             local_tiles = detected_tiles
 
@@ -596,21 +594,19 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
                     shard_sx = 0
 
                 core_ranges.append([x, y, x, y, start, count])
-                core_runtime_args.append(
-                    [
-                        start,
-                        count,
-                        Mt,
-                        1,
-                        Nt,
-                        Sm,
-                        Sn,
-                        Gy,
-                        Gx,
-                        shard_sy,
-                        shard_sx,
-                    ]
-                )
+                core_runtime_args.append([
+                    start,
+                    count,
+                    Mt,
+                    1,
+                    Nt,
+                    Sm,
+                    Sn,
+                    Gy,
+                    Gx,
+                    shard_sy,
+                    shard_sx,
+                ])
             else:
                 core_ranges.append([x, y, x, y, start, count])
                 core_runtime_args.append([start, count, Mt, 1, Nt])
