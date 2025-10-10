@@ -6,11 +6,14 @@ schedule and sharding metadata into IRModules.
 
 from __future__ import annotations
 
+import math
 from typing import Any, Dict, Optional
 
 from tilelang import tvm as tvm
 from tvm.ir import DataType
 from tvm.runtime import convert
+from tvm.tir import IntImm, FloatImm
+from tvm.tir.analysis import simplify
 
 
 def annotate_tt_layout(func: tvm.tir.PrimFunc, layout: Dict[str, Any]) -> tvm.tir.PrimFunc:
@@ -86,10 +89,32 @@ def _map_of_maps_to_python(map_obj: Any) -> Dict[str, Dict[str, Any]]:
     result: Dict[str, Dict[str, Any]] = {}
     for key, value in map_obj.items():
         if isinstance(value, tvm.runtime.Map):
-            result[str(key)] = {str(inner_key): inner_value for inner_key, inner_value in value.items()}
+            result[str(key)] = {
+                str(inner_key): _convert_to_python(inner_value)
+                for inner_key, inner_value in value.items()
+            }
         else:
-            result[str(key)] = {"value": value}
+            result[str(key)] = {"value": _convert_to_python(value)}
     return result
+
+
+def _convert_to_python(obj: Any) -> Any:
+    if isinstance(obj, tvm.runtime.Map):
+        return {str(k): _convert_to_python(v) for k, v in obj.items()}
+    if isinstance(obj, tvm.runtime.Array):
+        return [_convert_to_python(x) for x in obj]
+    if isinstance(obj, IntImm):
+        return int(obj)
+    if isinstance(obj, FloatImm):
+        return float(obj)
+    if isinstance(obj, tvm.tir.PrimExpr):
+        simplified = simplify(obj)
+        if isinstance(simplified, IntImm):
+            return int(simplified)
+        if isinstance(simplified, FloatImm):
+            return float(simplified)
+        return simplified
+    return obj
 
 
 def _get_attr(attrs: Optional[tvm.ir.container.Map], key: str, default: Any = None) -> Any:
@@ -309,23 +334,28 @@ def infer_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
             elif buffer_name in shard_map_map:
                 metadata.update(shard_map_map[buffer_name])
 
-            layout = str(metadata.get("layout", "dram_interleaved"))
+            metadata = {k: _convert_to_python(v) for k, v in metadata.items()}
+
+            layout_kind = str(metadata.get("layout", "interleaved"))
+            layout_kind = layout_kind.lower()
+            if layout_kind in ("dram_interleaved", "interleaved"):
+                layout_kind = "interleaved"
+            elif layout_kind != "sharded":
+                layout_kind = "interleaved"
+
             dtype_str = str(metadata.get("dtype", buffer.dtype))
 
-            tile_shape_obj = metadata.get("tile_shape")
-            tile_shape: Optional[list[int]] = None
-            if isinstance(tile_shape_obj, tvm.runtime.Array):
-                tile_shape = [int(x) for x in tile_shape_obj]
-            elif isinstance(tile_shape_obj, (list, tuple)):
-                tile_shape = [int(x) for x in tile_shape_obj]
-            if tile_shape is None:
-                tile_shape = _array_to_int_list(_get_attr(attrs, f"tt_buffer_{buffer_name}_tile_shape"))
-            if tile_shape is None:
+            tile_shape = metadata.get("tile_shape")
+            if not isinstance(tile_shape, (list, tuple)) or len(tile_shape) != 2:
+                attr_tile = _get_attr(attrs, f"tt_buffer_{buffer_name}_tile_shape")
+                tile_shape = _array_to_int_list(attr_tile)
+            if not tile_shape:
                 tile_shape = [32, 32]
+            tile_shape = [int(tile_shape[0]), int(tile_shape[1])]
 
             buffer_meta: Dict[str, Any] = {
                 "memory": str(metadata.get("memory", "DRAM")),
-                "layout": layout,
+                "layout": layout_kind,
                 "tile_shape": tile_shape,
                 "dtype": dtype_str,
             }
@@ -339,20 +369,60 @@ def infer_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
                 buffer_meta["needs_padding"] = bool(needs_padding_value)
 
             padded_shape_value = metadata.get("padded_shape")
-            padded_shape: Optional[list[int]] = None
-            if isinstance(padded_shape_value, tvm.runtime.Array):
-                padded_shape = [int(x) for x in padded_shape_value]
-            elif isinstance(padded_shape_value, (list, tuple)):
-                padded_shape = [int(x) for x in padded_shape_value]
-            else:
+            if padded_shape_value is None:
                 attr_padded = _get_attr(attrs, f"tt_buffer_{buffer_name}_padded_shape")
-                padded_shape = _array_to_int_list(attr_padded)
-            if padded_shape:
-                buffer_meta["padded_shape"] = padded_shape
+                padded_shape_value = _array_to_int_list(attr_padded)
+            if isinstance(padded_shape_value, (list, tuple)) and padded_shape_value:
+                buffer_meta["padded_shape"] = [int(x) for x in padded_shape_value]
+
+            nd_shard = metadata.get("nd_shard")
+            if isinstance(nd_shard, dict) and nd_shard:
+                axes = [str(ax) for ax in nd_shard.get("axes", [])]
+                grid = nd_shard.get("grid")
+                shard_shape_elems = nd_shard.get("shard_shape_elems")
+
+                if not axes or grid is None or shard_shape_elems is None:
+                    raise ValueError(
+                        f"nd_shard metadata for buffer '{buffer_name}' must include 'axes', 'grid', and 'shard_shape_elems'"
+                    )
+
+                grid = [int(x) for x in grid]
+                shard_shape_elems = [int(x) for x in shard_shape_elems]
+
+                if "M" not in axes or "N" not in axes:
+                    raise ValueError(
+                        f"nd_shard metadata for buffer '{buffer_name}' must include axes 'M' and 'N'"
+                    )
+
+                idx_m = axes.index("M")
+                idx_n = axes.index("N")
+                grid_m = grid[idx_m]
+                grid_n = grid[idx_n]
+                shard_m = shard_shape_elems[idx_m]
+                shard_n = shard_shape_elems[idx_n]
+
+                projected_grid = [grid_m, grid_n]
+                projected_tiles = [
+                    max(1, math.ceil(shard_m / tile_shape[0])),
+                    max(1, math.ceil(shard_n / tile_shape[1])),
+                ]
+
+                if buffer_meta["memory"].upper() == "L1":
+                    if shard_m % tile_shape[0] != 0 or shard_n % tile_shape[1] != 0:
+                        raise ValueError(
+                            f"L1 shard for buffer '{buffer_name}' must be tile-aligned"
+                        )
+
+                nd_shard_processed = dict(nd_shard)
+                nd_shard_processed["projected_grid"] = projected_grid
+                nd_shard_processed["projected_shard_tiles"] = projected_tiles
+                buffer_meta["nd_shard"] = nd_shard_processed
 
             if buffer_name in shard_map_map:
-                legacy_entry = shard_map_map[buffer_name]
-                buffer_meta["legacy_shard"] = {k: v for k, v in legacy_entry.items()}
+                legacy_entry = {
+                    k: _convert_to_python(v) for k, v in shard_map_map[buffer_name].items()
+                }
+                buffer_meta["legacy_shard"] = legacy_entry
 
             new_func = new_func.with_attr(f"tt.buffer.{buffer_name}", convert(buffer_meta))
 
@@ -377,17 +447,13 @@ def propagate_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
             if buffer_meta_obj is None:
                 continue
 
-            buffer_meta = _map_to_python(buffer_meta_obj)
+            buffer_meta = _convert_to_python(buffer_meta_obj)
 
             dtype_str = str(buffer_meta.get("dtype", buffer.dtype))
-            tile_shape_obj = buffer_meta.get("tile_shape")
-            tile_shape: Optional[list[int]] = None
-            if isinstance(tile_shape_obj, tvm.runtime.Array):
-                tile_shape = [int(x) for x in tile_shape_obj]
-            elif isinstance(tile_shape_obj, (list, tuple)):
-                tile_shape = [int(x) for x in tile_shape_obj]
-            if not tile_shape:
+            tile_shape = buffer_meta.get("tile_shape")
+            if not isinstance(tile_shape, (list, tuple)) or len(tile_shape) != 2:
                 tile_shape = [32, 32]
+            tile_shape = [int(tile_shape[0]), int(tile_shape[1])]
 
             try:
                 element_bytes = _dtype_num_bytes(dtype_str)

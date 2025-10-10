@@ -53,11 +53,11 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Why**: These passes are the prerequisite for shard-aware lowering, TensorAccessor correctness, and eventual retirement of the legacy metadata inference path.
 
-**Status**: 🟡 Partial – helpers and default metadata landed; N-D projection/L1 validation pending
+**Status**: 🟡 Partial – helpers + N-D projection landed; halo diagnostics and advanced validation still pending
 
 **Tasks**:
 1. Add `annotate_tt_layout` / `annotate_tt_schedule` helpers with input validation. ✅ (basic helpers merged; extra validation still TODO)
-2. Implement `InferTTLayout` with diagnostics, projection helpers, and N-D shard normalization. ⚠️ Defaults only (no projection/diagnostics yet)
+2. Implement `InferTTLayout` with diagnostics, projection helpers, and N-D shard normalization. ✅ (projection + tile-alignment checks shipped; halo/capacity diagnostics still pending)
 3. Implement `PropagateTTLayout` to emit `tt.cb.*` metadata per buffer. ⚠️ Emits defaults (depth=2) but lacks role-aware policy
 4. Implement `LayoutAwareWorkPartitionTT` to stamp `tt.partition_mode`, `tt.core_ranges`, `tt.runtime_args`, etc. ⚠️ Global mode only; shard-aware path TODO
 5. Update docs (`README`, `TT_ARCHITECTURE`, `PASS_TABLE`) to describe the shipped behavior. ⚠️ PASS_TABLE partially updated; remaining docs pending
@@ -158,8 +158,7 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 ## Success Criteria
 
-**Task 1 (Layout-Aware Metadata)**:
-- [x] `InferTTLayout` emits `tt.buffer.*` for all tensors (defaults only; diagnostics & N-D projection pending).
+- [x] `InferTTLayout` emits `tt.buffer.*` for all tensors (now includes N-D projection + L1 alignment checks; halo/capacity diagnostics pending).
 - [x] `PropagateTTLayout` attaches `tt.cb.*` with default page size/depth for each buffer (policy tuning pending).
 - [x] `LayoutAwareWorkPartitionTT` stamps `tt.partition_mode`, `tt.core_ranges`, and canonical runtime arg names for global mode (local_shard TODO).
 - [ ] Documentation updated (`README`, `TT_ARCHITECTURE`) to reflect shipped behavior (PASS_TABLE updated; remaining docs pending).
