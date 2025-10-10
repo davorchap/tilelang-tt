@@ -41,6 +41,36 @@ using namespace tir;
 
 TTCodegenVisitor::TTCodegenVisitor(const PrimFunc& func)
     : func_(func), indent_level_(0), var_counter_(0) {
+  // Partition mode metadata
+  if (auto mode = func_->attrs.GetAttr<String>("tt.partition_mode")) {
+    partition_mode_ = mode.value();
+  } else {
+    partition_mode_ = "global";
+  }
+
+  runtime_constants_ = func_->attrs.GetAttr<Map<String, ObjectRef>>("tt.runtime_constants");
+
+  Array<String> runtime_names_attr;
+  if (auto names = func_->attrs.GetAttr<Array<String>>("tt.runtime_arg_names")) {
+    runtime_names_attr = names.value();
+  } else if (auto runtime_args = func_->attrs.GetAttr<Map<String, ObjectRef>>("tt_runtime_args")) {
+    if (runtime_args.value().count(String("arg_names"))) {
+      runtime_names_attr = Downcast<Array<String>>(runtime_args.value()[String("arg_names")]);
+    }
+  }
+
+  if (!runtime_names_attr.defined() || runtime_names_attr.empty()) {
+    runtime_arg_names_ = {"tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt"};
+  } else {
+    for (const auto& name : runtime_names_attr) {
+      runtime_arg_names_.push_back(name);
+    }
+  }
+
+  for (size_t i = 0; i < runtime_arg_names_.size(); ++i) {
+    runtime_arg_index_[runtime_arg_names_[i]] = static_cast<int>(i);
+  }
+
   InitBufferMetadata();
 }
 

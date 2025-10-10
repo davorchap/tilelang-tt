@@ -14,32 +14,35 @@ Tile Language (**tile-lang**) is a concise domain-specific language designed to 
 
 # TileLang → Tenstorrent (TT-Metalium) Backend
 
-**Status:** ✅ **Phase 0 baseline feature set Complete** - Artifact generation working (2025-10-07)
-**Goal:** Add a first‑class **Tenstorrent TT‑Metalium** backend to TileLang, alongside the existing NVIDIA (CUDA), AMD (HIP), and Ascend targets.
+**Status (2025-10-10):** Layout-aware metadata, shard-aware persistent lowering, and runtime contract guardrails are active. The host artifact now emits a metadata summary (`main.cpp`) that mirrors the runtime argument schema consumed by the IR-driven visitors.
 
-**baseline feature set Capabilities:**
-- ✅ Target registration (`target="tenstorrent"`)
-- ✅ Default schedule & sharding inference (contiguous, row-major, DRAM interleaved)
-- ✅ Grid-to-persistent transformation (block index recovery)
-- ✅ Code generation (compute kernel + tt.plan.json metadata)
-- ✅ 23 integration tests passing
+**Highlights**
+- ✅ Layout-aware metadata passes (`tilelang/tt/passes.py`, `src/transform/tt/`) stamp `tt.partition_mode`, canonical runtime argument names, and per-buffer layout descriptors.
+- ✅ Shard-aware grid-to-persistent lowering and visitors load shard coordinates on demand, with guardrails preventing incomplete payloads.
+- ✅ Host codegen emits TensorAccessor descriptors and per-core runtime tables, keeping mock CI and local builds aligned.
+- ✅ Tiered CI (`docs/tenstorrent/CI.md`) mirrors local workflows through `maint/scripts/local_build_and_test_tt.sh`.
 
-**Quick Start:**
-```python
-import tilelang.tt as tt
-# Apply defaults, infer metadata, generate artifacts
-mod = create_your_gemm_module()
-mod = tt.apply_tt_defaults(mod)
-mod = tt.apply_tt_metadata_passes(mod)
-mod = tt.apply_tt_transform_passes(mod)
-artifacts = tt.emit_tt_artifacts(mod)
-tt.write_artifacts_to_disk(artifacts, "./build/tt_kernels")
+**Quick Start (mock mode):**
+```bash
+git clone https://github.com/davorchap/tilelang-tt.git
+cd tilelang-tt
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4
 ```
 
-**Related docs**
+**Quick Start (real SDK):**
+```bash
+export TT_METAL_HOME=/path/to/tt-metal
+bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs 4
+```
 
-- **Architecture comparison:** [GPU vs. Tenstorrent (TT‑Metalium)](docs/tenstorrent/GPU_vs_Tenstorrent.md)
-- **Kernel authoring patterns:** [GPU vs. Tenstorrent — Kernel Authoring](docs/tenstorrent/kernel_authoring_comparison.md)
+**Docs & Guides**
+
+- 🏗️ Architecture & metadata contracts: [docs/tenstorrent/TT_ARCHITECTURE.md](docs/tenstorrent/TT_ARCHITECTURE.md)
+- 🔁 CI & local parity: [docs/tenstorrent/CI.md](docs/tenstorrent/CI.md)
+- 🧭 Backend overview & quick links: [docs/tenstorrent/README.md](docs/tenstorrent/README.md)
+- ⚙️ SDK setup: [docs/tenstorrent/METALIUM_SETUP_GUIDE.md](docs/tenstorrent/METALIUM_SETUP_GUIDE.md)
 
 ---
 

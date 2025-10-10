@@ -25,6 +25,7 @@
 #include "codegen_tt_writer_visitor.h"
 
 #include <sstream>
+#include <tvm/runtime/logging.h>
 
 namespace tvm {
 namespace tl {
@@ -49,9 +50,37 @@ std::string TTWriterCodegenVisitor::GetFullKernel() {
   // Emit runtime argument extraction
   EmitLine("// Runtime arguments");
   EmitLine("uint32_t dram_addr_c = get_arg_val<uint32_t>(0);");
-  EmitLine("uint32_t out_tile_start_id = get_arg_val<uint32_t>(1);");
-  EmitLine("uint32_t num_out_tiles = get_arg_val<uint32_t>(2);");
-  EmitLine("uint32_t Nt = get_arg_val<uint32_t>(3);");
+  bool is_local_shard = partition_mode() == "local_shard";
+  int start_idx = GetRuntimeArgIndex("tt_start_tile");
+  ICHECK_GE(start_idx, 0) << "Missing tt_start_tile runtime argument";
+  EmitLine("uint32_t out_tile_start_id = get_arg_val<uint32_t>(" + std::to_string(start_idx) + ");");
+
+  int count_idx = GetRuntimeArgIndex("tt_tile_count");
+  ICHECK_GE(count_idx, 0) << "Missing tt_tile_count runtime argument";
+  EmitLine("uint32_t num_out_tiles = get_arg_val<uint32_t>(" + std::to_string(count_idx) + ");");
+
+  int nt_idx = GetRuntimeArgIndex("Nt");
+  if (nt_idx >= 0) {
+    EmitLine("uint32_t Nt = get_arg_val<uint32_t>(" + std::to_string(nt_idx) + ");");
+  } else {
+    EmitLine("uint32_t Nt = " + std::to_string(GetRuntimeConst<int>("Nt", 1)) + ";");
+  }
+  bool has_shard_coord_y = HasRuntimeArg("tt_shard_coord_y");
+  bool has_shard_coord_x = HasRuntimeArg("tt_shard_coord_x");
+  if (is_local_shard) {
+    ICHECK(has_shard_coord_y) << "local_shard partition mode requires tt_shard_coord_y arg";
+    ICHECK(has_shard_coord_x) << "local_shard partition mode requires tt_shard_coord_x arg";
+  }
+  if (has_shard_coord_y) {
+    EmitLine("uint32_t tt_shard_coord_y = get_arg_val<uint32_t>(" +
+             std::to_string(GetRuntimeArgIndex("tt_shard_coord_y")) + ");");
+    EmitLine("(void)tt_shard_coord_y;");
+  }
+  if (has_shard_coord_x) {
+    EmitLine("uint32_t tt_shard_coord_x = get_arg_val<uint32_t>(" +
+             std::to_string(GetRuntimeArgIndex("tt_shard_coord_x")) + ");");
+    EmitLine("(void)tt_shard_coord_x;");
+  }
   EmitLine("");
 
   // Emit persistent loop structure

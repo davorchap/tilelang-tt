@@ -1,7 +1,7 @@
 # TileLang Tenstorrent Backend Documentation
 
 **Last Updated**: 2025-10-10  
-**Status**: Production-Ready (95 tests passing)
+**Status**: Layout-aware metadata + shard-aware runtime integration ready; SDK validation awaiting hardware access.
 
 ---
 
@@ -10,24 +10,18 @@
 ### Developers (Mock Mode - No Hardware)
 
 ```bash
-# Clone and build
 git clone https://github.com/davorchap/tilelang-tt.git
 cd tilelang-tt
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
 bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4
-
-# All 95 tests pass ✅
 ```
 
 ### Hardware Users (Real Mode - With Tenstorrent Device)
 
 ```bash
-# 1. Install TT-Metalium SDK (see METALIUM_SETUP_GUIDE.md)
-export TT_METAL_HOME=/path/to/tt-metal
-
-# 2. Build with real Metalium
-cmake -B build -DUSE_LLVM=true -DUSE_REAL_METALIUM=ON
-cmake --build build -j$(nproc)
-pip install -e . --no-build-isolation
+export TT_METAL_HOME=/path/to/tt-metal   # See METALIUM_SETUP_GUIDE.md
+bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs 4
 ```
 
 ---
@@ -47,9 +41,9 @@ pip install -e . --no-build-isolation
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
+| **[CI.md](CI.md)** | Continuous integration + local parity steps | Contributors |
+| **[local_build_guide.md](local_build_guide.md)** | Detailed local build walkthrough | Developers |
 | **[METALIUM_SETUP_GUIDE.md](METALIUM_SETUP_GUIDE.md)** | SDK installation & configuration | Hardware users |
-| **[local_build_guide.md](local_build_guide.md)** | Local build instructions | Developers |
-| **[CI.md](CI.md)** | Continuous integration | Contributors |
 
 ### 🔬 Validation
 
@@ -59,54 +53,21 @@ pip install -e . --no-build-isolation
 
 ---
 
-## Current Status (2025-10-08)
+## Current Status (2025-10-10)
 
-### ✅ Complete (95 tests passing)
+### ✅ Completed
+- Target registration and Python orchestration (`tilelang/tt`).
+- Layout-aware metadata pipeline (`InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT`) generating canonical runtime-argument schemas.
+- Grid-to-persistent transformation with shard-aware guardrails and per-core runtime metadata tables in host artifacts.
+- IR-driven reader/compute/writer visitors aligned with the new runtime contract.
+- Mock-mode CI parity via `maint/scripts/local_build_and_test_tt.sh`.
 
-**IR Pipeline:**
-- ✅ Target registration (8 tests)
-- ✅ Metadata inference (7 tests)
-  - Schedule inference (per-core tile assignments, legacy path)
-  - Shard inference (DRAM layout descriptors, legacy path)
-- ✅ Transform pipeline (39 tests)
-  - GridToPersistentTT (persistent loop model)
-  - TTTilesToCoreMap (NOC grid mapping)
-  - MemorySpaceLowerTT (DRAM → L1 circular buffers)
-  - TilePadTT (32×32 tile alignment)
-  - TensorizeTT (pattern detection)
-  - VerifyTTIR (constraint verification)
+### 🚧 In Progress
+- Extending `tensorize_tt.cc` with loop matchers to retire heuristic detection in compute codegen.
+- Additional diagnostics for halo hints, L1 capacity checks, and documentation refreshes.
 
-**Code Generation (41 tests):**
-- ✅ IR-driven visitor infrastructure
-- ✅ Reader kernel (DRAM → L1 via NOC)
-- ✅ Compute kernel (Tensix tile math)
-- ✅ Writer kernel (L1 → DRAM via NOC)
-- ✅ Host program (device setup, execution)
-- ✅ DST lifecycle (acquire→compute→commit→pack→release)
-
-**SDK Integration:**
-- ✅ External SDK approach (like CUDA/ROCm)
-- ✅ CMake FindMetalium module
-- ✅ Real vs Mock build modes
-- ✅ CI workflows (mock + SDK validation)
-
-### 🚧 Next Steps
-
-**Layout-Aware Metadata (P0):**
-- Implement `InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT`.
-- Update `GridToPersistentTT` and `EmitTTKernels` to consume new attributes.
-- Add Python annotation helpers (`annotate_tt_layout`, `annotate_tt_schedule`).
-- Track progress in [IR_LOWERING_TASKS.md](IR_LOWERING_TASKS.md).
-
-**Pattern Detection (P1):**
-- Extend `tensorize_tt.cc` to detect manual matmul loops.
-- Add element-wise detection and remove codegen heuristics.
-
-**SDK Validation (Blocked):**
-- Phase 1: Dry-run compilation (fix namespaces, includes).
-- Phase 2: API completion (EnqueueWriteBuffer, SetRuntimeArgs).
-- Phase 3: Hardware execution (Grayskull/Wormhole).  
-See [METALIUM_SDK_VALIDATION_PLAN.md](METALIUM_SDK_VALIDATION_PLAN.md).
+### ⏸️ Blocked
+- Real hardware validation and performance profiling (see [METALIUM_SDK_VALIDATION_PLAN.md](METALIUM_SDK_VALIDATION_PLAN.md)).
 
 ---
 

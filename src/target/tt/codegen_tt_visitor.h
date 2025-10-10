@@ -38,6 +38,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace tvm {
 namespace tl {
@@ -85,6 +86,18 @@ class TTCodegenVisitor : public StmtExprVisitor {
   /*! \brief Current indentation level (0 = no indent) */
   int indent_level_;
 
+  /*! \brief Runtime argument names (canonical order) */
+  std::vector<std::string> runtime_arg_names_;
+
+  /*! \brief Mapping from runtime argument name to index */
+  std::unordered_map<std::string, int> runtime_arg_index_;
+
+  /*! \brief Runtime constants (e.g., Mt/Nt) */
+  Map<String, ObjectRef> runtime_constants_;
+
+  /*! \brief Partition mode for the kernel ("global" or "local_shard") */
+  std::string partition_mode_;
+
   /*!
    * \brief Emit indentation at current level
    * Emits `indent_level_ * 4` spaces
@@ -114,6 +127,25 @@ class TTCodegenVisitor : public StmtExprVisitor {
   void DecIndent() {
     if (indent_level_ > 0) indent_level_--;
   }
+
+  /*! \brief Lookup runtime argument index by name (returns -1 if not present) */
+  int GetRuntimeArgIndex(const std::string& name) const;
+
+  /*! \brief Check if runtime argument is present */
+  bool HasRuntimeArg(const std::string& name) const;
+
+  /*! \brief Fetch runtime constant by name (fallback to default if absent) */
+  template <typename T>
+  T GetRuntimeConst(const std::string& name, T default_value) const;
+
+  /*! \brief Accessor for partition mode */
+  const std::string& partition_mode() const { return partition_mode_; }
+
+  /*! \brief Accessor for runtime arg names */
+  const std::vector<std::string>& runtime_arg_names() const { return runtime_arg_names_; }
+
+  /*! \brief Accessor for runtime constants map */
+  const Map<String, ObjectRef>& runtime_constants() const { return runtime_constants_; }
 
   //--------------------------------------------------------------------
   // Statement visitors (override in subclasses as needed)
@@ -286,6 +318,41 @@ class TTCodegenVisitor : public StmtExprVisitor {
    */
   std::string GetOrCreateVarName(const std::string& original);
 };
+
+// -------------------------------------------------------------------------
+// Template implementations
+// -------------------------------------------------------------------------
+
+inline int TTCodegenVisitor::GetRuntimeArgIndex(const std::string& name) const {
+  auto it = runtime_arg_index_.find(name);
+  if (it == runtime_arg_index_.end()) {
+    return -1;
+  }
+  return it->second;
+}
+
+inline bool TTCodegenVisitor::HasRuntimeArg(const std::string& name) const {
+  return runtime_arg_index_.count(name) != 0;
+}
+
+template <typename T>
+T TTCodegenVisitor::GetRuntimeConst(const std::string& name, T default_value) const {
+  if (!runtime_constants_.defined()) {
+    return default_value;
+  }
+  String key(name);
+  if (!runtime_constants_.count(key)) {
+    return default_value;
+  }
+  ObjectRef obj = runtime_constants_[key];
+  if (const auto* int_imm = obj.as<IntImmNode>()) {
+    return static_cast<T>(int_imm->value);
+  }
+  if (const auto* float_imm = obj.as<FloatImmNode>()) {
+    return static_cast<T>(float_imm->value);
+  }
+  return default_value;
+}
 
 }  // namespace tl
 }  // namespace tvm

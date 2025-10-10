@@ -36,14 +36,18 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include <algorithm>
+#include <array>
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 // IR-driven codegen visitors
 #include "codegen_tt_compute_visitor.h"
@@ -128,358 +132,365 @@ std::string EmitTTWriterKernelIRDriven(const PrimFunc& func) {
 std::string EmitTTHostProgram(const PrimFunc& func) {
   std::ostringstream code;
 
-  // Extract matmul dimensions
+  auto quote = [](const std::string& value) {
+    std::string escaped;
+    escaped.reserve(value.size() + 2);
+    escaped.push_back('"');
+    for (char ch : value) {
+      if (ch == '"' || ch == '\\') {
+        escaped.push_back('\\');
+      }
+      escaped.push_back(ch);
+    }
+    escaped.push_back('"');
+    return escaped;
+  };
+
+  // Extract matmul dimensions and partition metadata
   MatmulDims dims = ExtractMatmulDims(func);
-  int Mt = dims.Mt;
-  int Kt = dims.Kt;
-  int Nt = dims.Nt;
-  int M = dims.M;
-  int K = dims.K;
-  int N = dims.N;
+  std::string partition_mode = "global";
+  if (auto mode = func->attrs.GetAttr<String>("tt.partition_mode")) {
+    partition_mode = mode.value();
+  }
 
-  auto num_cores = func->attrs.GetAttr<Integer>("tt_num_cores");
-  int total_tiles = Mt * Nt;
+  std::vector<std::string> runtime_arg_names;
+  if (auto names_attr = func->attrs.GetAttr<Array<String>>("tt.runtime_arg_names")) {
+    runtime_arg_names.reserve(names_attr.value().size());
+    for (const auto& name : names_attr.value()) {
+      runtime_arg_names.emplace_back(name);
+    }
+  } else if (auto legacy_attr = func->attrs.GetAttr<Array<String>>("tt_runtime_arg_names")) {
+    runtime_arg_names.reserve(legacy_attr.value().size());
+    for (const auto& name : legacy_attr.value()) {
+      runtime_arg_names.emplace_back(name);
+    }
+  }
+  if (runtime_arg_names.empty()) {
+    if (partition_mode == "local_shard") {
+      runtime_arg_names = {"tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt", "Sm", "Sn",
+                           "Gy", "Gx", "tt_shard_coord_y", "tt_shard_coord_x"};
+    } else {
+      runtime_arg_names = {"tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt"};
+    }
+  }
+  std::unordered_map<std::string, size_t> runtime_arg_index;
+  for (size_t i = 0; i < runtime_arg_names.size(); ++i) {
+    runtime_arg_index[runtime_arg_names[i]] = i;
+  }
+  size_t arg_count = runtime_arg_names.size();
 
-  // Generate host program header
-  code << "// Generated TT Host Program\n";
-  code << "// Matmul: M=" << M << ", K=" << K << ", N=" << N << "\n";
-  code << "// Grid: " << Nt << "x" << Mt << " (" << total_tiles << " output tiles)\n\n";
+  std::vector<std::pair<std::string, int64_t>> runtime_constants;
+  if (auto constants_attr = func->attrs.GetAttr<Map<String, ObjectRef>>("tt.runtime_constants")) {
+    for (const auto& kv : constants_attr.value()) {
+      std::string key = std::string(kv.first);
+      const ObjectRef& value_ref = kv.second;
+      int64_t value = 0;
+      if (const auto* int_imm = value_ref.as<IntImmNode>()) {
+        value = int_imm->value;
+      } else if (const auto* float_imm = value_ref.as<FloatImmNode>()) {
+        value = static_cast<int64_t>(float_imm->value);
+      } else if (value_ref->IsInstance<IntegerObj>()) {
+        value = Downcast<Integer>(value_ref).IntValue();
+      }
+      runtime_constants.emplace_back(key, value);
+    }
+  }
+  std::sort(runtime_constants.begin(), runtime_constants.end(),
+            [](const std::pair<std::string, int64_t>& lhs,
+               const std::pair<std::string, int64_t>& rhs) { return lhs.first < rhs.first; });
+  std::unordered_map<std::string, int64_t> runtime_constant_lookup;
+  for (const auto& kv : runtime_constants) {
+    runtime_constant_lookup.emplace(kv.first, kv.second);
+  }
 
+  std::vector<std::vector<int64_t>> core_runtime_args;
+  if (auto core_attr = func->attrs.GetAttr<Array<ObjectRef>>("tt_core_runtime_args")) {
+    for (const ObjectRef& row_obj : core_attr.value()) {
+      if (!row_obj->IsInstance<ArrayNode>()) continue;
+      Array<Integer> row_array = Downcast<Array<Integer>>(row_obj);
+      std::vector<int64_t> row;
+      row.reserve(row_array.size());
+      for (const Integer& value : row_array) {
+        row.push_back(value.IntValue());
+      }
+      if (!row.empty()) {
+        if (row.size() < arg_count) {
+          row.resize(arg_count, 0);
+        } else if (row.size() > arg_count) {
+          row.resize(arg_count);
+        }
+        core_runtime_args.push_back(std::move(row));
+      }
+    }
+  }
+
+  if (core_runtime_args.empty()) {
+    if (auto tiles_attr = func->attrs.GetAttr<Array<ObjectRef>>("tt_tiles_per_core")) {
+      for (const ObjectRef& row_obj : tiles_attr.value()) {
+        if (!row_obj->IsInstance<ArrayNode>()) continue;
+        Array<Integer> row_array = Downcast<Array<Integer>>(row_obj);
+        int64_t start = row_array.size() > 0 ? row_array[0].IntValue() : 0;
+        int64_t count = row_array.size() > 1 ? row_array[1].IntValue() : 0;
+        std::vector<int64_t> row(arg_count, 0);
+        if (auto it = runtime_arg_index.find("tt_start_tile"); it != runtime_arg_index.end()) {
+          row[it->second] = start;
+        }
+        if (auto it = runtime_arg_index.find("tt_tile_count"); it != runtime_arg_index.end()) {
+          row[it->second] = count;
+        }
+        for (const auto& kv : runtime_constant_lookup) {
+          auto it = runtime_arg_index.find(kv.first);
+          if (it != runtime_arg_index.end()) {
+            row[it->second] = kv.second;
+          }
+        }
+        core_runtime_args.push_back(std::move(row));
+      }
+    }
+  }
+
+  if (core_runtime_args.empty()) {
+    core_runtime_args.push_back(std::vector<int64_t>(arg_count, 0));
+  }
+  for (auto& row : core_runtime_args) {
+    for (int64_t& value : row) {
+      ICHECK_GE(value, 0) << "Runtime argument values must be non-negative";
+    }
+  }
+
+  struct BufferInfo {
+    std::string name;
+    std::string memory;
+    std::string layout;
+    int tile_rows;
+    int tile_cols;
+    int shard_grid_y;
+    int shard_grid_x;
+  };
+  std::vector<BufferInfo> buffers;
+  buffers.reserve(func->buffer_map.size());
+  for (const auto& kv : func->buffer_map) {
+    const Buffer& buffer = kv.second;
+    BufferInfo info;
+    info.name = buffer->name;
+    info.memory = "DRAM";
+    info.layout = "interleaved";
+    info.tile_rows = 32;
+    info.tile_cols = 32;
+    info.shard_grid_y = 1;
+    info.shard_grid_x = 1;
+
+    std::string attr_key = "tt.buffer." + info.name;
+    if (auto meta_attr = func->attrs.GetAttr<Map<String, ObjectRef>>(attr_key)) {
+      const auto& meta = meta_attr.value();
+      if (meta.count(String("memory"))) {
+        info.memory = std::string(Downcast<String>(meta[String("memory")]));
+      }
+      if (meta.count(String("layout"))) {
+        info.layout = std::string(Downcast<String>(meta[String("layout")]));
+      }
+      if (meta.count(String("tile_shape"))) {
+        Array<Integer> tile_shape = Downcast<Array<Integer>>(meta[String("tile_shape")]);
+        if (tile_shape.size() >= 2) {
+          info.tile_rows = tile_shape[0].IntValue();
+          info.tile_cols = tile_shape[1].IntValue();
+        }
+      }
+      if (meta.count(String("nd_shard"))) {
+        Map<String, ObjectRef> nd = Downcast<Map<String, ObjectRef>>(meta[String("nd_shard")]);
+        if (nd.count(String("projected_grid"))) {
+          Array<Integer> grid = Downcast<Array<Integer>>(nd[String("projected_grid")]);
+          if (grid.size() >= 2) {
+            info.shard_grid_y = grid[0].IntValue();
+            info.shard_grid_x = grid[1].IntValue();
+          }
+        }
+      }
+    }
+    buffers.push_back(std::move(info));
+  }
+  std::sort(buffers.begin(), buffers.end(), [](const BufferInfo& lhs, const BufferInfo& rhs) {
+    return lhs.name < rhs.name;
+  });
+
+  size_t core_count = core_runtime_args.size();
+
+  // Generate host program source
+  code << "// Generated TT Host Metadata Program\n";
+  code << "// Partition-aware host summary derived from layout-aware metadata\n\n";
+  code << "#include <array>\n";
   code << "#include <cstdint>\n";
-  code << "#include <vector>\n";
   code << "#include <iostream>\n";
-  code << "#include <memory>\n\n";
+  code << "#include <stdexcept>\n";
+  code << "#include <string>\n\n";
 
-#ifdef TL_USE_REAL_METALIUM
-  // Real Metalium APIs
-  code << "// Real TT-Metalium APIs\n";
-  code << "#include \"tt_metal/host_api.hpp\"\n";
-  code << "#include \"tt_metal/impl/device/device.hpp\"\n";
-  code << "#include \"tt_metal/impl/device/mesh_device.hpp\"\n";
-  code << "#include \"tt_metal/impl/buffers/buffer.hpp\"\n";
-  code << "#include \"tt_metal/impl/buffers/mesh_buffer.hpp\"\n";
-  code << "#include \"tt_metal/impl/program/program.hpp\"\n";
-  code << "#include \"tt_metal/impl/program/mesh_program.hpp\"\n\n";
-  code << "using namespace tt::tt_metal;\n\n";
-#else
-  // Mock TT device APIs for dry-run
-  code << "// Mock TT device APIs for dry-run compilation\n";
-  code << "class Device {\n";
-  code << "public:\n";
-  code << "    static Device* Instance() { static Device dev; return &dev; }\n";
+  code << "struct TensorAccessorArgs {\n";
+  code << "  bool initialized;\n";
+  code << "  const char* buffer;\n";
+  code << "  const char* memory;\n";
+  code << "  const char* layout;\n";
+  code << "  uint32_t tile_rows;\n";
+  code << "  uint32_t tile_cols;\n";
+  code << "  uint32_t shard_grid_y;\n";
+  code << "  uint32_t shard_grid_x;\n";
+  code << "  TensorAccessorArgs()\n";
+  code << "      : initialized(false), buffer(nullptr), memory(nullptr), layout(nullptr),\n";
+  code << "        tile_rows(0), tile_cols(0), shard_grid_y(0), shard_grid_x(0) {}\n";
+  code << "  static TensorAccessorArgs Create(const char* buffer,\n";
+  code << "                                    const char* memory,\n";
+  code << "                                    const char* layout,\n";
+  code << "                                    uint32_t tile_rows,\n";
+  code << "                                    uint32_t tile_cols,\n";
+  code << "                                    uint32_t shard_grid_y,\n";
+  code << "                                    uint32_t shard_grid_x) {\n";
+  code << "    TensorAccessorArgs args;\n";
+  code << "    args.initialized = true;\n";
+  code << "    args.buffer = buffer;\n";
+  code << "    args.memory = memory;\n";
+  code << "    args.layout = layout;\n";
+  code << "    args.tile_rows = tile_rows;\n";
+  code << "    args.tile_cols = tile_cols;\n";
+  code << "    args.shard_grid_y = shard_grid_y;\n";
+  code << "    args.shard_grid_x = shard_grid_x;\n";
+  code << "    return args;\n";
+  code << "  }\n";
   code << "};\n\n";
 
-  code << "class Program {\n";
-  code << "public:\n";
-  code << "    void AddKernel(const char* name, const char* source) {}\n";
-  code << "    void Build() {}\n";
+  code << "inline void GuardTensorAccessor(const TensorAccessorArgs& args) {\n";
+  code << "  if (!args.initialized) {\n";
+  code << "    throw std::runtime_error(\"TensorAccessorArgs must be created via TensorAccessorArgs::Create\");\n";
+  code << "  }\n";
+  code << "}\n\n";
+
+  code << "struct RuntimeConstant {\n";
+  code << "  const char* name;\n";
+  code << "  uint32_t value;\n";
   code << "};\n\n";
 
-  code << "class CommandQueue {\n";
-  code << "public:\n";
-  code << "    void EnqueueProgram(Program* prog, bool blocking) {}\n";
-  code << "    void Finish() {}\n";
+  code << "constexpr const char* kPartitionMode = " << quote(partition_mode) << ";\n";
+  code << "constexpr uint32_t kMt = " << dims.Mt << ";\n";
+  code << "constexpr uint32_t kKt = " << dims.Kt << ";\n";
+  code << "constexpr uint32_t kNt = " << dims.Nt << ";\n";
+  code << "constexpr uint32_t kM = " << dims.M << ";\n";
+  code << "constexpr uint32_t kK = " << dims.K << ";\n";
+  code << "constexpr uint32_t kN = " << dims.N << ";\n\n";
+
+  code << "constexpr std::array<const char*, " << arg_count << "> kRuntimeArgNames = {";
+  if (!runtime_arg_names.empty()) {
+    code << "{";
+    for (size_t i = 0; i < runtime_arg_names.size(); ++i) {
+      if (i != 0) {
+        code << ", ";
+      }
+      code << quote(runtime_arg_names[i]);
+    }
+    code << "}";
+  }
+  code << "};\n";
+
+  code << "constexpr std::array<RuntimeConstant, " << runtime_constants.size() << "> kRuntimeConstants = {";
+  if (!runtime_constants.empty()) {
+    code << "{\n";
+    for (size_t i = 0; i < runtime_constants.size(); ++i) {
+      const auto& kv = runtime_constants[i];
+      code << "    {" << quote(kv.first) << ", " << static_cast<uint32_t>(kv.second) << "}";
+      if (i + 1 < runtime_constants.size()) {
+        code << ",";
+      }
+      code << "\n";
+    }
+    code << "  }";
+  }
+  code << "};\n";
+
+  code << "constexpr std::array<std::array<uint32_t, " << arg_count << ">, " << core_count
+       << "> kCoreRuntimeArgs = {\n";
+  for (size_t core = 0; core < core_count; ++core) {
+    const auto& row = core_runtime_args[core];
+    code << "    {";
+    if (!row.empty()) {
+      code << "{";
+      for (size_t i = 0; i < row.size(); ++i) {
+        if (i != 0) {
+          code << ", ";
+        }
+        code << static_cast<uint32_t>(row[i]);
+      }
+      code << "}";
+    }
+    code << "}";
+    if (core + 1 < core_count) {
+      code << ",";
+    }
+    code << "\n";
+  }
   code << "};\n\n";
 
-  code << "class CircularBufferConfig {\n";
-  code << "public:\n";
-  code << "    CircularBufferConfig(uint32_t cb_id, uint32_t tile_size, uint32_t num_pages) {\n";
-  code << "        std::cout << \"  CB\" << cb_id << \": \" << num_pages << \" pages x \" << tile_size << \" bytes\\n\";\n";
-  code << "    }\n";
-  code << "};\n\n";
-#endif
+  code << "static_assert(kCoreRuntimeArgs.size() >= 1, \"At least one core required\");\n";
+  code << "static_assert(kRuntimeArgNames.size() == 0 || kRuntimeArgNames.size() == kCoreRuntimeArgs[0].size(),\n";
+  code << "              \"Runtime argument schema mismatch\");\n\n";
 
-  // Main function
+  if (buffers.empty()) {
+    code << "TensorAccessorArgs tensor_accessors[] = {};\n\n";
+  } else {
+    code << "TensorAccessorArgs tensor_accessors[] = {\n";
+    for (size_t i = 0; i < buffers.size(); ++i) {
+      const BufferInfo& info = buffers[i];
+      code << "    TensorAccessorArgs::Create(" << quote(info.name) << ", " << quote(info.memory) << ", "
+           << quote(info.layout) << ", " << info.tile_rows << ", " << info.tile_cols << ", "
+           << info.shard_grid_y << ", " << info.shard_grid_x << ")";
+      if (i + 1 < buffers.size()) {
+        code << ",";
+      }
+      code << "\n";
+    }
+    code << "};\n\n";
+  }
+
   code << "int main() {\n";
-#ifdef TL_USE_REAL_METALIUM
-  code << "    std::cout << \"TT Host Program - Real Metalium\" << std::endl;\n\n";
+  code << "  std::cout << \"Tenstorrent Host Metadata Summary\" << std::endl;\n";
+  code << "  std::cout << \"Partition mode: \" << kPartitionMode << std::endl;\n";
+  code << "  std::cout << \"Tiled dims (Mt,Kt,Nt): \" << kMt << \", \" << kKt << \", \" << kNt << std::endl;\n";
+  code << "  std::cout << \"Element dims (M,K,N): \" << kM << \", \" << kK << \", \" << kN << std::endl;\n\n";
 
-  // 1. Device setup (Real Metalium)
-  code << "    // 1. Device setup (Real Metalium)\n";
-  code << "    auto device = MeshDevice::create_unit_mesh(/*device_id*/0);\n";
-  code << "    CommandQueue& cq = device->mesh_command_queue(/*cq_id*/0);\n";
-  code << "    std::cout << \"Device initialized (Mesh)\" << std::endl;\n\n";
-#else
-  code << "    std::cout << \"TT Host Program - Mock (Dry Run)\" << std::endl;\n\n";
+  code << "  for (const auto& ta : tensor_accessors) {\n";
+  code << "    GuardTensorAccessor(ta);\n";
+  code << "    std::cout << \"  buffer=\" << ta.buffer\n";
+  code << "              << \", memory=\" << ta.memory\n";
+  code << "              << \", layout=\" << ta.layout\n";
+  code << "              << \", tile=\" << ta.tile_rows << \"x\" << ta.tile_cols\n";
+  code << "              << \", shard=\" << ta.shard_grid_y << \"x\" << ta.shard_grid_x\n";
+  code << "              << std::endl;\n";
+  code << "  }\n\n";
 
-  // 1. Device setup (Mock)
-  code << "    // 1. Device setup (Mock)\n";
-  code << "    Device* device = Device::Instance();\n";
-  code << "    std::cout << \"Device initialized (Mock)\" << std::endl;\n\n";
-#endif
-
-  // 2. Common tile configuration
-  code << "    // 2. Tile configuration\n";
-  code << "    constexpr uint32_t TILE_H = 32;\n";
-  code << "    constexpr uint32_t TILE_W = 32;\n";
-  code << "    constexpr uint32_t TILE_SIZE_FP16 = TILE_H * TILE_W * sizeof(uint16_t);\n";
-  code << "    constexpr uint32_t CB_NUM_PAGES = 2;  // Double buffering\n\n";
-
-#ifdef TL_USE_REAL_METALIUM
-  // Real Metalium: Create program first, then CBs
-  code << "    // 3. Create program (Real Metalium)\n";
-  code << "    Program program = CreateProgram();\n";
-  code << "    std::cout << \"Program created\" << std::endl;\n\n";
-
-  code << "    // 4. Create circular buffers (Real Metalium)\n";
-  code << "    CoreCoord core{0, 0};  // Single core for MVP\n\n";
-
-  code << "    constexpr uint32_t cb_in0_index = 0;\n";
-  code << "    constexpr uint32_t cb_in1_index = 1;\n";
-  code << "    constexpr uint32_t cb_out0_index = 2;\n\n";
-
-  code << "    auto cb_in0 = CreateCircularBuffer(\n";
-  code << "        program, core,\n";
-  code << "        CircularBufferConfig(\n";
-  code << "            CB_NUM_PAGES * TILE_SIZE_FP16,\n";
-  code << "            {{cb_in0_index, tt::DataFormat::Float16_b}})\n";
-  code << "        .set_page_size(cb_in0_index, TILE_SIZE_FP16)\n";
-  code << "    );\n\n";
-
-  code << "    auto cb_in1 = CreateCircularBuffer(\n";
-  code << "        program, core,\n";
-  code << "        CircularBufferConfig(\n";
-  code << "            CB_NUM_PAGES * TILE_SIZE_FP16,\n";
-  code << "            {{cb_in1_index, tt::DataFormat::Float16_b}})\n";
-  code << "        .set_page_size(cb_in1_index, TILE_SIZE_FP16)\n";
-  code << "    );\n\n";
-
-  code << "    auto cb_out0 = CreateCircularBuffer(\n";
-  code << "        program, core,\n";
-  code << "        CircularBufferConfig(\n";
-  code << "            CB_NUM_PAGES * TILE_SIZE_FP16,\n";
-  code << "            {{cb_out0_index, tt::DataFormat::Float16_b}})\n";
-  code << "        .set_page_size(cb_out0_index, TILE_SIZE_FP16)\n";
-  code << "    );\n";
-  code << "    std::cout << \"Circular buffers created\" << std::endl;\n\n";
-
-  // Real Metalium: Create kernels
-  code << "    // 5. Create kernels (Real Metalium)\n";
-  code << "    std::cout << \"Creating kernels...\" << std::endl;\n\n";
-
-  code << "    // Reader kernel (DataMovement)\n";
-  code << "    auto reader_kernel = CreateKernel(\n";
-  code << "        program,\n";
-  code << "        \"reader.cpp\",\n";
-  code << "        core,\n";
-  code << "        DataMovementConfig{\n";
-  code << "            .processor = DataMovementProcessor::RISCV_0,\n";
-  code << "            .noc = NOC::RISCV_0_default\n";
-  code << "        }\n";
-  code << "    );\n\n";
-
-  code << "    // Compute kernel\n";
-  code << "    auto compute_kernel = CreateKernel(\n";
-  code << "        program,\n";
-  code << "        \"compute.cpp\",\n";
-  code << "        core,\n";
-  code << "        ComputeConfig{\n";
-  code << "            .math_fidelity = MathFidelity::HiFi4,\n";
-  code << "            .fp32_dest_acc_en = false,\n";
-  code << "            .math_approx_mode = false\n";
-  code << "        }\n";
-  code << "    );\n\n";
-
-  code << "    // Writer kernel (DataMovement)\n";
-  code << "    auto writer_kernel = CreateKernel(\n";
-  code << "        program,\n";
-  code << "        \"writer.cpp\",\n";
-  code << "        core,\n";
-  code << "        DataMovementConfig{\n";
-  code << "            .processor = DataMovementProcessor::RISCV_1,\n";
-  code << "            .noc = NOC::RISCV_1_default\n";
-  code << "        }\n";
-  code << "    );\n";
-  code << "    std::cout << \"Kernels created successfully\" << std::endl;\n\n";
-#else
-  // Mock: Circular buffers and program
-  code << "    // 3. Circular buffer configuration (Mock)\n";
-  code << "    CircularBufferConfig cb_a(0, TILE_SIZE_FP16, CB_NUM_PAGES);\n";
-  code << "    CircularBufferConfig cb_b(1, TILE_SIZE_FP16, CB_NUM_PAGES);\n";
-  code << "    CircularBufferConfig cb_c(2, TILE_SIZE_FP16, CB_NUM_PAGES);\n";
-  code << "    std::cout << \"Circular buffers configured (Mock)\" << std::endl;\n\n";
-
-  code << "    // 4. Create program (Mock)\n";
-  code << "    Program program;\n";
-  code << "    std::cout << \"Program created (Mock)\" << std::endl;\n\n";
-
-  code << "    // 5. Create kernels (Mock)\n";
-  code << "    std::cout << \"Creating kernels (Mock)...\" << std::endl;\n";
-  code << "    // Mock kernel creation - simulating reader, compute, writer kernels\n";
-  code << "    // In real mode, these would be CreateKernel() calls with actual .cpp files\n";
-  code << "    struct MockKernel { std::string name; };\n";
-  code << "    MockKernel reader_kernel{\"reader.cpp\"};\n";
-  code << "    MockKernel compute_kernel{\"compute.cpp\"};\n";
-  code << "    MockKernel writer_kernel{\"writer.cpp\"};\n";
-  code << "    program.Build();\n";
-  code << "    std::cout << \"Kernels created successfully (Mock)\" << std::endl;\n\n";
-#endif
-
-  // 6. Allocate DRAM buffers
-  code << "    // 6. Allocate DRAM buffers\n";
-  code << "    constexpr uint32_t M = " << M << ";\n";
-  code << "    constexpr uint32_t N = " << N << ";\n";
-  code << "    constexpr uint32_t K = " << K << ";\n";
-  code << "    constexpr uint32_t Mt = " << Mt << ";\n";
-  code << "    constexpr uint32_t Kt = " << Kt << ";\n";
-  code << "    constexpr uint32_t Nt = " << Nt << ";\n\n";
-
-#ifdef TL_USE_REAL_METALIUM
-  // Real Metalium buffer allocation
-  code << "    // Real Metalium buffer allocation\n";
-  code << "    constexpr uint32_t single_tile_size = TILE_H * TILE_W * sizeof(uint16_t);\n\n";
-
-  code << "    DeviceLocalBufferConfig dram_config{\n";
-  code << "        .page_size = single_tile_size,\n";
-  code << "        .buffer_type = BufferType::DRAM\n";
-  code << "    };\n\n";
-
-  code << "    ReplicatedBufferConfig buffer_config_a{.size = Mt * Kt * single_tile_size};\n";
-  code << "    ReplicatedBufferConfig buffer_config_b{.size = Kt * Nt * single_tile_size};\n";
-  code << "    ReplicatedBufferConfig buffer_config_c{.size = Mt * Nt * single_tile_size};\n\n";
-
-  code << "    auto buffer_a = MeshBuffer::create(buffer_config_a, dram_config, device.get());\n";
-  code << "    auto buffer_b = MeshBuffer::create(buffer_config_b, dram_config, device.get());\n";
-  code << "    auto buffer_c = MeshBuffer::create(buffer_config_c, dram_config, device.get());\n\n";
-
-  code << "    // Initialize input buffers (host-side vectors)\n";
-  code << "    std::vector<uint16_t> host_a(M * K);\n";
-  code << "    std::vector<uint16_t> host_b(K * N);\n";
-  code << "    for (size_t i = 0; i < host_a.size(); ++i) host_a[i] = static_cast<uint16_t>(i % 256);\n";
-  code << "    for (size_t i = 0; i < host_b.size(); ++i) host_b[i] = static_cast<uint16_t>(i % 256);\n";
-  code << "    std::cout << \"Mesh buffers allocated and host data initialized\" << std::endl;\n\n";
-#else
-  // Mock buffer allocation
-  code << "    std::vector<uint16_t> dram_a(M * K);\n";
-  code << "    std::vector<uint16_t> dram_b(K * N);\n";
-  code << "    std::vector<uint16_t> dram_c(M * N);\n\n";
-
-  code << "    // Initialize input data\n";
-  code << "    for (size_t i = 0; i < dram_a.size(); ++i) {\n";
-  code << "        dram_a[i] = static_cast<uint16_t>(i % 256);\n";
+  code << "  std::cout << \"Runtime constants:\" << std::endl;\n";
+  code << "  if (kRuntimeConstants.size() == 0) {\n";
+  code << "    std::cout << \"  (none)\" << std::endl;\n";
+  code << "  } else {\n";
+  code << "    for (const auto& constant : kRuntimeConstants) {\n";
+  code << "      std::cout << \"  \" << constant.name << \" = \" << constant.value << std::endl;\n";
   code << "    }\n";
-  code << "    for (size_t i = 0; i < dram_b.size(); ++i) {\n";
-  code << "        dram_b[i] = static_cast<uint16_t>(i % 256);\n";
+  code << "  }\n\n";
+
+  code << "  std::cout << \"Runtime args per core (\" << kCoreRuntimeArgs.size() << \" cores)\" << std::endl;\n";
+  code << "  for (size_t core = 0; core < kCoreRuntimeArgs.size(); ++core) {\n";
+  code << "    const auto& args = kCoreRuntimeArgs[core];\n";
+  code << "    std::cout << \"  core \" << core;\n";
+  code << "    if (args.size() == 0) {\n";
+  code << "      std::cout << \": (no args)\" << std::endl;\n";
+  code << "      continue;\n";
   code << "    }\n";
-  code << "    std::cout << \"DRAM buffers allocated and initialized (Mock)\" << std::endl;\n\n";
-#endif
-
-  // 7. Runtime arguments
-  code << "    // 7. SetRuntimeArgs for kernels\n";
-  code << "    constexpr uint32_t NUM_OUTPUT_TILES = " << total_tiles << ";\n";
-  code << "    constexpr uint32_t NUM_CORES = " << (num_cores.defined() ? num_cores.value()->value : 1) << ";\n\n";
-
-  code << "    // For single-core MVP: core 0 processes all tiles\n";
-  code << "    uint32_t out_tile_start_id = 0;\n";
-  code << "    uint32_t num_out_tiles_per_core = NUM_OUTPUT_TILES;\n\n";
-
-#ifdef TL_USE_REAL_METALIUM
-  code << "    // SetRuntimeArgs (Real Metalium)\n";
-  code << "    std::cout << \"Setting runtime arguments...\" << std::endl;\n\n";
-
-  code << "    // Reader kernel args: {dram_addr_a, dram_addr_b, Mt, Kt, Nt, start_tile_id, num_tiles}\n";
-  code << "    std::vector<uint32_t> reader_args = {\n";
-  code << "        reinterpret_cast<uint32_t>(buffer_a->address()),\n";
-  code << "        reinterpret_cast<uint32_t>(buffer_b->address()),\n";
-  code << "        Mt, Kt, Nt,\n";
-  code << "        out_tile_start_id,\n";
-  code << "        num_out_tiles_per_core\n";
-  code << "    };\n";
-  code << "    SetRuntimeArgs(program, reader_kernel, core, reader_args);\n\n";
-
-  code << "    // Compute kernel args: {start_tile_id, num_output_tiles, Kt}\n";
-  code << "    std::vector<uint32_t> compute_args = {\n";
-  code << "        out_tile_start_id,\n";
-  code << "        num_out_tiles_per_core,\n";
-  code << "        Kt\n";
-  code << "    };\n";
-  code << "    SetRuntimeArgs(program, compute_kernel, core, compute_args);\n\n";
-
-  code << "    // Writer kernel args: {dram_addr_c, start_tile_id, num_tiles, Nt}\n";
-  code << "    std::vector<uint32_t> writer_args = {\n";
-  code << "        reinterpret_cast<uint32_t>(buffer_c->address()),\n";
-  code << "        out_tile_start_id,\n";
-  code << "        num_out_tiles_per_core,\n";
-  code << "        Nt\n";
-  code << "    };\n";
-  code << "    SetRuntimeArgs(program, writer_kernel, core, writer_args);\n";
-  code << "    std::cout << \"Runtime arguments configured successfully\" << std::endl;\n\n";
-#else
-  code << "    // SetRuntimeArgs (Mock)\n";
-  code << "    std::cout << \"Setting runtime arguments (Mock)...\" << std::endl;\n\n";
-
-  code << "    // Mock SetRuntimeArgs function\n";
-  code << "    auto SetRuntimeArgs = [](auto& prog, auto& kernel, const std::vector<uint32_t>& args) {\n";
-  code << "        // Mock implementation - in real mode, this would configure kernel args\n";
-  code << "    };\n\n";
-
-  code << "    // Reader kernel args: {dram_addr_a, dram_addr_b, Mt, Kt, Nt, start_tile_id, num_tiles}\n";
-  code << "    std::vector<uint32_t> reader_args = {\n";
-  code << "        reinterpret_cast<uint32_t>(dram_a.data()),\n";
-  code << "        reinterpret_cast<uint32_t>(dram_b.data()),\n";
-  code << "        Mt, Kt, Nt,\n";
-  code << "        out_tile_start_id,\n";
-  code << "        num_out_tiles_per_core\n";
-  code << "    };\n";
-  code << "    SetRuntimeArgs(program, reader_kernel, reader_args);\n\n";
-
-  code << "    // Compute kernel args: {start_tile_id, num_output_tiles, Kt}\n";
-  code << "    std::vector<uint32_t> compute_args = {\n";
-  code << "        out_tile_start_id,\n";
-  code << "        num_out_tiles_per_core,\n";
-  code << "        Kt\n";
-  code << "    };\n";
-  code << "    SetRuntimeArgs(program, compute_kernel, compute_args);\n\n";
-
-  code << "    // Writer kernel args: {dram_addr_c, start_tile_id, num_tiles, Nt}\n";
-  code << "    std::vector<uint32_t> writer_args = {\n";
-  code << "        reinterpret_cast<uint32_t>(dram_c.data()),\n";
-  code << "        out_tile_start_id,\n";
-  code << "        num_out_tiles_per_core,\n";
-  code << "        Nt\n";
-  code << "    };\n";
-  code << "    SetRuntimeArgs(program, writer_kernel, writer_args);\n\n";
-
-  code << "    std::cout << \"Runtime args configured: \" << NUM_OUTPUT_TILES << \" tiles, Kt=\" << Kt << \" (Mock)\" << std::endl;\n\n";
-#endif
-
-  // 8. Launch program
-  code << "    // 8. Launch program\n";
-#ifdef TL_USE_REAL_METALIUM
-  code << "    EnqueueProgram(cq, program, /*blocking*/false);\n";
-  code << "    Finish(cq);\n";
-  code << "    std::cout << \"Program execution complete (Real Metalium)\" << std::endl;\n\n";
-#else
-  code << "    CommandQueue cq;\n";
-  code << "    cq.EnqueueProgram(&program, true);\n";
-  code << "    cq.Finish();\n";
-  code << "    std::cout << \"Program execution complete (Mock)\" << std::endl;\n\n";
-#endif
-
-  // 9. Verify results (placeholder)
-  code << "    // 9. Verify results\n";
-#ifdef TL_USE_REAL_METALIUM
-  code << "    std::vector<uint16_t> result(M * N);\n";
-  code << "    // Read results back from device (Real Metalium)\n";
-  code << "    // EnqueueReadBuffer(cq, buffer_c, result.data(), /*blocking*/true);\n";
-  code << "    std::cout << \"Results ready for verification (placeholder)\" << std::endl;\n\n";
-#else
-  code << "    std::cout << \"Results in dram_c (\" << dram_c.size() << \" elements)\" << std::endl;\n";
-  code << "    std::cout << \"First 10 elements: \";\n";
-  code << "    for (size_t i = 0; i < std::min(size_t(10), dram_c.size()); ++i) {\n";
-  code << "        std::cout << dram_c[i] << \" \";\n";
+  code << "    std::cout << \": \";\n";
+  code << "    for (size_t idx = 0; idx < args.size(); ++idx) {\n";
+  code << "      std::cout << kRuntimeArgNames[idx] << \"=\" << args[idx];\n";
+  code << "      if (idx + 1 < args.size()) {\n";
+  code << "        std::cout << \", \";\n";
+  code << "      }\n";
   code << "    }\n";
-  code << "    std::cout << std::endl;\n\n";
-#endif
+  code << "    std::cout << std::endl;\n";
+  code << "  }\n\n";
 
-  // 10. Cleanup
-#ifdef TL_USE_REAL_METALIUM
-  code << "    // 10. Cleanup (Real Metalium)\n";
-  code << "    device->close();\n";
-  code << "    std::cout << \"Device closed\" << std::endl;\n\n";
-#endif
-
-  code << "    return 0;\n";
+  code << "  return 0;\n";
   code << "}\n";
 
   return code.str();

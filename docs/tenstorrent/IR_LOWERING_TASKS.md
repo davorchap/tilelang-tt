@@ -64,17 +64,17 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Estimated Effort**: 3-4 days
 
-### Priority 2: Shard-Aware Persistent Lowering & Codegen (HIGH) 🔴
+### Priority 2: Shard-Aware Persistent Lowering & Codegen (HIGH) 🟢
 
 **What**: Teach `grid_to_persistent_tt`, host codegen, and TT kernels to consume the new metadata, emit shard-local `(m,n)` math, and enforce TensorAccessor guardrails.
 
 **Why**: Without shard-aware lowering the new metadata is unused; codegen must rely on the canonical runtime args for determinism.
 
-**Status**: 🟡 Partial – persistent pass handles global + basic local_shard; host/runtime wiring still pending
+**Status**: 🟢 Active – persistent pass handles global + local_shard, and host/runtime wiring with TensorAccessor guardrails has landed (docs refresh still pending)
 
 **Tasks**:
 1. Extend persistent lowering to branch on `tt_partition_mode` and recover shard-local/global indices. ✅ (local_shard math emitted; more validation still needed)
-2. Update host/kernel generation to plumb the expanded runtime arg payload, enforce TA guardrails, and refresh templates. ⛔ Not started
+2. Update host/kernel generation to plumb the expanded runtime arg payload, enforce TA guardrails, and refresh templates. ✅ Complete (host metadata summary replaces legacy mock)
 3. Document the final runtime argument contract (architecture + pass docs). ⚠️ PASS_TABLE + pass doc updated; architecture doc pending
 
 **Estimated Effort**: 2-3 days
@@ -95,13 +95,13 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Estimated Effort**: 2-3 days
 
-### Priority 4: Integration Test Suite (MEDIUM) 🟡
+### Priority 4: Integration Test Suite (MEDIUM) 🟢
 
 **What**: Add `testing/python/tt/test_ir_to_codegen_integration.py` covering DRAM vs L1, global vs local-shard, and negative diagnostics aligned with the architecture test matrix.
 
 **Why**: Validates the end-to-end pipeline and prevents regressions as metadata and codegen evolve.
 
-**Status**: ⏳ Blocked on Tasks 1-2
+**Status**: 🟢 Active – baseline coverage for global vs local shards and guardrail diagnostics in place (halo/L1 overflow coverage still TODO)
 
 **Tasks**:
 1. Build positive coverage for DRAM interleaved, DRAM sharded, and L1 shard scenarios.
@@ -165,8 +165,8 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Task 2 (Persistent + Codegen Updates)**:
 - [x] `GridToPersistentTT` recovers `(m, n)` for both `global` and `local_shard` modes.
-- [ ] Host codegen builds TensorAccessor compile args from actual buffers.
-- [ ] Runtime args include shard geometry when required; guardrail prevents default TA usage.
+- [x] Host codegen builds TensorAccessor compile args from actual buffers.
+- [x] Runtime args include shard geometry when required; guardrail prevents default TA usage.
 - [ ] Runtime argument contract documented for host + kernels.
 
 **Task 3 (Tensorize TT)**:
@@ -175,9 +175,9 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 - [ ] Heuristic paths removed from compute visitor.
 
 **Task 4 (Integration Tests)**:
-- [ ] Layout-aware feature matrix covered (DRAM/L1, interleaved/sharded).
-- [ ] Negative tests assert diagnostics (halo, L1 overflow, guardrail).
-- [ ] Regression suite remains green.
+- [x] Layout-aware feature matrix covered (DRAM/L1, interleaved/sharded).
+- [ ] Negative tests assert diagnostics (halo, L1 overflow, guardrail). *(Guardrail path covered; halo/overflow still pending)*
+- [x] Regression suite remains green.
 - [ ] Test matrix documented in architecture guide.
 
 **Task 5 (Example Update)**:

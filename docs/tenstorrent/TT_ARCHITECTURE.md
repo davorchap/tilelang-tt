@@ -212,7 +212,7 @@ Legacy passes `infer_default_tt_schedule` and `tt_tiles_to_core_map` remain avai
 
 - Halo metadata is rejected (*"halo unsupported"*).
 - L1 shards must be tile-aligned and fit within capacity (*"L1 shard exceeds capacity"*).
-- Default-constructed `TensorAccessorArgs()` for DRAM buffers triggers a guardrail failure.
+- Host generator emits `TensorAccessorArgs::Create(...)` per buffer and throws if a default-constructed accessor leaks through.
 
 ---
 
@@ -228,16 +228,16 @@ Legacy passes `infer_default_tt_schedule` and `tt_tiles_to_core_map` remain avai
 
 ### TensorAccessor Policy
 
-- Compile-time blobs must be built via `TensorAccessorArgs(*buffer)` so layout metadata is captured.
-- Runtime args supply base addresses plus tile geometry fields (global + shard).
-- Local L1 shards (owned by the executing core) use CB pointers directly; no TA required.
+- Host `main.cpp` now materialises `TensorAccessorArgs::Create(...)` blobs for every DRAM/L1 buffer and guards against default construction.
+- Runtime args expose base tile ranges plus shard geometry so device kernels can compute global indices deterministically.
+- Local L1 shards (owned by the executing core) still read/write CBs directly; the guardrail simply validates metadata consistency.
 
 ### Runtime Argument Payload
 
-| Mode | Arguments |
-|------|-----------|
-| Global | `start_id`, `count`, `Mt`, `Kt`, `Nt` |
-| Local shard | Above + `Sm`, `Sn`, `Gy`, `Gx`, `sy`, `sx` |
+| Mode | Arguments | Host emission |
+|------|-----------|---------------|
+| Global | `start_id`, `count`, `Mt`, `Kt`, `Nt` | `kRuntimeArgNames = {"tt_start_tile", ...}` |
+| Local shard | Above + `Sm`, `Sn`, `Gy`, `Gx`, `sy`, `sx` | Extra entries append shard geometry (`tt_shard_coord_{y,x}`) |
 
 ### Tile Order Options
 
@@ -286,7 +286,7 @@ Legacy passes `infer_default_tt_schedule` and `tt_tiles_to_core_map` remain avai
        }
    }
    ```
-   > **Upcoming change:** Reader/Writer kernels will instantiate `TensorAccessor` objects using compile-time blobs provided via `TensorAccessorArgs(*buffer)` to handle DRAM interleaved vs sharded layouts transparently.
+   Reader and writer kernels currently mark shard coordinates as intentionally unused (`(void)tt_shard_coord_*`) while the host provides validated TensorAccessor metadata for future tensorisation work.
 
 2. **Compute Kernel** (`compute.cpp`)
    - **Visitor:** `TTComputeCodegenVisitor`
