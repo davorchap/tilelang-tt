@@ -1,78 +1,79 @@
 # PropagateTTLayout Pass
 
-**Status**: 🚧 Planned  
+**Status**: 🟡 Partial (defaults only)  
 **Priority**: P0  
-**File**: `src/transform/tt/propagate_layout_tt.cc`
+**File**: Python helper in `tilelang/tt/passes.py`
 
 ---
 
 ## Purpose
 
-Derive circular-buffer metadata for DRAM↔L1 transfers so that data-movement kernels can rely on a consistent cache-block (CB) configuration. After `InferTTLayout` normalizes buffer attributes, this pass:
+Consume `tt.buffer.*` metadata and stamp matching circular-buffer descriptors on
+each PrimFunc. The current implementation provides a basic bridge between
+layout metadata and later passes:
 
-- Inspects explicit copy ops (`T.copy`, `T.Read`, `T.Write` lowering results) that bridge DRAM and L1.
-- Computes the tile-sized page geometry (bytes, depth, data format) for each logical buffer.
-- Attaches `tt.cb.<buffer_name>` attributes to the PrimFunc for later consumption by persistent lowering and codegen.
+- Computes page size from tile shape and dtype (32×32 tiles assumed).
+- Emits default `depth=2` and a TT-compatible `data_format` string.
+- Skips role-specific tuning (reader vs writer) and advanced heuristics for now.
 
 ---
 
 ## Metadata Written
 
-Each relevant buffer gets a CB configuration dictionary:
+Each buffer gains a `tt.cb.<name>` attribute such as:
 
 ```json
 {
-  "page_size": <tile_bytes>,
-  "depth": <num_pages>,
-  "data_format": "BFloat16_b" | "Float16_b" | "Float32_b" | "..."
+  "page_size": 2048,
+  "depth": 2,
+  "data_format": "Float16_b"
 }
 ```
 
-Guidelines:
-- `page_size` = `tile_shape[0] * tile_shape[1] * bytes_per_element`.
-- `depth` is determined via helper heuristic (initially a simple default such as 2 for inputs, 1 for accumulators; future work can expose policy knobs).
-- `data_format` follows TT-Metalium enum naming.
+Notes:
+- Page size derives from tile shape × element bytes.
+- Depth is currently hard-coded; future work should choose depth based on access pattern.
+- Only buffers with `tt.buffer.*` metadata receive a CB entry.
 
 ---
 
 ## High-Level Algorithm
 
-1. Collect buffer metadata emitted by `InferTTLayout`.
-2. Visit copy statements inside each PrimFunc. For each source/destination buffer pair:
-   - Look up dtype and tile shape to compute `tile_bytes`.
-   - Determine an appropriate `depth` based on access role (reader vs writer) or fallback default.
-   - Translate dtype to TT data format string (e.g., `bf16` → `BFloat16_b`).
-3. Attach matching `tt.cb.<buffer>` attributes to the enclosing PrimFunc. For symmetric copies (e.g., DRAM↔L1), stamp both endpoints.
-4. Skip pure L1↔L1 copies for now (covered by CB lowering pass).
+1. Iterate over buffers recorded in the PrimFunc’s `buffer_map`.
+2. Look up the corresponding `tt.buffer.<name>` metadata (emitted by
+   `InferTTLayout`).
+3. Compute page size and pick a default `depth=2`.
+4. Translate dtype → TT Metalium data format string (best effort).
+5. Attach the resulting dictionary as `tt.cb.<name>`.
+6. TODO: refine depth heuristics and warn when dtype is unsupported.
 
 ---
 
 ## Diagnostics
 
-- Warn or fail if dtype is unsupported for TT data format lookup.
-- Fail if tile shape metadata is missing (indicates `InferTTLayout` did not run).
+None today. Future improvements should warn when:
+- `tt.buffer.*` metadata is missing for a buffer that participates in DRAM↔L1 transfers.
+- Dtype cannot be mapped to a TT data format.
 
 ---
 
 ## Tests
 
-- DRAM interleaved path: ensure `page_size == 2048` for bf16 tiles and default `depth`.
-- DRAM sharded path: confirm CB metadata still matches tile byte size.
-- L1 only copies: currently ignored (no attribute written).
-- Negative test for missing layout metadata (expect diagnostic).
-
-Additions live in `tests/tt/test_layouts.py`.
+Covered by `testing/python/tt/test_layout_aware_metadata.py` (default DRAM case).
+Additional coverage (e.g., dtype failures, depth overrides) should be added once
+policy knobs are introduced.
 
 ---
 
 ## Dependencies
 
-- Must run after `InferTTLayout` (requires `tt.buffer.*`).
-- Shares dtype→format helper with codegen (`ToTTDataFormat`).
+- Runs after `InferTTLayout` (requires `tt.buffer.*`).
+- Shares dtype → data-format helper logic with TT codegen.
 
 ---
 
 ## Downstream Consumers
 
-- `memory_space_lower_tt` consults `tt.cb.*` when shaping circular buffers.
-- Reader/writer kernels rely on `page_size`/`depth` to size CB reservations.
+- `memory_space_lower_tt` (C++) consumes `tt.cb.*` to size circular buffers.
+- Reader/Writer codegen will eventually use these attributes when configuring
+  runtime kernels.

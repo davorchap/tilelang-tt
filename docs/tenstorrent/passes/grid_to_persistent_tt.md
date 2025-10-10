@@ -1,6 +1,6 @@
 # GridToPersistentTT Pass
 
-**Status**: 🚧 Update in progress  
+**Status**: 🟡 Partial (global mode)  
 **Priority**: CRITICAL  
 **File**: `src/transform/tt/grid_to_persistent_tt.cc`
 
@@ -55,7 +55,7 @@ if mode == "global":
    - Global mode: convert `tid` into `(m, n)` using `Nt`.
    - Local shard mode: derive shard coordinates `(sy, sx)` from core position and compute global `(m, n)` from shard-local `(m_l, n_l)`, `Sm`, `Sn`.
 4. Respect the requested traversal `order` (currently `row_major`; shard-aware and `block_linear(k)` will be layered via `RasterizationTT`).
-5. Append runtime argument descriptors to `tt.runtime_args` in canonical order so that host codegen and kernels agree on indices.
+5. Append runtime argument descriptors to `tt.runtime_args` / `tt.runtime_arg_names` in canonical order so that host codegen and kernels agree on indices.
 
 **Runtime Arguments**:
 
