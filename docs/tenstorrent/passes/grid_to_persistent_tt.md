@@ -40,15 +40,8 @@ if mode == "global":
         m = tid // Nt
         n = tid % Nt
         body(m, n)
-else:  # local_shard
-    sy, sx = shard_coords(core_id)           # from shard grid Gy×Gx
-    for offset in range(count):
-        tid = start + offset                 # shard-local id
-        m_l = tid // Sn
-        n_l = tid % Sn
-        m = sy * Sm + m_l
-        n = sx * Sn + n_l
-        body(m, n)
+# TODO: local_shard recovery (Sy/Sx + shard-local iteration) to be implemented once
+# layout-aware partitioning emits shard coordinates per core.
 ```
 
 ---
@@ -68,12 +61,16 @@ else:  # local_shard
 
 | Index | Name | Description |
 |-------|------|-------------|
-| 0 | `start_id` | Global or shard-local starting tile id |
-| 1 | `count` | Number of tiles for this core |
-| 2 | `Mt` | Global tiles in M dimension |
-| 3 | `Kt` | Tiles in reduction dimension (if needed by compute) |
-| 4 | `Nt` | Global tiles in N dimension |
-| 5.. | `Sm`, `Sn`, `Gy`, `Gx`, `sy`, `sx` | Present only for `local_shard` mode |
+| 0 | `start_id` | Global or shard-local starting tile id (runtime param) |
+| 1 | `count` | Number of tiles for this core (runtime param) |
+| 2 | `Mt` | Global tiles in M dimension (recorded in `tt.runtime_constants`) |
+| 3 | `Kt` | Tiles in reduction dimension (placeholder = 1 until tensorization drives it) |
+| 4 | `Nt` | Global tiles in N dimension (`tt.runtime_constants["Nt"]`) |
+| 5.. | `Sm`, `Sn`, `Gy`, `Gx`, `sy`, `sx` | Reserved for shard-aware execution (`local_shard`, TODO) |
+
+Only the first two entries result in additional PrimFunc parameters today; the
+remaining names are recorded so host/codegen can align on a canonical argument
+ordering when shard-aware execution is implemented.
 
 The pass is responsible for ordering these fields and recording the argument names in `tt.runtime_args`.
 

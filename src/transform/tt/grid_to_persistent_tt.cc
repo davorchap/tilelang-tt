@@ -35,6 +35,7 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
+#include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -203,9 +204,67 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
   int grid_y = grid_y_attr.value()->value;
   int grid_z = grid_z_attr.value()->value;
 
+  std::string partition_mode = "global";
+  if (auto mode = f->attrs.GetAttr<String>("tt.partition_mode")) {
+    partition_mode = mode.value();
+  }
+
+  int grid_tiles_m = std::max(grid_y * grid_z, 1);
+  int grid_tiles_n = std::max(grid_x, 1);
+  int local_tiles_m = grid_tiles_m;
+  int local_tiles_n = grid_tiles_n;
+  int shard_grid_y = 1;
+  int shard_grid_x = 1;
+
+  if (auto grid_tiles_attr = f->attrs.GetAttr<Array<Integer>>("tt.grid_tiles")) {
+    const auto& arr = grid_tiles_attr.value();
+    if (arr.size() >= 2) {
+      grid_tiles_m = static_cast<int>(arr[0].IntValue());
+      grid_tiles_n = static_cast<int>(arr[1].IntValue());
+    }
+  }
+  if (auto local_tiles_attr = f->attrs.GetAttr<Array<Integer>>("tt.local_shape_tiles")) {
+    const auto& arr = local_tiles_attr.value();
+    if (arr.size() >= 2) {
+      local_tiles_m = static_cast<int>(arr[0].IntValue());
+      local_tiles_n = static_cast<int>(arr[1].IntValue());
+    }
+  }
+  if (auto shard_grid_attr = f->attrs.GetAttr<Array<Integer>>("tt.shard_grid")) {
+    const auto& arr = shard_grid_attr.value();
+    if (arr.size() >= 2) {
+      shard_grid_y = static_cast<int>(arr[0].IntValue());
+      shard_grid_x = static_cast<int>(arr[1].IntValue());
+    }
+  }
+
+  Array<String> runtime_arg_names;
+  if (auto names = f->attrs.GetAttr<Array<String>>("tt.runtime_arg_names")) {
+    runtime_arg_names = names.value();
+  } else if (auto names = f->attrs.GetAttr<Array<String>>("tt_runtime_arg_names")) {
+    runtime_arg_names = names.value();
+  }
+  if (runtime_arg_names.empty()) {
+    if (partition_mode == "local_shard") {
+      runtime_arg_names = {
+          String("start_id"), String("count"), String("Mt"), String("Kt"), String("Nt"),
+          String("Sm"),      String("Sn"),   String("Gy"), String("Gx"), String("sy"),
+          String("sx")};
+    } else {
+      runtime_arg_names = {String("start_id"), String("count"), String("Mt"),
+                           String("Kt"), String("Nt")};
+    }
+  }
+  while (runtime_arg_names.size() < 2) {
+    runtime_arg_names.push_back(
+        String("arg" + std::to_string(runtime_arg_names.size())));
+  }
+
   // Create runtime parameter variables (start tile, tile count)
   Var start_param("tt_start_tile", DataType::Int(32));
   Var count_param("tt_tile_count", DataType::Int(32));
+  runtime_arg_names.Set(0, String(start_param->name_hint));
+  runtime_arg_names.Set(1, String(count_param->name_hint));
 
   // Step 2: Apply the transformation
   GridToPersistentMutator mutator(start_param, count_param, grid_x, grid_y, grid_z);
@@ -241,6 +300,34 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
   grid_shape.push_back(Integer(grid_z));
   runtime_args.Set("grid_shape", grid_shape);
 
+  Array<Integer> grid_tiles_array;
+  grid_tiles_array.push_back(Integer(grid_tiles_m));
+  grid_tiles_array.push_back(Integer(grid_tiles_n));
+  runtime_args.Set("grid_tiles", grid_tiles_array);
+
+  Array<Integer> local_tiles_array;
+  local_tiles_array.push_back(Integer(local_tiles_m));
+  local_tiles_array.push_back(Integer(local_tiles_n));
+  runtime_args.Set("local_shape_tiles", local_tiles_array);
+
+  Array<Integer> shard_grid_array;
+  shard_grid_array.push_back(Integer(shard_grid_y));
+  shard_grid_array.push_back(Integer(shard_grid_x));
+  runtime_args.Set("shard_grid", shard_grid_array);
+
+  Map<String, ObjectRef> runtime_constants;
+  runtime_constants.Set("Mt", Integer(grid_tiles_m));
+  runtime_constants.Set("Nt", Integer(grid_tiles_n));
+  runtime_constants.Set("Kt", Integer(1));
+  if (partition_mode == "local_shard") {
+    runtime_constants.Set("Sm", Integer(local_tiles_m));
+    runtime_constants.Set("Sn", Integer(local_tiles_n));
+    runtime_constants.Set("Gy", Integer(shard_grid_y));
+    runtime_constants.Set("Gx", Integer(shard_grid_x));
+  }
+  runtime_args.Set("runtime_constants", runtime_constants);
+  runtime_args.Set("partition_mode", String(partition_mode));
+
   int iter_ndims = 1;
   if (grid_y > 1) {
     iter_ndims += 1;
@@ -262,13 +349,21 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
   runtime_args.Set("iteration_symbols", dim_symbols);
 
   Array<String> param_order;
-  param_order.push_back(String(start_param->name_hint));
-  param_order.push_back(String(count_param->name_hint));
+  for (const auto& name : runtime_arg_names) {
+    param_order.push_back(name);
+  }
   runtime_args.Set("param_order", param_order);
+  runtime_args.Set("arg_names", runtime_arg_names);
 
   new_func = WithAttr(new_func, "tt_runtime_args", runtime_args);
   new_func = WithAttr(new_func, "tt_persistent_loop", Bool(true));
   new_func = WithAttr(new_func, "tt_persistent_iteration_ndims", Integer(iter_ndims));
+  new_func = WithAttr(new_func, "tt.partition_mode", String(partition_mode));
+  new_func = WithAttr(new_func, "tt.grid_tiles", grid_tiles_array);
+  new_func = WithAttr(new_func, "tt.local_shape_tiles", local_tiles_array);
+  new_func = WithAttr(new_func, "tt.shard_grid", shard_grid_array);
+  new_func = WithAttr(new_func, "tt.runtime_constants", runtime_constants);
+  new_func = WithAttr(new_func, "tt.runtime_arg_names", runtime_arg_names);
 
   return new_func;
 }

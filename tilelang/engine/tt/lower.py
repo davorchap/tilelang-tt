@@ -18,6 +18,7 @@ from tilelang.tt import apply_tt_defaults
 from tilelang.tt.passes import (
     infer_default_tt_schedule,
     infer_default_tt_shard,
+    apply_layout_aware_metadata_passes,
     grid_to_persistent_tt,
     tt_tiles_to_core_map,
     memory_space_lower_tt,
@@ -85,6 +86,9 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     # Metadata Inference stage Phase 2: Sharding inference
     # Generate DRAM layout descriptors (tiled, interleaved)
     mod = infer_default_tt_shard(mod)
+
+    # Layout-aware metadata (buffer layouts, partitioning, runtime arg schema)
+    mod = apply_layout_aware_metadata_passes(mod)
 
     # === Persistent Transform stage: TT-Specific TIR Transformations ===
     # Persistent Transform stage: Grid to persistent transformation
