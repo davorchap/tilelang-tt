@@ -152,9 +152,9 @@ Applied only for Tenstorrent target via `OptimizeForTargetTT()`.
 
 | Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
 |------|--------|----------|----------|-----------|---------|---------------|
-| **InferTTLayout** | 🚧 Planned | Memory | Buffers + user attrs | Buffers + `tt.buffer.*` | Normalize memory layout & ND sharding | [📄 Doc](./passes/infer_layout_tt.md) |
-| **PropagateTTLayout** | 🚧 Planned | Memory | Copy ops | PrimFunc + `tt.cb.*` | Generate circular buffer metadata | [📄 Doc](./passes/propagate_layout_tt.md) |
-| **LayoutAwareWorkPartitionTT** | 🚧 Planned | Device | PrimFunc + layout | PrimFunc + partition attrs | Choose cores, partition mode, runtime args | [📄 Doc](./passes/layout_aware_partition_tt.md) |
+| **InferTTLayout** | 🟡 Partial | Memory | PrimFunc (`tt.user_layout`) | PrimFunc + `tt.buffer.*` | Stamp buffer layout metadata (defaults only, no ND projection yet) | [📄 Doc](./passes/infer_layout_tt.md) |
+| **PropagateTTLayout** | 🟡 Partial | Memory | PrimFunc + `tt.buffer.*` | PrimFunc + `tt.cb.*` | Derive CB metadata (page size/depth defaults) | [📄 Doc](./passes/propagate_layout_tt.md) |
+| **LayoutAwareWorkPartitionTT** | 🟡 Partial | Device | PrimFunc + buffer metadata | PrimFunc + partition attrs | Emit global partition metadata; shard-aware mode TBD | [📄 Doc](./passes/layout_aware_partition_tt.md) |
 
 **Annotations Added:**
 ```json
@@ -191,7 +191,7 @@ Legacy schedule/shard passes remain for compatibility:
 
 | Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
 |------|--------|----------|----------|-----------|---------|---------------|
-| **grid_to_persistent_tt** | 🛠️ Update planned | Device | Persistent kernel metadata | Shard-aware persistent loop | Recover tile indices with partition mode | [📄 Doc](./passes/grid_to_persistent_tt.md) |
+| **grid_to_persistent_tt** | 🟡 Partial | Device | Persistent kernel metadata | Persistent loop + runtime metadata | Consume layout-aware attributes (global path implemented) | [📄 Doc](./passes/grid_to_persistent_tt.md) |
 | **tt_tiles_to_core_map** | 🟡 Legacy | Device | Tile assignments | Core (x, y) coords | Legacy NOC mapping (to be replaced) | [📄 Doc](./passes/tt_tiles_to_core_map.md) |
 | **memory_space_lower_tt** | ✅ Complete | Memory | DRAM buffers | L1 circular buffers | Lower DRAM → L1 CB (consumes `tt.cb.*`) | [📄 Doc](./passes/memory_space_lower_tt.md) |
 | **tile_pad_tt** | ✅ Complete | Memory | Arbitrary shapes | Tile-aligned shapes | Pad to 32×32 tiles | [📄 Doc](./passes/tile_pad_tt.md) |

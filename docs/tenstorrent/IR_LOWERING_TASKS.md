@@ -53,14 +53,14 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Why**: These passes are the prerequisite for shard-aware lowering, TensorAccessor correctness, and eventual retirement of the legacy metadata inference path.
 
-**Status**: 🚧 Planned (specs drafted)
+**Status**: 🟡 Partial – helpers and default metadata landed; N-D projection/L1 validation pending
 
 **Tasks**:
-1. Add `annotate_tt_layout` / `annotate_tt_schedule` helpers with input validation.
-2. Implement `InferTTLayout` with diagnostics, projection helpers, and N-D shard normalization.
-3. Implement `PropagateTTLayout` to emit `tt.cb.*` metadata per buffer.
-4. Implement `LayoutAwareWorkPartitionTT` to stamp `tt.partition_mode`, `tt.core_ranges`, `tt.runtime_args`, etc.
-5. Update docs (`README`, `TT_ARCHITECTURE`, `PASS_TABLE`) to describe the shipped behavior.
+1. Add `annotate_tt_layout` / `annotate_tt_schedule` helpers with input validation. ✅ (basic helpers merged; extra validation still TODO)
+2. Implement `InferTTLayout` with diagnostics, projection helpers, and N-D shard normalization. ⚠️ Defaults only (no projection/diagnostics yet)
+3. Implement `PropagateTTLayout` to emit `tt.cb.*` metadata per buffer. ⚠️ Emits defaults (depth=2) but lacks role-aware policy
+4. Implement `LayoutAwareWorkPartitionTT` to stamp `tt.partition_mode`, `tt.core_ranges`, `tt.runtime_args`, etc. ⚠️ Global mode only; shard-aware path TODO
+5. Update docs (`README`, `TT_ARCHITECTURE`, `PASS_TABLE`) to describe the shipped behavior. ⚠️ PASS_TABLE partially updated; remaining docs pending
 
 **Estimated Effort**: 3-4 days
 
@@ -70,12 +70,12 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Why**: Without shard-aware lowering the new metadata is unused; codegen must rely on the canonical runtime args for determinism.
 
-**Status**: 🛠️ Spec drafted (see pass docs)
+**Status**: 🟡 Partial – persistent pass now reads layout metadata for global mode; shard-local + host wiring pending
 
 **Tasks**:
-1. Extend persistent lowering to branch on `tt.partition_mode` and recover shard-local/global indices.
-2. Update host/kernel generation to plumb the expanded runtime arg payload, enforce TA guardrails, and refresh templates.
-3. Document the final runtime argument contract (architecture + pass docs).
+1. Extend persistent lowering to branch on `tt.partition_mode` and recover shard-local/global indices. ⚠️ Global path done; shard-local math still TODO
+2. Update host/kernel generation to plumb the expanded runtime arg payload, enforce TA guardrails, and refresh templates. ⛔ Not started
+3. Document the final runtime argument contract (architecture + pass docs). ⚠️ PASS_TABLE + pass doc updated; architecture doc pending
 
 **Estimated Effort**: 2-3 days
 
@@ -159,13 +159,13 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 ## Success Criteria
 
 **Task 1 (Layout-Aware Metadata)**:
-- [ ] `InferTTLayout` emits `tt.buffer.*` for all tensors and enforces diagnostics.
-- [ ] `PropagateTTLayout` attaches `tt.cb.*` with correct page size/depth/format.
-- [ ] `LayoutAwareWorkPartitionTT` stamps `tt.partition_mode`, `tt.core_ranges`, and canonical `tt.runtime_args`.
-- [ ] Documentation updated (`README`, `TT_ARCHITECTURE`, `PASS_TABLE`) to reflect shipped behavior.
+- [x] `InferTTLayout` emits `tt.buffer.*` for all tensors (defaults only; diagnostics & N-D projection pending).
+- [x] `PropagateTTLayout` attaches `tt.cb.*` with default page size/depth for each buffer (policy tuning pending).
+- [x] `LayoutAwareWorkPartitionTT` stamps `tt.partition_mode`, `tt.core_ranges`, and canonical runtime arg names for global mode (local_shard TODO).
+- [ ] Documentation updated (`README`, `TT_ARCHITECTURE`) to reflect shipped behavior (PASS_TABLE updated; remaining docs pending).
 
 **Task 2 (Persistent + Codegen Updates)**:
-- [ ] `GridToPersistentTT` recovers `(m, n)` for both `global` and `local_shard` modes.
+- [ ] `GridToPersistentTT` recovers `(m, n)` for both `global` and `local_shard` modes (global path implemented).
 - [ ] Host codegen builds TensorAccessor compile args from actual buffers.
 - [ ] Runtime args include shard geometry when required; guardrail prevents default TA usage.
 - [ ] Runtime argument contract documented for host + kernels.

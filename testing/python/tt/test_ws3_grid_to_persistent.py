@@ -51,7 +51,13 @@ class TestGridToPersistentTT:
         assert count_info["dtype"] == "int32"
 
         param_order = [str(p) for p in runtime_args["param_order"]]
-        assert param_order == ["tt_start_tile", "tt_tile_count"]
+        assert param_order[:2] == ["tt_start_tile", "tt_tile_count"]
+        assert param_order[2:] == ["Mt", "Kt", "Nt"]
+
+        assert [int(x) for x in runtime_args["grid_tiles"]] == [8, 8]
+        assert [int(x) for x in runtime_args["local_shape_tiles"]] == [8, 8]
+        assert [int(x) for x in runtime_args["shard_grid"]] == [1, 1]
+        assert str(runtime_args["partition_mode"]) == "global"
 
         grid_shape = runtime_args["grid_shape"]
         assert len(grid_shape) == 3, "Grid shape should describe (x, y, z)"
@@ -84,6 +90,8 @@ class TestGridToPersistentTT:
         assert int(runtime_args["iteration_ndims"]) == 1
         assert list(map(str, runtime_args["iteration_symbols"])) == ["bx"]
         assert int(func.attrs["tt_persistent_iteration_ndims"]) == 1
+        assert [int(x) for x in runtime_args["grid_tiles"]] == [1, 32]
+        assert runtime_args["partition_mode"] == "global"
 
     def test_grid_to_persistent_three_dim(self):
         """Ensure 3D kernels expose full iteration metadata."""

@@ -55,8 +55,11 @@ class TestLayoutAwareMetadata:
         assert int(grid_tiles[0]) == 8
         assert int(grid_tiles[1]) == 8
 
-        runtime_args = [str(x) for x in func.attrs["tt.runtime_args"]]
-        assert runtime_args == ["start_id", "count", "Mt", "Kt", "Nt"]
+        runtime_args = [str(x) for x in func.attrs["tt.runtime_arg_names"]]
+        assert runtime_args == ["tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt"]
+        constants = func.attrs["tt.runtime_constants"]
+        assert int(constants["Mt"]) == 8
+        assert int(constants["Nt"]) == 8
 
     def test_user_annotation_overrides_defaults(self):
         @T.prim_func
@@ -94,3 +97,7 @@ class TestLayoutAwareMetadata:
 
         cb_attr = func.attrs["tt.cb.A"]
         assert int(cb_attr["page_size"]) == 16 * 16 * 2  # bf16 → 2 bytes
+        assert [str(x) for x in func.attrs["tt.runtime_arg_names"]][:2] == [
+            "tt_start_tile",
+            "tt_tile_count",
+        ]

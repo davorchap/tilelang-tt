@@ -1,18 +1,26 @@
 # LayoutAwareWorkPartitionTT Pass
 
-**Status**: 🚧 Planned  
+**Status**: 🟡 Partial (global mode only)  
 **Priority**: P0  
-**File**: `src/transform/tt/layout_aware_partition_tt.cc`
+**File**: Python helper in `tilelang/tt/passes.py`
 
 ---
 
 ## Purpose
 
-Choose per-core work assignments that respect buffer residency and sharding. This pass replaces heuristic schedule inference with a layout-driven policy:
+Translate buffer/layout metadata into function-level partition descriptors the
+rest of the pipeline can consume. The current implementation focuses on the
+legacy global schedule while paving the way for shard-aware execution:
 
-- When any tensor is L1-resident and sharded, map each shard to a unique core and emit local runtime ranges.
-- Otherwise, fall back to the global tile grid inferred from tensor shapes and user annotations.
-- Stamp function-level attributes describing partition mode, core range selection, and shard-local tile geometry.
+- Reads `tt.buffer.*` and `tt.user_schedule` metadata to determine partition
+  mode (`global` vs `local_shard`, defaulting to `global`).
+- Emits canonical runtime-argument names (`tt_start_tile`, `tt_tile_count`,
+  `Mt`, `Kt`, `Nt`, …) so persistent lowering and host codegen can agree on
+  ordering.
+- Preserves existing `tt_tiles_per_core` ranges; still relies on them for core
+  mapping.
+- Leaves shard-local math (`local_shard`) and per-core shard coordinates marked
+  as TODO.
 
 ---
 
@@ -20,62 +28,61 @@ Choose per-core work assignments that respect buffer residency and sharding. Thi
 
 | Attribute | Type | Description |
 |-----------|------|-------------|
-| `tt.partition_mode` | `String` | `"global"` or `"local_shard"` |
-| `tt.core_ranges` | `Array` | CoreRangeSet encoded as `[y0,x0,y1,x1,...]` |
-| `tt.grid_tiles` | `Array<Integer>` | `[Mt, Nt]` global tile grid (only when global) |
-| `tt.shard_grid` | `Array<Integer>` | `[Gy, Gx]` projection of shard grid onto compute plane (local shard) |
-| `tt.local_shape_tiles` | `Array<Integer>` | `[Sm, Sn]` tiles per shard on compute plane |
-| `tt.runtime_args` | `Array<String>` | Ordered list of runtime argument names |
-
-Per-core `(start_id, count)` ranges remain encoded via existing schedule metadata or via new helper structures emitted into `tt.runtime_args`.
+| `tt.partition_mode` | `String` | Currently always `"global"` unless user overrides. |
+| `tt.grid_tiles` | `Array<Integer>` | `[Mt, Nt]` global tile grid (defaults to grid_y×grid_z, grid_x). |
+| `tt.local_shape_tiles` | `Array<Integer>` | `[Sm, Sn]` shard-local tiles (defaults to `[Mt, Nt]`). |
+| `tt.shard_grid` | `Array<Integer>` | `[Gy, Gx]` shard grid (defaults to `[1, 1]`). |
+| `tt.runtime_arg_names` | `Array<String>` | Canonical runtime argument ordering used by persistent lowering (`tt_start_tile`, `tt_tile_count`, `Mt`, `Kt`, `Nt`, …). |
+| `tt.runtime_constants` | `Dict` | Constant payload exposed to runtime (`Mt`, `Nt`, `Kt`, with placeholders for future shard fields). |
+| `tt.core_ranges` | `Array<Array<Integer>>` | Core ranges derived from legacy schedule metadata. |
+| `tt_core_runtime_args` | `Array<Array<Integer>>` | Per-core `[start_id, count]` pairs. |
 
 ---
 
 ## High-Level Algorithm
 
-1. Inspect `tt.buffer.*` metadata for all buffers in the PrimFunc.
-2. If any buffer has `memory="L1"` and `layout="sharded"`:
-   - Extract `projected_grid = [Gy, Gx]` and `projected_shard_tiles = [Sm, Sn]`.
-   - Set `tt.partition_mode = "local_shard"`.
-   - Materialize `tt.core_ranges` that exactly match the shard grid footprint.
-   - Emit `tt.shard_grid` and `tt.local_shape_tiles`.
-   - For every core, assign tile IDs `0 .. Sm*Sn-1` in shard-local space; record runtime args `(start_id, count, Sm, Sn, Gy, Gx, sy, sx)` for codegen.
-3. Otherwise:
-   - Compute global tile counts `[Mt, Nt]` from buffer metadata (or fallback to existing schedule).
-   - Retain user/default `CoreRangeSet`.
-   - Set `tt.partition_mode = "global"` and populate `tt.grid_tiles`.
-   - Assign contiguous `(start_id, count)` in global tile ID space.
-4. Preserve order annotations (`row_major`, `match_shard`, `block_linear(k)`) for downstream traversal.
+1. Read grid metadata (`tt_grid_x/y/z`, `tt_tiles_per_core`, `tt_num_cores`).
+2. Merge user overrides from `tt.user_schedule` when available.
+3. Populate default runtime constants and arg-name list matching the global
+   schedule contract.
+4. Reuse the legacy contiguous core mapping to populate `tt.core_ranges` and
+   `tt_core_runtime_args`.
+5. TODO: introduce shard-local partitioning (`local_shard`) once shard metadata
+   is available and persistent/codegen understand the larger runtime payload.
 
 ---
 
 ## Diagnostics
 
-- Fail if L1 sharded buffers disagree on projected shard geometry (mismatched `[Gy, Gx]` or `[Sm, Sn]`).
-- Fail if requested shard grid exceeds available cores.
-- Flag inconsistent order annotations (e.g., `block_linear(k)` incompatible with current pipeline) with actionable messages.
+None yet. Planned follow-ups include:
+- Validating that user-provided `tt.user_schedule` values are consistent with
+  the available core count.
+- Detecting malformed overrides (e.g., missing `grid_tiles` entries).
 
 ---
 
 ## Tests
 
-- `local_shard` happy path: ensure core ranges equal shard grid, runtime args include shard geometry.
-- Mixed DRAM/L1 scenario: L1 shard forces local partition while DRAM buffers remain accessible via TensorAccessor.
-- Pure DRAM: fallback to global contiguous schedule with `[Mt, Nt]` inferred.
-- Negative cases for mismatched shard grids and over-subscribed cores.
+Covered indirectly by:
+- `testing/python/tt/test_layout_aware_metadata.py` (ensures metadata is stamped).
+- `testing/python/tt/test_ws3_grid_to_persistent.py` (verifies persistent pass
+  consumes the runtime argument names).
 
-All coverage to live in `tests/tt/test_layouts.py`.
+Additional shard-aware tests will be required when `local_shard` support lands.
 
 ---
 
 ## Dependencies
 
-- Requires `InferTTLayout` metadata (`tt.buffer.*` with `projected_grid`).
-- Runs before `GridToPersistentTT` and any rasterization/order rewrites.
+- Runs after `InferTTLayout` / `PropagateTTLayout` (for buffer metadata).
+- Uses legacy schedule metadata (`tt_tiles_per_core`, `tt_num_cores`) until
+  shard-aware planning replaces it.
 
 ---
 
 ## Downstream Consumers
 
-- `GridToPersistentTT` reads `tt.partition_mode`, `tt.grid_tiles`, `tt.local_shape_tiles`, and shard grid info to generate tile-id math.
-- Host codegen leverages `tt.core_ranges` to select launch topology.
+- `grid_to_persistent_tt` reads `tt.runtime_arg_names`, `tt.grid_tiles`, and
+  `tt.partition_mode` when constructing persistent loops.
+- Host/codegen layers will consume the same metadata once their runtime payloads
+  are expanded.

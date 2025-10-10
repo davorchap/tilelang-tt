@@ -426,46 +426,85 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
         if tiles_per_core is None:
             return func
 
-        new_func = func
-
-        num_cores = _to_int(_get_attr(attrs, "tt_num_cores"), 64)
         grid_x = _to_int(_get_attr(attrs, "tt_grid_x"), 1)
         grid_y = _to_int(_get_attr(attrs, "tt_grid_y"), 1)
         grid_z = _to_int(_get_attr(attrs, "tt_grid_z"), 1)
+        num_cores = _to_int(_get_attr(attrs, "tt_num_cores"), grid_x * grid_y)
 
-        Mt = grid_y * grid_z
-        Nt = grid_x
-        Kt = _to_int(_get_attr(attrs, "tt_k_tiles"), 1)
+        Mt_default = max(grid_y * grid_z, 1)
+        Nt_default = max(grid_x, 1)
 
-        runtime_args = ["start_id", "count", "Mt", "Kt", "Nt"]
+        schedule_raw = _get_attr(attrs, "tt.user_schedule")
+        partition_mode = "global"
+        grid_tiles = [Mt_default, Nt_default]
+        shard_grid = [1, 1]
+        local_tiles = grid_tiles[:]
+        runtime_arg_names: Optional[list[str]] = None
 
-        # Derive core coordinates assuming a square mesh when possible, fallback to row-major width
+        if isinstance(schedule_raw, tvm.runtime.Map):
+            if schedule_raw.get("partition_mode", None) is not None:
+                partition_mode = str(schedule_raw["partition_mode"])
+            if schedule_raw.get("grid_tiles", None) is not None:
+                grid_tiles = [int(x) for x in schedule_raw["grid_tiles"]]
+            if schedule_raw.get("shard_grid", None) is not None:
+                shard_grid = [int(x) for x in schedule_raw["shard_grid"]]
+            if schedule_raw.get("local_shape_tiles", None) is not None:
+                local_tiles = [int(x) for x in schedule_raw["local_shape_tiles"]]
+            if schedule_raw.get("runtime_args", None) is not None:
+                runtime_arg_names = [str(x) for x in schedule_raw["runtime_args"]]
+
+        if runtime_arg_names is None:
+            if partition_mode == "local_shard":
+                runtime_arg_names = [
+                    "start_id",
+                    "count",
+                    "Mt",
+                    "Kt",
+                    "Nt",
+                    "Sm",
+                    "Sn",
+                    "Gy",
+                    "Gx",
+                    "sy",
+                    "sx",
+                ]
+            else:
+                runtime_arg_names = ["start_id", "count", "Mt", "Kt", "Nt"]
+
+        Mt = int(grid_tiles[0])
+        Nt = int(grid_tiles[1])
+        Sm = int(local_tiles[0])
+        Sn = int(local_tiles[1])
+        Gy = int(shard_grid[0])
+        Gx = int(shard_grid[1])
+
+        runtime_constants: Dict[str, int] = {"Mt": Mt, "Nt": Nt, "Kt": 1}
+        if partition_mode == "local_shard":
+            runtime_constants.update({"Sm": Sm, "Sn": Sn, "Gy": Gy, "Gx": Gx})
+
         mesh_width = int(round(num_cores ** 0.5))
         if mesh_width * mesh_width != num_cores:
-            mesh_width = grid_x if grid_x > 0 else num_cores
+            mesh_width = grid_x if grid_x > 0 else max(num_cores, 1)
 
         core_ranges = []
         core_runtime_args = []
-
         for core_id, assignment in enumerate(tiles_per_core):
             start = _to_int(assignment[0], 0)
             count = _to_int(assignment[1], 0)
             x = core_id % mesh_width
             y = core_id // mesh_width
-
             core_ranges.append([x, y, x, y, start, count])
             core_runtime_args.append([start, count])
 
-        new_func = new_func.with_attr("tt.partition_mode", convert("global"))
-        new_func = new_func.with_attr("tt.grid_tiles", convert([Mt, Nt]))
-        new_func = new_func.with_attr("tt.shard_grid", convert([1, 1]))
-        new_func = new_func.with_attr("tt.local_shape_tiles", convert([Mt, Nt]))
-        new_func = new_func.with_attr("tt.runtime_args", convert(runtime_args))
+        new_func = func
+        new_func = new_func.with_attr("tt.partition_mode", convert(partition_mode))
+        new_func = new_func.with_attr("tt.grid_tiles", convert(grid_tiles))
+        new_func = new_func.with_attr("tt.local_shape_tiles", convert(local_tiles))
+        new_func = new_func.with_attr("tt.shard_grid", convert(shard_grid))
+        new_func = new_func.with_attr("tt.runtime_arg_names", convert(runtime_arg_names))
+        new_func = new_func.with_attr("tt.runtime_constants", convert(runtime_constants))
         new_func = new_func.with_attr("tt.core_ranges", convert(core_ranges))
         new_func = new_func.with_attr("tt_core_runtime_args", convert(core_runtime_args))
-        new_func = new_func.with_attr(
-            "tt.runtime_constants", convert({"Mt": Mt, "Kt": Kt, "Nt": Nt})
-        )
 
         return new_func
 
@@ -557,10 +596,10 @@ def verify_tt_ir(mod: tvm.IRModule) -> tvm.IRModule:
 
 
 def apply_tt_transform_passes(mod: tvm.IRModule) -> tvm.IRModule:
-    """Apply all TT TIR transform passes.
+    """Apply all TT-specific TIR transform passes.
 
-    This is a convenience function that applies all persistent transform stage transforms in the
-    correct order to produce TT-ready IR.
+    This is a convenience function that applies the persistent-transform
+    pipeline in the correct order to produce TT-ready IR.
 
     Args:
         mod: The TVM IRModule to process (should have metadata inference stage metadata)
