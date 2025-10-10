@@ -6,7 +6,98 @@ schedule and sharding metadata into IRModules.
 
 from __future__ import annotations
 
+from typing import Any, Dict, Optional
+
 from tilelang import tvm as tvm
+from tvm.ir import DataType
+from tvm.runtime import convert
+
+
+def annotate_tt_layout(func: tvm.tir.PrimFunc, layout: Dict[str, Any]) -> tvm.tir.PrimFunc:
+    """Attach user-specified layout metadata to a PrimFunc.
+
+    The layout dictionary should be keyed by buffer name and contain arbitrary
+    metadata that `InferTTLayout` can read. The helper simply stores the raw
+    payload under the `tt.user_layout` attribute.
+    """
+
+    if not isinstance(func, tvm.tir.PrimFunc):
+        raise TypeError("annotate_tt_layout expects a tvm.tir.PrimFunc")
+
+    return func.with_attr("tt.user_layout", convert(layout))
+
+
+def annotate_tt_schedule(func: tvm.tir.PrimFunc, schedule: Dict[str, Any]) -> tvm.tir.PrimFunc:
+    """Attach user-specified schedule metadata to a PrimFunc.
+
+    The schedule dictionary should follow the schema expected by layout-aware
+    passes. The helper stores the payload under `tt.user_schedule`.
+    """
+
+    if not isinstance(func, tvm.tir.PrimFunc):
+        raise TypeError("annotate_tt_schedule expects a tvm.tir.PrimFunc")
+
+    return func.with_attr("tt.user_schedule", convert(schedule))
+
+
+def _dtype_num_bytes(dtype_str: str) -> int:
+    dtype = DataType(dtype_str)
+    if dtype.bits % 8 != 0:
+        raise ValueError(f"Unsupported dtype bit-width for {dtype_str}")
+    return (dtype.bits // 8) * dtype.lanes
+
+
+def _infer_data_format(dtype_str: str) -> str:
+    mapping = {
+        "float16": "Float16_b",
+        "float32": "Float32",
+        "bfloat16": "BFloat16_b",
+        "int8": "Int8",
+        "uint8": "UInt8",
+    }
+    return mapping.get(dtype_str, dtype_str)
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    if value is None:
+        return default
+    if isinstance(value, tvm.tir.IntImm):
+        return int(value.value)
+    return int(value)
+
+
+def _array_to_int_list(array_obj: Any) -> Optional[list[int]]:
+    if array_obj is None:
+        return None
+    if isinstance(array_obj, tvm.runtime.Array):
+        return [int(x) for x in array_obj]
+    return None
+
+
+def _map_to_python(map_obj: Any) -> Dict[str, Any]:
+    if map_obj is None or not isinstance(map_obj, tvm.runtime.Map):
+        return {}
+    return {str(key): value for key, value in map_obj.items()}
+
+
+def _map_of_maps_to_python(map_obj: Any) -> Dict[str, Dict[str, Any]]:
+    if map_obj is None or not isinstance(map_obj, tvm.runtime.Map):
+        return {}
+    result: Dict[str, Dict[str, Any]] = {}
+    for key, value in map_obj.items():
+        if isinstance(value, tvm.runtime.Map):
+            result[str(key)] = {str(inner_key): inner_value for inner_key, inner_value in value.items()}
+        else:
+            result[str(key)] = {"value": value}
+    return result
+
+
+def _get_attr(attrs: Optional[tvm.ir.container.Map], key: str, default: Any = None) -> Any:
+    if attrs is None:
+        return default
+    if key in attrs:
+        return attrs[key]
+    return default
 
 
 def infer_default_tt_schedule(mod: tvm.IRModule) -> tvm.IRModule:
@@ -92,7 +183,7 @@ def infer_default_tt_shard(mod: tvm.IRModule) -> tvm.IRModule:
 
 
 def apply_tt_metadata_passes(mod: tvm.IRModule) -> tvm.IRModule:
-    """Apply all Workstream 2 passes (schedule + sharding inference).
+    """Apply the legacy metadata inference passes (schedule + sharding).
 
     This is a convenience function that applies both schedule and sharding
     inference passes in the correct order.
@@ -116,7 +207,7 @@ def apply_tt_metadata_passes(mod: tvm.IRModule) -> tvm.IRModule:
 
 
 # ============================================================================
-# Workstream 3: TIR Transform Pipeline
+# TT Transform Pipeline
 # ============================================================================
 
 
@@ -196,6 +287,203 @@ def memory_space_lower_tt(mod: tvm.IRModule) -> tvm.IRModule:
     return pass_func()(mod)
 
 
+def infer_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
+    """Infer canonical layout metadata (`tt.buffer.*`) for each PrimFunc buffer."""
+
+    def transform(func: tvm.tir.PrimFunc, *_):
+        if not isinstance(func, tvm.tir.PrimFunc):
+            return func
+
+        new_func = func
+        attrs = func.attrs
+
+        user_layout_map = _map_of_maps_to_python(_get_attr(attrs, "tt.user_layout"))
+        shard_map_map = _map_of_maps_to_python(_get_attr(attrs, "tt_shard"))
+
+        for _, buffer in func.buffer_map.items():
+            buffer_name = buffer.name
+
+            metadata: Dict[str, Any] = {}
+            if buffer_name in user_layout_map:
+                metadata.update(user_layout_map[buffer_name])
+            elif buffer_name in shard_map_map:
+                metadata.update(shard_map_map[buffer_name])
+
+            layout = str(metadata.get("layout", "dram_interleaved"))
+            dtype_str = str(metadata.get("dtype", buffer.dtype))
+
+            tile_shape_obj = metadata.get("tile_shape")
+            tile_shape: Optional[list[int]] = None
+            if isinstance(tile_shape_obj, tvm.runtime.Array):
+                tile_shape = [int(x) for x in tile_shape_obj]
+            elif isinstance(tile_shape_obj, (list, tuple)):
+                tile_shape = [int(x) for x in tile_shape_obj]
+            if tile_shape is None:
+                tile_shape = _array_to_int_list(_get_attr(attrs, f"tt_buffer_{buffer_name}_tile_shape"))
+            if tile_shape is None:
+                tile_shape = [32, 32]
+
+            buffer_meta: Dict[str, Any] = {
+                "memory": str(metadata.get("memory", "DRAM")),
+                "layout": layout,
+                "tile_shape": tile_shape,
+                "dtype": dtype_str,
+            }
+
+            needs_padding_value = metadata.get("needs_padding")
+            if needs_padding_value is None:
+                attr_padding = _get_attr(attrs, f"tt_buffer_{buffer_name}_needs_padding")
+                if attr_padding is not None:
+                    needs_padding_value = bool(int(attr_padding))
+            if needs_padding_value is not None:
+                buffer_meta["needs_padding"] = bool(needs_padding_value)
+
+            padded_shape_value = metadata.get("padded_shape")
+            padded_shape: Optional[list[int]] = None
+            if isinstance(padded_shape_value, tvm.runtime.Array):
+                padded_shape = [int(x) for x in padded_shape_value]
+            elif isinstance(padded_shape_value, (list, tuple)):
+                padded_shape = [int(x) for x in padded_shape_value]
+            else:
+                attr_padded = _get_attr(attrs, f"tt_buffer_{buffer_name}_padded_shape")
+                padded_shape = _array_to_int_list(attr_padded)
+            if padded_shape:
+                buffer_meta["padded_shape"] = padded_shape
+
+            if buffer_name in shard_map_map:
+                legacy_entry = shard_map_map[buffer_name]
+                buffer_meta["legacy_shard"] = {k: v for k, v in legacy_entry.items()}
+
+            new_func = new_func.with_attr(f"tt.buffer.{buffer_name}", convert(buffer_meta))
+
+        return new_func
+
+    pass_obj = tvm.tir.transform.prim_func_pass(transform, opt_level=0, name="tl.InferTTLayout")
+    return pass_obj(mod)
+
+
+def propagate_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
+    """Propagate buffer layout metadata into circular-buffer (`tt.cb.*`) attributes."""
+
+    def transform(func: tvm.tir.PrimFunc, *_):
+        if not isinstance(func, tvm.tir.PrimFunc):
+            return func
+
+        new_func = func
+        for _, buffer in func.buffer_map.items():
+            buffer_name = buffer.name
+            buffer_attr_key = f"tt.buffer.{buffer_name}"
+            buffer_meta_obj = _get_attr(func.attrs, buffer_attr_key)
+            if buffer_meta_obj is None:
+                continue
+
+            buffer_meta = _map_to_python(buffer_meta_obj)
+
+            dtype_str = str(buffer_meta.get("dtype", buffer.dtype))
+            tile_shape_obj = buffer_meta.get("tile_shape")
+            tile_shape: Optional[list[int]] = None
+            if isinstance(tile_shape_obj, tvm.runtime.Array):
+                tile_shape = [int(x) for x in tile_shape_obj]
+            elif isinstance(tile_shape_obj, (list, tuple)):
+                tile_shape = [int(x) for x in tile_shape_obj]
+            if not tile_shape:
+                tile_shape = [32, 32]
+
+            try:
+                element_bytes = _dtype_num_bytes(dtype_str)
+            except ValueError:
+                element_bytes = 0
+
+            page_size = tile_shape[0] * tile_shape[1] * element_bytes
+            depth = int(buffer_meta.get("cb_depth", 2))
+            data_format = buffer_meta.get("data_format", _infer_data_format(dtype_str))
+
+            cb_entry = {
+                "page_size": page_size,
+                "depth": depth,
+                "data_format": str(data_format),
+            }
+
+            new_func = new_func.with_attr(f"tt.cb.{buffer_name}", convert(cb_entry))
+
+        return new_func
+
+    pass_obj = tvm.tir.transform.prim_func_pass(
+        transform, opt_level=0, name="tl.PropagateTTLayout"
+    )
+    return pass_obj(mod)
+
+
+def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
+    """Emit shard-aware partition metadata (`tt.partition_mode`, `tt.core_ranges`, etc.)."""
+
+    def transform(func: tvm.tir.PrimFunc, *_):
+        if not isinstance(func, tvm.tir.PrimFunc):
+            return func
+
+        attrs = func.attrs
+        tiles_per_core = _get_attr(attrs, "tt_tiles_per_core")
+        if tiles_per_core is None:
+            return func
+
+        new_func = func
+
+        num_cores = _to_int(_get_attr(attrs, "tt_num_cores"), 64)
+        grid_x = _to_int(_get_attr(attrs, "tt_grid_x"), 1)
+        grid_y = _to_int(_get_attr(attrs, "tt_grid_y"), 1)
+        grid_z = _to_int(_get_attr(attrs, "tt_grid_z"), 1)
+
+        Mt = grid_y * grid_z
+        Nt = grid_x
+        Kt = _to_int(_get_attr(attrs, "tt_k_tiles"), 1)
+
+        runtime_args = ["start_id", "count", "Mt", "Kt", "Nt"]
+
+        # Derive core coordinates assuming a square mesh when possible, fallback to row-major width
+        mesh_width = int(round(num_cores ** 0.5))
+        if mesh_width * mesh_width != num_cores:
+            mesh_width = grid_x if grid_x > 0 else num_cores
+
+        core_ranges = []
+        core_runtime_args = []
+
+        for core_id, assignment in enumerate(tiles_per_core):
+            start = _to_int(assignment[0], 0)
+            count = _to_int(assignment[1], 0)
+            x = core_id % mesh_width
+            y = core_id // mesh_width
+
+            core_ranges.append([x, y, x, y, start, count])
+            core_runtime_args.append([start, count])
+
+        new_func = new_func.with_attr("tt.partition_mode", convert("global"))
+        new_func = new_func.with_attr("tt.grid_tiles", convert([Mt, Nt]))
+        new_func = new_func.with_attr("tt.shard_grid", convert([1, 1]))
+        new_func = new_func.with_attr("tt.local_shape_tiles", convert([Mt, Nt]))
+        new_func = new_func.with_attr("tt.runtime_args", convert(runtime_args))
+        new_func = new_func.with_attr("tt.core_ranges", convert(core_ranges))
+        new_func = new_func.with_attr("tt_core_runtime_args", convert(core_runtime_args))
+        new_func = new_func.with_attr(
+            "tt.runtime_constants", convert({"Mt": Mt, "Kt": Kt, "Nt": Nt})
+        )
+
+        return new_func
+
+    pass_obj = tvm.tir.transform.prim_func_pass(
+        transform, opt_level=0, name="tl.LayoutAwareWorkPartitionTT"
+    )
+    return pass_obj(mod)
+
+
+def apply_layout_aware_metadata_passes(mod: tvm.IRModule) -> tvm.IRModule:
+    """Convenience wrapper that runs the layout-aware metadata passes in order."""
+
+    mod = infer_tt_layout(mod)
+    mod = propagate_tt_layout(mod)
+    mod = layout_aware_work_partition_tt(mod)
+    return mod
+
+
 def tile_pad_tt(mod: tvm.IRModule) -> tvm.IRModule:
     """Attach padding metadata for non-tile-aligned buffers.
 
@@ -269,7 +557,7 @@ def verify_tt_ir(mod: tvm.IRModule) -> tvm.IRModule:
 
 
 def apply_tt_transform_passes(mod: tvm.IRModule) -> tvm.IRModule:
-    """Apply all Workstream 3 TIR transform passes.
+    """Apply all TT TIR transform passes.
 
     This is a convenience function that applies all persistent transform stage transforms in the
     correct order to produce TT-ready IR.

@@ -10,9 +10,9 @@
 
 This document tracks high-level implementation tasks for completing the Tenstorrent backend pattern detection and tensorization.
 
-**Problem**: TT codegen currently uses heuristics for pattern detection instead of relying on transform pass annotations.
+**Problem**: The TT pipeline still relies on legacy metadata defaults and ad-hoc heuristics (especially for tensorization). Layout-aware metadata, shard-aware lowering, and the associated documentation/test story are unfinished, keeping codegen brittle.
 
-**Solution**: Enhance `tensorize_tt` transform pass to detect and annotate patterns, making codegen "dumb" (just emit based on annotations).
+**Solution**: Land the layout-aware metadata passes, refit persistent/codegen stages to consume them, finish tensorization annotations, and refresh documentation/tests so the new flow becomes the default. Then retire legacy compatibility code paths.
 
 ---
 
@@ -47,87 +47,112 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 ## Implementation Priority
 
-### Priority 1: Layout-Aware Metadata (HIGH) 🔴
+### Priority 1: Land Layout-Aware Metadata Core (HIGH) 🔴
 
-**What**: Implement the three new passes that anchor buffer/PrimFunc attributes (`InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT`) and ensure existing passes consume them.
+**What**: Implement the new metadata passes (`InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT`) and their Python annotations so PrimFuncs/buffers gain canonical layout+runtime attributes.
 
-**Why**: Enables sharding schema (DRAM & L1), TensorAccessor correctness, and shard-aware persistent lowering.
+**Why**: These passes are the prerequisite for shard-aware lowering, TensorAccessor correctness, and eventual retirement of the legacy metadata inference path.
 
-**Status**: 🚧 Planned (no implementation yet)
+**Status**: 🚧 Planned (specs drafted)
 
 **Tasks**:
-1. Add Python annotations (`annotate_tt_layout`, `annotate_tt_schedule`) that supply metadata.
-2. Implement `InferTTLayout` with validation, projection helpers, and diagnostics.
-3. Implement `PropagateTTLayout` to stamp `tt.cb.*` metadata from the inferred layout.
-4. Implement `LayoutAwareWorkPartitionTT` to choose partition mode, populate `tt.core_ranges`, `tt.grid_tiles`, and runtime args.
+1. Add `annotate_tt_layout` / `annotate_tt_schedule` helpers with input validation.
+2. Implement `InferTTLayout` with diagnostics, projection helpers, and N-D shard normalization.
+3. Implement `PropagateTTLayout` to emit `tt.cb.*` metadata per buffer.
+4. Implement `LayoutAwareWorkPartitionTT` to stamp `tt.partition_mode`, `tt.core_ranges`, `tt.runtime_args`, etc.
+5. Update docs (`README`, `TT_ARCHITECTURE`, `PASS_TABLE`) to describe the shipped behavior.
 
 **Estimated Effort**: 3-4 days
 
-### Priority 2: Update GridToPersistent & Codegen (HIGH) 🔴
+### Priority 2: Shard-Aware Persistent Lowering & Codegen (HIGH) 🔴
 
-**What**: Teach `grid_to_persistent_tt` to handle `local_shard` partitioning and update `EmitTTKernels` to pass shard geometry + guardrails.
+**What**: Teach `grid_to_persistent_tt`, host codegen, and TT kernels to consume the new metadata, emit shard-local `(m,n)` math, and enforce TensorAccessor guardrails.
 
-**Why**: Ensures runtime argument order stays consistent and kernels can reconstruct `(m, n)` coordinates correctly.
+**Why**: Without shard-aware lowering the new metadata is unused; codegen must rely on the canonical runtime args for determinism.
 
 **Status**: 🛠️ Spec drafted (see pass docs)
 
 **Tasks**:
-1. Extend persistent lowering to emit shard-aware `(m, n)` math.
-2. Update codegen to build TensorAccessor compile args, enforce guardrail, and set runtime args.
-3. Refresh reader/writer kernel templates to use new runtime args and TensorAccessor usage.
+1. Extend persistent lowering to branch on `tt.partition_mode` and recover shard-local/global indices.
+2. Update host/kernel generation to plumb the expanded runtime arg payload, enforce TA guardrails, and refresh templates.
+3. Document the final runtime argument contract (architecture + pass docs).
 
 **Estimated Effort**: 2-3 days
 
-### Priority 3: Tensorize TT Pass (MEDIUM) 🟡
+### Priority 3: Complete Tensorize TT Annotations (MEDIUM) 🟡
 
-**What**: Extend `tensorize_tt.cc` to detect manual matmul and element-wise patterns
+**What**: Extend `tensorize_tt.cc` to detect manual matmul and element-wise loops, emitting AttrStmt annotations consumed by compute codegen.
 
-**Why**: Enables codegen to emit correct intrinsics based on annotations
+**Why**: Removes heuristic detection and unlocks intrinsic emission driven by metadata.
 
-**Status**: 🟡 Partial (only T.gemm() intrinsic calls detected)
-
-**Details**: See [passes/tensorize_tt.md](./passes/tensorize_tt.md)
+**Status**: 🟡 Partial (T.gemm intrinsic path only)
 
 **Tasks**:
-1. Implement matmul pattern matcher (3-nested loop with accumulation)
-2. Implement element-wise pattern matcher (T.grid operations)
-3. Add IR annotations (AttrStmt nodes)
-4. Update tests
+1. Implement matmul loop matcher (3-nested accumulation) and annotate buffers.
+2. Implement element-wise matcher for `T.grid` loops.
+3. Strip heuristic paths from compute codegen; rely on annotations.
+4. Update `tensorize_tt` documentation with the final matcher matrix.
 
 **Estimated Effort**: 2-3 days
 
----
+### Priority 4: Integration Test Suite (MEDIUM) 🟡
 
-### Priority 4: Add Integration Tests (MEDIUM) 🟡
+**What**: Add `testing/python/tt/test_ir_to_codegen_integration.py` covering DRAM vs L1, global vs local-shard, and negative diagnostics aligned with the architecture test matrix.
 
-**What**: End-to-end tests for annotated IR → correct codegen
+**Why**: Validates the end-to-end pipeline and prevents regressions as metadata and codegen evolve.
 
-**Status**: ⏳ Pending Task 1-2 completion
+**Status**: ⏳ Blocked on Tasks 1-2
 
-**Test Cases**:
-1. Manual matmul loop → matmul_tiles intrinsic
-2. Element-wise add → add_tiles intrinsic
-3. Mixed patterns in single kernel
-4. Verify no heuristics remain in codegen
-
-**File**: `testing/python/tt/test_ir_to_codegen_integration.py` (new)
+**Tasks**:
+1. Build positive coverage for DRAM interleaved, DRAM sharded, and L1 shard scenarios.
+2. Add negative tests for halo hints, L1 overflows, and TensorAccessor guardrails.
+3. Document the new test matrix in `TT_ARCHITECTURE.md`.
 
 **Estimated Effort**: 1 day
 
----
+### Priority 5: Refresh Matmul Example & Guides (LOW) 🟢
 
-### Priority 5: Update Example Matmul (LOW) 🟢
+**What**: Update `examples/tenstorrent/example_matmul_tt_poc.py` and associated documentation to demonstrate the layout-aware pipeline.
 
-**What**: Update `examples/tenstorrent/example_matmul_tt_poc.py` to use real TileLang operations
+**Why**: Developers need accurate reference material once the new flow ships.
 
-**Status**: ⏳ Pending Task 1-3 completion
+**Status**: ⏳ Pending Tasks 1-3
 
-**Current**: Uses placeholder operations
-**Target**: Uses actual `T.gemm()` or manual loops
-
-**File**: `examples/tenstorrent/example_matmul_tt_poc.py`
+**Tasks**:
+1. Replace placeholder loops with annotated TileLang ops mirroring the new metadata flow.
+2. Regenerate doc snippets (README, example docs) to match the updated sample.
 
 **Estimated Effort**: 0.5 days
+
+### Priority 6: Deprecate Legacy Metadata Passes (MEDIUM) 🟡
+
+**What**: Gate `infer_default_tt_schedule`, `infer_default_tt_shard`, and `tt_tiles_to_core_map` behind compatibility flags, add deprecation warnings, and plan removal once layout-aware defaults are stable.
+
+**Why**: Cleanly exiting the legacy pipeline avoids double-maintenance and simplifies future codegen logic.
+
+**Status**: ⏳ Pending Tasks 1-2
+
+**Tasks**:
+1. Detect/analyse when annotations are absent and fall back gracefully to the legacy defaults.
+2. Emit user-facing warnings + documentation updates marking passes as deprecated.
+3. After bake-in, remove the legacy passes, update tests, and scrub docs.
+
+**Estimated Effort**: 2 days (post Tasks 1-2)
+
+### Priority 7: Refresh Analysis & Architecture Docs (LOW) 🟢
+
+**What**: Rewrite `IR_LOWERING_ANALYSIS.md`, `PASS_TABLE.md`, and `TT_ARCHITECTURE.md` sections to describe the final layout-aware pipeline instead of “planned” language.
+
+**Why**: Keeps long-form documentation authoritative and prevents confusion for new contributors.
+
+**Status**: ⏳ Pending Tasks 1-6
+
+**Tasks**:
+1. Update pipeline diagrams and stage descriptions in `IR_LOWERING_ANALYSIS.md`.
+2. Sync pass tables/architecture docs with the new default flow.
+3. Remove remaining references to workstreams/legacy-only behavior.
+
+**Estimated Effort**: 1 day
 
 ---
 
@@ -137,24 +162,39 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 - [ ] `InferTTLayout` emits `tt.buffer.*` for all tensors and enforces diagnostics.
 - [ ] `PropagateTTLayout` attaches `tt.cb.*` with correct page size/depth/format.
 - [ ] `LayoutAwareWorkPartitionTT` stamps `tt.partition_mode`, `tt.core_ranges`, and canonical `tt.runtime_args`.
+- [ ] Documentation updated (`README`, `TT_ARCHITECTURE`, `PASS_TABLE`) to reflect shipped behavior.
 
 **Task 2 (Persistent + Codegen Updates)**:
 - [ ] `GridToPersistentTT` recovers `(m, n)` for both `global` and `local_shard` modes.
 - [ ] Host codegen builds TensorAccessor compile args from actual buffers.
 - [ ] Runtime args include shard geometry when required; guardrail prevents default TA usage.
+- [ ] Runtime argument contract documented for host + kernels.
 
 **Task 3 (Tensorize TT)**:
 - [ ] Detects manual matmul loops and element-wise patterns.
 - [ ] Emits attr-based annotations consumed by compute codegen.
+- [ ] Heuristic paths removed from compute visitor.
 
 **Task 4 (Integration Tests)**:
 - [ ] Layout-aware feature matrix covered (DRAM/L1, interleaved/sharded).
 - [ ] Negative tests assert diagnostics (halo, L1 overflow, guardrail).
 - [ ] Regression suite remains green.
+- [ ] Test matrix documented in architecture guide.
 
 **Task 5 (Example Update)**:
 - [ ] Example uses real TileLang ops with new annotations.
 - [ ] Generated Metalium code validates layout-aware pathways.
+- [ ] Example documentation refreshed.
+
+**Task 6 (Legacy Pass Deprecation)**:
+- [ ] Legacy passes gated behind compatibility flag with warnings.
+- [ ] Documentation notes deprecation path.
+- [ ] Legacy pass code/tests removed after bake-in.
+
+**Task 7 (Docs Refresh)**:
+- [ ] IR lowering analysis updated to describe new pipeline.
+- [ ] Architecture/pass documentation free of “planned” language.
+- [ ] References to deprecated passes removed.
 
 ---
 
@@ -163,11 +203,13 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 | Task | Estimated | Dependencies |
 |------|-----------|--------------|
 | Layout-aware metadata passes | 3-4 days | Python annotations |
-| Persistent + codegen updates | 2-3 days | Metadata passes |
-| Tensorize extensions | 2-3 days | None |
-| Integration tests | 1 day | Metadata + codegen |
-| Example refresh | 0.5 days | All of the above |
-| **Total** | **8.5-11.5 days** | Staged |
+| Shard-aware persistent + codegen updates | 2-3 days | Metadata passes |
+| Tensorize extensions | 2-3 days | Metadata + codegen |
+| Integration tests | 1 day | Tasks 1-2 |
+| Example refresh | 0.5 days | Tasks 1-3 |
+| Legacy pass deprecation | 2 days | Tasks 1-2 |
+| Docs refresh | 1 day | Tasks 1-6 |
+| **Total** | **11.5-15.5 days** | Sequential with staging gates |
 
 ---
 
