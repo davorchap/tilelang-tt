@@ -91,12 +91,8 @@ def create_func_with_multiple_gemms():
 
     gemm1 = build_matmul_loop(A, B, C, suffix="_0")
     gemm2 = build_matmul_loop(A, B, C, suffix="_1")
-    attr1 = tir.AttrStmt(
-        C.data, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm1
-    )
-    attr2 = tir.AttrStmt(
-        C.data, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm2
-    )
+    attr1 = tir.AttrStmt(C.data, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm1)
+    attr2 = tir.AttrStmt(C.data, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm2)
     body = tir.SeqStmt([attr1, attr2])
 
     func = tir.PrimFunc([A, B, C], body)
@@ -220,12 +216,12 @@ def test_tensorize_tt_integration_with_ws1_ws2():
     from tilelang.tt.passes import apply_tt_metadata_passes, tensorize_tt
     from tilelang.tt.target import apply_tt_defaults
 
-    # Create function with gemm
+    # Create function with gemm - use actual matmul loop instead of Evaluate(0)
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
     B = tir.decl_buffer((256, 256), "float16", name="B", scope="global")
     C = tir.decl_buffer((256, 256), "float16", name="C", scope="global")
 
-    gemm_body = tir.Evaluate(0)
+    gemm_body = build_matmul_loop(A, B, C, suffix="_ws")
     body = tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm_body)
     func = tir.PrimFunc([A, B, C], body)
 
@@ -283,21 +279,21 @@ def test_tensorize_tt_detects_manual_matmul_loops():
     func = create_manual_matmul_func()
     cb_configs = tvm.runtime.convert([
         {
-            "cb_id": 4,
-            "num_pages": 2,
-            "tile_size": 2048,
+            "cb_id": tvm.tir.IntImm("int32", 4),
+            "num_pages": tvm.tir.IntImm("int32", 2),
+            "tile_size": tvm.tir.IntImm("int32", 2048),
             "name": "A"
         },
         {
-            "cb_id": 6,
-            "num_pages": 2,
-            "tile_size": 2048,
+            "cb_id": tvm.tir.IntImm("int32", 6),
+            "num_pages": tvm.tir.IntImm("int32", 2),
+            "tile_size": tvm.tir.IntImm("int32", 2048),
             "name": "B"
         },
         {
-            "cb_id": 9,
-            "num_pages": 1,
-            "tile_size": 2048,
+            "cb_id": tvm.tir.IntImm("int32", 9),
+            "num_pages": tvm.tir.IntImm("int32", 1),
+            "tile_size": tvm.tir.IntImm("int32", 2048),
             "name": "C"
         },
     ])

@@ -48,8 +48,8 @@ TTCodegenVisitor::TTCodegenVisitor(const PrimFunc &func)
     partition_mode_ = "global";
   }
 
-  if (auto constants =
-          func_->attrs.GetAttr<Map<String, ObjectRef>>("tt.runtime_constants")) {
+  if (auto constants = func_->attrs.GetAttr<Map<String, ObjectRef>>(
+          "tt.runtime_constants")) {
     runtime_constants_ = constants.value();
   }
 

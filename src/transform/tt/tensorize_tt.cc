@@ -173,9 +173,9 @@ public:
 
 protected:
   void VisitStmt_(const AttrStmtNode *op) override {
-    bool is_gemm = (op->attr_key == "pragma_gemm" ||
-                    op->attr_key == "tl.gemm" ||
-                    op->attr_key == "gemm_operation");
+    bool is_gemm =
+        (op->attr_key == "pragma_gemm" || op->attr_key == "tl.gemm" ||
+         op->attr_key == "gemm_operation");
     size_t before = patterns_.size();
     if (is_gemm) {
       ++gemm_attr_depth_;
@@ -193,9 +193,10 @@ protected:
         info.Set("A_indices", Array<PrimExpr>());
         info.Set("B_indices", Array<PrimExpr>());
         info.Set("C_indices", Array<PrimExpr>());
-        info.Set("accumulate", Bool(false));
+        info.Set("accumulate", Bool(true)); // Changed to true
         info.Set("loop_vars", Array<String>());
         info.Set("reduction_var", String(""));
+        // CB IDs will be resolved during mutation
         info.Set("cb_in0", Integer(-1));
         info.Set("cb_in1", Integer(-1));
         info.Set("cb_out", Integer(-1));
@@ -246,6 +247,11 @@ protected:
         const VarNode *red = *vars_a.begin();
         info.Set("reduction_var", String(red->name_hint));
       }
+
+      // Initialize CB IDs to default values (will be resolved during mutation)
+      info.Set("cb_in0", Integer(-1));
+      info.Set("cb_in1", Integer(-1));
+      info.Set("cb_out", Integer(-1));
 
       MatmulPatternInfo pattern_info;
       pattern_info.metadata = info;
