@@ -520,7 +520,7 @@ for (uint32_t tile_idx = 0; tile_idx < num_output_tiles; ++tile_idx) {
 
 **Issue:** Generated K-loop has scaffolding but body still has raw array operations instead of Metalium intrinsics.
 
-**Solution:** Extend `tensorize_tt.cc` to detect manual loop patterns and annotate IR. See [IR_LOWERING_TASKS.md](./IR_LOWERING_TASKS.md) for implementation plan.
+**Solution:** Extend `tensorize_tt.cc` to detect manual loop patterns and annotate IR. See [TT_BACKEND_TASKS.md](./TT_BACKEND_TASKS.md) for implementation plan.
 
 **SDK Validation:**
 - ⚠️ Pending SDK access for hardware testing
@@ -721,7 +721,7 @@ See [METALIUM_SETUP_GUIDE.md](./METALIUM_SETUP_GUIDE.md) for SDK setup.
 - [PASS_TABLE_SHARED.md](./PASS_TABLE_SHARED.md) - Shared lowering/optimization passes
 - [PASS_TABLE_GPU.md](./PASS_TABLE_GPU.md) - CUDA/ROCm-specific passes
 - [PASS_TABLE_TT.md](./PASS_TABLE_TT.md) - Tenstorrent-specific passes (layout-aware pipeline)
-- [IR_LOWERING_TASKS.md](./IR_LOWERING_TASKS.md) - Pattern detection implementation tasks
+- [TT_BACKEND_TASKS.md](./TT_BACKEND_TASKS.md) - Pattern detection implementation tasks
 
 **Setup & Usage:**
 - [METALIUM_SETUP_GUIDE.md](./METALIUM_SETUP_GUIDE.md) - SDK installation

@@ -1,13 +1,20 @@
 # TileLang Tenstorrent Pass Reference
 
-**Document Version:** 1.1
+**Document Version:** 1.2
 **Date:** 2025-10-11
-**Status:** Active (Consolidation Plan tracking)
+**Status:** Active (Consolidation Roadmap tracking)
 
 ## Overview
 
 This document captures the Tenstorrent-specific transformation pipeline, metadata inference, and code generation passes. Shared passes are documented in `PASS_TABLE_SHARED.md`, and GPU-only passes in `PASS_TABLE_GPU.md`.
-It now mirrors the 2025-10-11 consolidation roadmap in `TT_BACKEND_CONSOLIDATION_PLAN.md`, updating pass statuses to match the phased rollout.
+It now mirrors the 2025-10-11 consolidation roadmap captured in `TT_BACKEND_TASKS.md`, updating pass statuses to match the phased rollout and documenting the architectural guardrails that each pass must honor.
+
+### Consolidation Roadmap Snapshot
+- **Phase 1 – Solidify `T.gemm` Lowering**: Refactor `tensorize_tt` around explicit `T.gemm`, remove CB heuristics, refresh `VerifyTTIR`, and add JIT artifact tests.
+- **Phase 2 – Core Infrastructure & Cleanup**: Port layout-aware metadata passes to C++, rework `MemorySpaceLowerTT`, align `grid_to_persistent_tt` with canonical runtime args, and retire legacy passes.
+- **Phase 3 – Documentation & Finalization**: Refresh Tenstorrent docs and examples so the layout-aware pipeline is the canonical workflow.
+
+The detailed task tracker, success criteria, and timelines live in `TT_BACKEND_TASKS.md`. This pass table focuses on how each transform maps onto that roadmap, with `examples/gemm/example_gemm.py` serving as the reference validation kernel.
 
 ## Phase 2B: Tenstorrent-Specific Optimization
 
@@ -247,7 +254,7 @@ Phase 3 (Codegen)
 | **Element-wise ops** | Manual pattern in codegen | Transform pass annotation | Extend `tensorize_tt.cc` |
 | **T.gemm() support** | Layout inference fails | Full T.gemm() support | Implement layout inference for TT |
 
-See [IR Lowering Tasks](./IR_LOWERING_TASKS.md) for implementation plan.
+See [Tenstorrent Backend Tasks](./TT_BACKEND_TASKS.md) for the full implementation plan.
 
 ---
 
@@ -407,5 +414,5 @@ if (is_sender_core()) {
 
 **References:**
 - [IR Lowering Analysis](./IR_LOWERING_ANALYSIS.md) - GPU vs TT architecture comparison
-- [IR Lowering Tasks](./IR_LOWERING_TASKS.md) - Implementation tasks for TT gaps
+- [TT_BACKEND_TASKS.md](./TT_BACKEND_TASKS.md) - Consolidated Tenstorrent backend task tracker
 - [TT Architecture](./TT_ARCHITECTURE.md) - Complete TT backend architecture
