@@ -70,23 +70,23 @@ def _to_int(value: Any, default: int = 0) -> int:
 def _array_to_int_list(array_obj: Any) -> Optional[list[int]]:
     if array_obj is None:
         return None
-    if isinstance(array_obj, tvm.runtime.Array):
+    if isinstance(array_obj, tvm.ir.Array):
         return [int(x) for x in array_obj]
     return None
 
 
 def _map_to_python(map_obj: Any) -> Dict[str, Any]:
-    if map_obj is None or not isinstance(map_obj, tvm.runtime.Map):
+    if map_obj is None or not isinstance(map_obj, tvm.ir.Map):
         return {}
     return {str(key): value for key, value in map_obj.items()}
 
 
 def _map_of_maps_to_python(map_obj: Any) -> Dict[str, Dict[str, Any]]:
-    if map_obj is None or not isinstance(map_obj, tvm.runtime.Map):
+    if map_obj is None or not isinstance(map_obj, tvm.ir.Map):
         return {}
     result: Dict[str, Dict[str, Any]] = {}
     for key, value in map_obj.items():
-        if isinstance(value, tvm.runtime.Map):
+        if isinstance(value, tvm.ir.Map):
             result[str(key)] = {
                 str(inner_key): _convert_to_python(inner_value)
                 for inner_key, inner_value in value.items()
@@ -97,9 +97,9 @@ def _map_of_maps_to_python(map_obj: Any) -> Dict[str, Dict[str, Any]]:
 
 
 def _convert_to_python(obj: Any) -> Any:
-    if isinstance(obj, tvm.runtime.Map):
+    if isinstance(obj, tvm.ir.Map):
         return {str(k): _convert_to_python(v) for k, v in obj.items()}
-    if isinstance(obj, tvm.runtime.Array):
+    if isinstance(obj, tvm.ir.Array):
         return [_convert_to_python(x) for x in obj]
     if isinstance(obj, IntImm):
         return int(obj)
@@ -524,7 +524,7 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
         local_tiles = grid_tiles[:]
         runtime_arg_names: Optional[list[str]] = None
 
-        if isinstance(schedule_raw, tvm.runtime.Map):
+        if isinstance(schedule_raw, tvm.ir.Map):
             if schedule_raw.get("partition_mode", None) is not None:
                 partition_mode = str(schedule_raw["partition_mode"])
             if schedule_raw.get("grid_tiles", None) is not None:
