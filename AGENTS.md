@@ -45,3 +45,4 @@
 - Reference updated documentation or scripts in commit bodies when workflows change.
 - PRs must summarize key changes, list validation commands (e.g., `pytest testing/python/tt/ -v`), and link relevant docs/issues.
 - Target `davorchap/tilelang-tt` → `main`; never open PRs against `tile-ai/tilelang`. Await passing CI before requesting review.
+- Agents have access to the GitHub CLI (`gh`) and should use it to open pull requests when preparing changes.

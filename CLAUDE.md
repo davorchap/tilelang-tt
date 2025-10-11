@@ -20,6 +20,7 @@ Guidelines for Claude Code when collaborating on this repository.
 - Keep commits focused, imperative, and documented—reference any touched docs or scripts when workflows change.
 - PR descriptions must summarise behavioural changes, list validation commands (e.g., `pytest testing/python/tt/ -v`), and link doc updates such as `docs/tenstorrent/CI.md`.
 - Coordinate interface changes (runtime metadata, pass ordering) with matching test and documentation updates in the same PR.
+- Use the GitHub CLI (`gh`) to draft and submit pull requests when changes are ready.
 
 ## Reference Documents
 - Architecture & runtime contracts: `docs/tenstorrent/TT_ARCHITECTURE.md`
