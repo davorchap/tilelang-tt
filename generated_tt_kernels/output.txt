@@ -1,1 +1,0 @@
-// TT kernel placeholder - codegen integration pending
