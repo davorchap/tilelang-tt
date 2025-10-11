@@ -38,14 +38,167 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/container.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
+#include <tvm/tir/stmt_visitor.h>
 #include <tvm/tir/transform.h>
+
+#include <unordered_set>
+#include <vector>
 
 namespace tvm {
 namespace tl {
 
 using namespace tir;
+
+namespace {
+
+struct MatmulMatch {
+  Buffer buffer_a;
+  Array<PrimExpr> indices_a;
+  Buffer buffer_b;
+  Array<PrimExpr> indices_b;
+  Buffer buffer_c;
+  Array<PrimExpr> indices_c;
+  bool accumulate{false};
+};
+
+inline const BufferLoadNode* AsBufferLoad(const PrimExpr& expr) {
+  if (const auto* load = expr.as<BufferLoadNode>()) {
+    return load;
+  }
+  if (const auto* cast = expr.as<CastNode>()) {
+    return AsBufferLoad(cast->value);
+  }
+  return nullptr;
+}
+
+inline void CollectVars(const PrimExpr& expr, std::unordered_set<const VarNode*>* vars) {
+  PostOrderVisit(expr, [&](const ObjectRef& obj) {
+    if (const auto* v = obj.as<VarNode>()) {
+      vars->insert(v);
+    }
+  });
+}
+
+inline std::unordered_set<const VarNode*> CollectVars(const Array<PrimExpr>& indices) {
+  std::unordered_set<const VarNode*> vars;
+  for (const PrimExpr& idx : indices) {
+    CollectVars(idx, &vars);
+  }
+  return vars;
+}
+
+bool TryMatchMatmul(const BufferStoreNode* store, MatmulMatch* match) {
+  const auto* add = store->value.as<AddNode>();
+  if (add == nullptr) {
+    return false;
+  }
+
+  const BufferLoadNode* c_load = AsBufferLoad(add->a);
+
+  const MulNode* mul = add->b.as<MulNode>();
+  if (c_load == nullptr || !store->buffer.same_as(c_load->buffer)) {
+    c_load = AsBufferLoad(add->b);
+    mul = add->a.as<MulNode>();
+  }
+
+  if (c_load == nullptr || !store->buffer.same_as(c_load->buffer) || mul == nullptr) {
+    return false;
+  }
+
+  const BufferLoadNode* load_a = AsBufferLoad(mul->a);
+  const BufferLoadNode* load_b = AsBufferLoad(mul->b);
+
+  if (load_a == nullptr || load_b == nullptr) {
+    return false;
+  }
+
+  match->buffer_c = store->buffer;
+  match->indices_c = store->indices;
+  match->buffer_a = load_a->buffer;
+  match->indices_a = load_a->indices;
+  match->buffer_b = load_b->buffer;
+  match->indices_b = load_b->indices;
+  match->accumulate = true;
+  return true;
+}
+
+class MatmulPatternCollector : public StmtVisitor {
+ public:
+  Array<Map<String, ObjectRef>> operator()(const Stmt& stmt) {
+    patterns_.clear();
+    VisitStmt(stmt);
+    return Array<Map<String, ObjectRef>>(patterns_.begin(), patterns_.end());
+  }
+
+ protected:
+  void VisitStmt_(const AttrStmtNode* op) override {
+    bool is_gemm = (op->attr_key == "pragma_gemm" || op->attr_key == "tl.gemm" ||
+                    op->attr_key == "gemm_operation");
+    if (is_gemm) {
+      ++gemm_attr_depth_;
+    }
+    StmtVisitor::VisitStmt_(op);
+    if (is_gemm) {
+      --gemm_attr_depth_;
+    }
+  }
+
+  void VisitStmt_(const ForNode* op) override {
+    loop_stack_.push_back(op->loop_var);
+    StmtVisitor::VisitStmt_(op);
+    loop_stack_.pop_back();
+  }
+
+  void VisitStmt_(const BufferStoreNode* op) override {
+    MatmulMatch match;
+    if (TryMatchMatmul(op, &match)) {
+      Map<String, ObjectRef> info;
+      info.Set("source", String(gemm_attr_depth_ > 0 ? "pragma" : "loop"));
+      info.Set("buffer_a", String(match.buffer_a->name));
+      info.Set("buffer_b", String(match.buffer_b->name));
+      info.Set("buffer_c", String(match.buffer_c->name));
+      info.Set("A_indices", match.indices_a);
+      info.Set("B_indices", match.indices_b);
+      info.Set("C_indices", match.indices_c);
+      info.Set("accumulate", Integer(match.accumulate ? 1 : 0));
+      info.Set("cb_in0", Integer(-1));
+      info.Set("cb_in1", Integer(-1));
+      info.Set("cb_out", Integer(-1));
+
+      Array<String> loop_vars;
+      for (const Var& v : loop_stack_) {
+        loop_vars.push_back(String(v->name_hint));
+      }
+      info.Set("loop_vars", loop_vars);
+
+      auto vars_a = CollectVars(match.indices_a);
+      auto vars_b = CollectVars(match.indices_b);
+      auto vars_c = CollectVars(match.indices_c);
+      for (const VarNode* v : vars_c) {
+        vars_a.erase(v);
+        vars_b.erase(v);
+      }
+      vars_a.insert(vars_b.begin(), vars_b.end());
+      if (vars_a.size() == 1) {
+        const VarNode* red = *vars_a.begin();
+        info.Set("reduction_var", String(red->name_hint));
+      }
+
+      patterns_.push_back(info);
+    }
+    StmtVisitor::VisitStmt_(op);
+  }
+
+ private:
+  std::vector<Map<String, ObjectRef>> patterns_;
+  std::vector<Var> loop_stack_;
+  int gemm_attr_depth_{0};
+};
+
+}  // namespace
 
 /*!
  * \brief Visitor to identify and annotate matmul operations
@@ -104,11 +257,15 @@ PrimFunc TensorizeTTImpl(PrimFunc f) {
     return f;
   }
 
+  // Collect matmul metadata (supports pragmas and manual loops)
+  MatmulPatternCollector collector;
+  Array<Map<String, ObjectRef>> matmul_patterns = collector(f->body);
+
   // Step 2: Apply tensorization transformation
   TensorizeMutator mutator;
   Stmt new_body = mutator(f->body);
 
-  int matmul_count = mutator.GetMatmulCount();
+  int matmul_count = static_cast<int>(matmul_patterns.size());
 
   // If no matmul operations found, return unchanged
   if (matmul_count == 0) {
@@ -124,6 +281,7 @@ PrimFunc TensorizeTTImpl(PrimFunc f) {
   // Step 4: Attach matmul metadata
   new_func = WithAttr(new_func, "tt_num_matmuls", Integer(matmul_count));
   new_func = WithAttr(new_func, "tt_has_tensorize", Bool(true));
+  new_func = WithAttr(new_func, "tt_matmul_patterns", matmul_patterns);
 
   return new_func;
 }

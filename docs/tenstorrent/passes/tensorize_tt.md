@@ -19,6 +19,7 @@ Bridge between TileLang's high level matmul pragmas and Tenstorrent codegen by a
 - Attaches convenience attributes to the `PrimFunc`:
   - `tt_num_matmuls`
   - `tt_has_tensorize`
+- Collects matmul metadata—including buffer roles, indices, loop vars, and reduction vars—in `tt_matmul_patterns` so downstream passes/codegen can reason about operand placement.
 
 This minimal functionality allows codegen visitors to enumerate matmul regions without relying on brittle name-based heuristics.
 

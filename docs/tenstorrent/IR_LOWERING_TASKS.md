@@ -89,8 +89,8 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 1. **Define TT intrinsic calls in TIR** ✅  
    - Introduce `call_intrin` helpers (or extern handles) for `mm_init`, `matmul_tiles`, `cb_wait_front`, `cb_pop_front`, `tile_regs_*`, `pack_tile`, `binary_op_init_common`, etc. *(Implemented via `src/target/tt/tt_intrin.cc` and `tilelang/tt/intrin.py`)*  
    - Ensure intrinsics carry CB indices and accumulate flags as explicit operands.
-2. **Extend pattern matcher**  
-   - Handle both `T.gemm()` AttrStmt and raw K-loop nests (`for kk in range(Kt)`) with reduction semantics.  
+2. **Extend pattern matcher** ✅  
+   - Handle both `T.gemm()` AttrStmt and raw K-loop nests (`for kk in range(Kt)`) with reduction semantics. *(Implemented via `MatmulPatternCollector` in `tensorize_tt.cc`, emitting `tt_matmul_patterns` metadata)*  
    - Capture operand buffers, CB IDs, accumulation state, and tile indices.
 3. **Inject intrinsic sequence**  
    - Replace matched loop bodies with ordered intrinsic calls (emit `Evaluate(call_intrin("tt.mm_init", ...))`, etc.), preserving persistent loop scaffolding.  
@@ -183,7 +183,7 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Task 3 (Tensorize TT)**:
 - [ ] Matched regions are rewritten into explicit TT intrinsics (`tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`, etc.).
-- [ ] PrimFuncs carry buffer role metadata (`tt.input_buffers`, `tt.output_buffer`, `tt.cb_roles`) for consumer passes.
+- [x] PrimFuncs carry buffer role metadata (`tt_matmul_patterns` with buffer roles/indices, loop vars, reduction var).
 - [ ] Compute codegen serializes injected intrinsics without heuristic pattern detection.
 
 **Task 4 (Integration Tests)**:

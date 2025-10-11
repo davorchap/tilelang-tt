@@ -42,6 +42,33 @@ def create_func_with_multiple_gemms():
     return func
 
 
+def create_manual_matmul_func():
+    """Create a PrimFunc that performs a simple matmul via explicit loops."""
+    A = tir.decl_buffer((32, 32), "float16", name="A")
+    B = tir.decl_buffer((32, 32), "float16", name="B")
+    C = tir.decl_buffer((32, 32), "float16", name="C")
+
+    i = tir.Var("i", "int32")
+    j = tir.Var("j", "int32")
+    k = tir.Var("k", "int32")
+
+    a_load = tir.BufferLoad(A, [i, k])
+    b_load = tir.BufferLoad(B, [k, j])
+    c_load = tir.BufferLoad(C, [i, j])
+    product = a_load * b_load
+    updated = c_load + product
+
+    store = tir.BufferStore(C, updated, [i, j])
+    k_loop = tir.For(k, 0, 32, tir.ForKind.SERIAL, store)
+    j_loop = tir.For(j, 0, 32, tir.ForKind.SERIAL, k_loop)
+    i_loop = tir.For(i, 0, 32, tir.ForKind.SERIAL, j_loop)
+
+    func = tir.PrimFunc([A, B, C], i_loop)
+    func = func.with_attr("tt_schedule_policy", "contiguous")
+
+    return func
+
+
 def test_tensorize_tt_basic():
     """Test TensorizeTT annotates matmul operations."""
     from tilelang.tt.passes import tensorize_tt
@@ -174,6 +201,48 @@ def test_tensorize_tt_integration_with_ws1_ws2():
     assert "tt_has_tensorize" in func.attrs, "Should have tensorize flag"
 
 
+def test_tensorize_tt_records_pattern_metadata():
+    """TensorizeTT should attach pattern metadata for pragma-based matmuls."""
+    from tilelang.tt.passes import tensorize_tt
+
+    func = create_func_with_gemm()
+    mod = tvm.IRModule({"main": func})
+    mod = tensorize_tt(mod)
+    func = mod["main"]
+
+    patterns = func.attrs["tt_matmul_patterns"]
+    assert len(patterns) == 1
+    pattern = patterns[0]
+    assert str(pattern["source"]) == "pragma"
+    assert int(pattern["accumulate"]) == 1
+    assert len(pattern["loop_vars"]) == 0
+    assert int(func.attrs["tt_num_matmuls"]) == 1
+
+
+def test_tensorize_tt_detects_manual_matmul_loops():
+    """TensorizeTT should recognise handwritten matmul loop nests."""
+    from tilelang.tt.passes import tensorize_tt
+
+    func = create_manual_matmul_func()
+    mod = tvm.IRModule({"main": func})
+    mod = tensorize_tt(mod)
+    func = mod["main"]
+
+    assert int(func.attrs["tt_num_matmuls"]) == 1
+    assert bool(func.attrs["tt_has_tensorize"])
+
+    patterns = func.attrs["tt_matmul_patterns"]
+    assert len(patterns) == 1
+    pattern = patterns[0]
+    assert str(pattern["source"]) == "loop"
+    assert str(pattern["reduction_var"]) == "k"
+    assert [str(v) for v in pattern["loop_vars"]] == ["i", "j", "k"]
+    assert [str(x) for x in pattern["A_indices"]] == ["i", "k"]
+    assert [str(x) for x in pattern["B_indices"]] == ["k", "j"]
+    assert [str(x) for x in pattern["C_indices"]] == ["i", "j"]
+    assert int(pattern["accumulate"]) == 1
+
+
 if __name__ == "__main__":
     # Run tests
     test_tensorize_tt_basic()
@@ -183,4 +252,6 @@ if __name__ == "__main__":
     test_tensorize_tt_skip_non_gemm_functions()
     test_tensorize_tt_skip_non_tt_functions()
     test_tensorize_tt_integration_with_ws1_ws2()
+    test_tensorize_tt_records_pattern_metadata()
+    test_tensorize_tt_detects_manual_matmul_loops()
     print("All TensorizeTT tests passed!")
