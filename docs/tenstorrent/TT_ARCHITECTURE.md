@@ -718,7 +718,9 @@ See [METALIUM_SETUP_GUIDE.md](./METALIUM_SETUP_GUIDE.md) for SDK setup.
 
 **Implementation Details:**
 - [IR_LOWERING_ANALYSIS.md](./IR_LOWERING_ANALYSIS.md) - GPU vs TT pipeline comparison
-- [PASS_TABLE.md](./PASS_TABLE.md) - Comprehensive pass reference (60+ passes)
+- [PASS_TABLE_SHARED.md](./PASS_TABLE_SHARED.md) - Shared lowering/optimization passes
+- [PASS_TABLE_GPU.md](./PASS_TABLE_GPU.md) - CUDA/ROCm-specific passes
+- [PASS_TABLE_TT.md](./PASS_TABLE_TT.md) - Tenstorrent-specific passes (layout-aware pipeline)
 - [IR_LOWERING_TASKS.md](./IR_LOWERING_TASKS.md) - Pattern detection implementation tasks
 
 **Setup & Usage:**
