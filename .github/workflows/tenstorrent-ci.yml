@@ -175,14 +175,12 @@ jobs:
           export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
           cd testing/python/tt
           pytest test_target_registration.py -v --tb=short
-        continue-on-error: true  # Don't fail if TVM isn't fully available
 
-      - name: Run all Python tests (if TVM available)
+      - name: Run all Python tests
         run: |
           export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
           cd testing/python
-          pytest tt/ -v --tb=short -k "not gpu" || echo "Some tests skipped (no GPU)"
-        continue-on-error: true
+          pytest tt/ -v --tb=short -k "not gpu"
 
       - name: Save TVM build cache
         uses: actions/cache/save@v4
