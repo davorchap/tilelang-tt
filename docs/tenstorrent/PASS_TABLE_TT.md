@@ -10,11 +10,30 @@ This document captures the Tenstorrent-specific transformation pipeline, metadat
 It now mirrors the 2025-10-11 consolidation roadmap captured in `TT_BACKEND_TASKS.md`, updating pass statuses to match the phased rollout and documenting the architectural guardrails that each pass must honor.
 
 ### Consolidation Roadmap Snapshot
-- **Phase 1 – Solidify `T.gemm` Lowering**: Refactor `tensorize_tt` around explicit `T.gemm`, remove CB heuristics, refresh `VerifyTTIR`, and add JIT artifact tests.
+- **Phase 1 – Solidify `T.gemm` Lowering**: Refactor `LowerGemmToTTIntrinsics` around explicit `T.gemm`, remove CB heuristics, refresh `VerifyTTIR`, and add JIT artifact tests.
 - **Phase 2 – Core Infrastructure & Cleanup**: Port layout-aware metadata passes to C++, rework `MemorySpaceLowerTT`, align `grid_to_persistent_tt` with canonical runtime args, and retire legacy passes.
 - **Phase 3 – Documentation & Finalization**: Refresh Tenstorrent docs and examples so the layout-aware pipeline is the canonical workflow.
 
 The detailed task tracker, success criteria, and timelines live in `TT_BACKEND_TASKS.md`. This pass table focuses on how each transform maps onto that roadmap, with `examples/gemm/example_gemm.py` serving as the reference validation kernel.
+
+```
+             ┌──────────────────────────────┐
+             │   Lower & Legalize (shared) │
+             │   PASS_TABLE_SHARED.md      │
+             └─────────────┬────────────────┘
+                           │
+            ┌──────────────┴──────────────┐
+            │                             │
+┌──────────────────────┐      ┌────────────────────────────┐
+│ GPU / HIP Pipeline   │      │ Tenstorrent Pipeline       │
+│ (PASS_TABLE_GPU.md)  │      │ (PASS_TABLE_TT.md)         │
+├──────────────────────┤      ├────────────────────────────┤
+│ • InferFragment      │      │ • Metadata inference (C++) │
+│ • Warp/thread passes │      │ • Grid→persistent, CB      │
+│ • SplitHostDevice    │      │ • LowerGemmToTTIntrinsics (`tl.gemm` → │
+│ • CUDA/HIP codegen   │      │   `tt.*` intrinsics)       │
+└──────────────────────┘      └────────────────────────────┘
+```
 
 ## Phase 2B: Tenstorrent-Specific Optimization
 
@@ -110,7 +129,7 @@ Legacy schedule/shard passes remain for compatibility:
 | **tt_tiles_to_core_map** | 🟡 Legacy (removal tracked in Phase 2) | Device | Tile assignments | Core (x, y) coords | Compatibility path when layout-aware metadata is unavailable | [📄 Doc](./passes/tt_tiles_to_core_map.md) |
 | **memory_space_lower_tt** | 🟡 Heuristic CB sizing; Phase 2 rework | Memory | DRAM buffers | L1 circular buffers | Lower DRAM → L1 CB (consumes `tt.cb.*`) | [📄 Doc](./passes/memory_space_lower_tt.md) |
 | **tile_pad_tt** | ✅ Complete | Memory | Arbitrary shapes | Tile-aligned shapes | Pad to 32×32 tiles | [📄 Doc](./passes/tile_pad_tt.md) |
-| **tensorize_tt** | 🟡 Phase 1 focus: `T.gemm` path | Device | Loops | Loops + TT intrinsic evaluate nodes | Detect matmul regions, rewrite to `tt.*` intrinsics, attach metadata | [📄 Doc](./passes/tensorize_tt.md) |
+| **LowerGemmToTTIntrinsics** | 🟡 Phase 1 focus: `T.gemm` path | Device | Loops | Loops + TT intrinsic evaluate nodes | Lower `tl.gemm` intrinsics into `tt.*` sequences; attach TT metadata | [📄 Doc](./passes/lower_gemm_to_tt_intrinsics.md) |
 | **rasterization_tt** | ⚠️ Planned | Optimization | Tile iteration | Optimized tile order | Remap tile iteration order | [📄 Spec](#rasterization_tt-specification) |
 | **tt_multicast_reuse** | ⚠️ Planned | Optimization | NOC ops | NOC + multicast | Insert multicast for reuse | [📄 Spec](#tt_multicast_reuse-specification) |
 | **verify_tt_ir** | 🟡 Needs `T.gemm` schema update | Verification | TT IR | Verified TT IR | Verify TT constraints | [📄 Doc](./passes/verify_tt_ir.md) |
@@ -149,7 +168,7 @@ def kernel(...):
       compute_tile(m, n)
 ```
 
-**Example Transform (tensorize_tt):**
+**Example Transform (LowerGemmToTTIntrinsics):**
 
 ```python
 # Before
@@ -157,7 +176,7 @@ for kt in T.serial(Kt):
   for i, j in T.Parallel(32, 32):
     C[m, n] += A[m, kt] * B[kt, n]
 
-# After (intrinsics injected by TensorizeTT)
+# After (intrinsics injected by LowerGemmToTTIntrinsics)
 tt.tile_regs_acquire()
 tt.mm_init(cb_in0, cb_in1, cb_out)
 for kt in T.serial(Kt):
@@ -249,9 +268,9 @@ Phase 3 (Codegen)
 
 | Gap | Current Behavior | Expected Behavior | Fix |
 |-----|------------------|-------------------|-----|
-| **K-loop detection** | Codegen heuristics (variable name) | Transform pass annotation | Extend `tensorize_tt.cc` |
+| **K-loop detection** | Codegen heuristics (variable name) | Transform pass annotation | Extend `lower_gemm_to_tt_intrinsics.cc` |
 | **Intrinsic emission** | Raw array operations emitted | Metalium intrinsics emitted | Update compute visitor |
-| **Element-wise ops** | Manual pattern in codegen | Transform pass annotation | Extend `tensorize_tt.cc` |
+| **Element-wise ops** | Manual pattern in codegen | Transform pass annotation | Extend `lower_gemm_to_tt_intrinsics.cc` |
 | **T.gemm() support** | Layout inference fails | Full T.gemm() support | Implement layout inference for TT |
 
 See [Tenstorrent Backend Tasks](./TT_BACKEND_TASKS.md) for the full implementation plan.
@@ -262,7 +281,7 @@ See [Tenstorrent Backend Tasks](./TT_BACKEND_TASKS.md) for the full implementati
 
 **TT-Specific Passes:** 7 active (plus 3 legacy compatibility passes)
 - Layout-aware metadata: `infer_layout_tt`, `propagate_layout_tt`, `layout_aware_partition_tt`
-- Transform pipeline: `grid_to_persistent_tt`, `memory_space_lower_tt`, `tile_pad_tt`, `tensorize_tt`
+- Transform pipeline: `grid_to_persistent_tt`, `memory_space_lower_tt`, `tile_pad_tt`, `LowerGemmToTTIntrinsics`
 - Verification: `verify_tt_ir`
 
 **Key TT Files:**

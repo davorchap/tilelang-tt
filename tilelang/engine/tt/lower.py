@@ -23,7 +23,7 @@ from tilelang.tt.passes import (
     tt_tiles_to_core_map,
     memory_space_lower_tt,
     tile_pad_tt,
-    tensorize_tt,
+    lower_gemm_to_tt_intrinsics,
     verify_tt_ir,
 )
 
@@ -107,7 +107,7 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
 
     # Persistent Transform stage Phase 3: Tensorization
     # Map high-level ops (gemm, etc.) to TT intrinsics (matmul_tiles, etc.)
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
 
     # === Common Optimizations (Shared with CUDA) ===
     # These are backend-agnostic passes that work on TIR

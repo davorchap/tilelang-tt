@@ -269,7 +269,7 @@ TT Transform Passes (see [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md#layout-aware-me
   - tt_tiles_to_core_map *(legacy fallback when layout metadata is absent)*
   - memory_space_lower_tt *(Lower T.copy → CB/NOC ops using `tt.cb.*`)*
   - tile_pad_tt *(Insert padding for non-tile-aligned shapes)*
-  - tensorize_tt *(Replace patterns with `matmul_tiles`, etc.; matcher upgrades pending)*
+  - lower_gemm_to_tt_intrinsics *(Replace patterns with `matmul_tiles`, etc.; matcher upgrades pending)*
   - verify_tt_ir *(Validate constraints and runtime args)*
     ↓
 TT Codegen (detailed in [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md#code-generation)): 

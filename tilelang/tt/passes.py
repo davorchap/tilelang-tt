@@ -703,24 +703,24 @@ def tile_pad_tt(mod: tvm.IRModule) -> tvm.IRModule:
     return pass_func()(mod)
 
 
-def tensorize_tt(mod: tvm.IRModule) -> tvm.IRModule:
-    """Rewrite GEMM regions into Tenstorrent tile intrinsics.
+def lower_gemm_to_tt_intrinsics(mod: tvm.IRModule) -> tvm.IRModule:
+    """Lower frontend `tl.gemm` intrinsics into Tenstorrent tile intrinsics.
 
-    The pass scans for frontend GEMM markers (`"pragma_gemm"`, `"tl.gemm"`,
-    `"gemm_operation"`), replaces the marked regions with TT intrinsic calls
-    (`tt.mm_init`, `tt.matmul_tiles`, CB wait/pop, etc.), and records matmul
-    metadata (`tt_num_matmuls`, `tt_has_tensorize`, `tt_matmul_patterns`).
-    Circular-buffer indices are resolved from `tt_circular_buffers` when present,
-    falling back to canonical `c0/c1/c16` IDs. Element-wise and non-matmul
-    tensorization are still TODO.
+    The pass expands each `tl.gemm` evaluate node into the TT intrinsic
+    sequence (`tt.mm_init`, `tt.matmul_tiles`, circular-buffer waits/pops,
+    tile register lifecycle calls) and records matmul metadata
+    (`tt_num_matmuls`, `tt_has_tensorize`, `tt_matmul_patterns`). Circular-buffer
+    indices are resolved from `tt_circular_buffers` when present, falling back to
+    canonical `c0/c1/c16` IDs. Element-wise and non-matmul tensorization remain
+    TODO.
 
     Args:
-        mod: The TVM IRModule to process (should contain GEMM pragmas)
+        mod: The TVM IRModule to process (should contain `tl.gemm` calls)
 
     Returns:
         A new IRModule with TT matmul annotations
     """
-    pass_func = tvm.ffi.get_global_func("tl.transform.TensorizeTT")
+    pass_func = tvm.ffi.get_global_func("tl.transform.LowerGemmToTTIntrinsics")
     return pass_func()(mod)
 
 
@@ -784,7 +784,7 @@ def apply_tt_transform_passes(mod: tvm.IRModule) -> tvm.IRModule:
     mod = tt_tiles_to_core_map(mod)
     mod = memory_space_lower_tt(mod)
     mod = tile_pad_tt(mod)
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
     mod = verify_tt_ir(mod)
 
     return mod

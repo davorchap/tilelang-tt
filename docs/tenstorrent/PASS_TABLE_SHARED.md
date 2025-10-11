@@ -73,7 +73,7 @@ Applied by both GPU and TT targets via `LowerAndLegalize()`.
 
 | Responsibility | Transform Passes | Codegen |
 |----------------|------------------|---------|
-| **Pattern Detection** | ✅ Yes (tensorize_tt, InferFragment) | ❌ No |
+| **Pattern Detection** | ✅ Yes (LowerGemmToTTIntrinsics, InferFragment) | ❌ No |
 | **Annotation** | ✅ Yes (AttrStmt with metadata) | ❌ No |
 | **IR Optimization** | ✅ Yes (simplify, loop unroll, etc.) | ❌ No |
 | **Memory Planning** | ✅ Yes (storage rewrite, buffer merge) | ❌ No |
