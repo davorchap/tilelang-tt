@@ -20,6 +20,39 @@ def collect_call_names(stmt):
     return names
 
 
+def collect_tt_intrinsic_sequence(stmt):
+    """Collect TT intrinsic call names in structural order."""
+    sequence = []
+
+    def visit(node):
+        if isinstance(node, tir.SeqStmt):
+            for stmt in node.seq:
+                visit(stmt)
+        elif isinstance(node, tir.For):
+            visit(node.body)
+        elif isinstance(node, tir.AttrStmt):
+            visit(node.body)
+        elif isinstance(node, tir.IfThenElse):
+            visit(node.then_case)
+            if node.else_case:
+                visit(node.else_case)
+        elif isinstance(node, tir.BlockRealize):
+            visit(node.block.body)
+        elif isinstance(node, tir.Block):
+            visit(node.body)
+        elif isinstance(node, tir.LetStmt):
+            visit(node.body)
+        elif isinstance(node, tir.Evaluate):
+            call = node.value
+            if isinstance(call, tir.Call) and isinstance(call.op, tvm.ir.Op):
+                name = call.op.name
+                if name.startswith("tt."):
+                    sequence.append(name)
+
+    visit(stmt)
+    return sequence
+
+
 def has_buffer_store(stmt):
     """Check whether the statement still contains BufferStore nodes."""
     found = {"value": False}
@@ -272,6 +305,41 @@ def test_tensorize_tt_records_pattern_metadata():
     assert not has_tt_matmul_attr(func.body)
 
 
+def test_tensorize_tt_emits_intrinsic_sequence():
+    """TensorizeTT should rewrite matmul loops into the expected TT intrinsic sequence."""
+    from tilelang.tt.passes import tensorize_tt
+
+    func = create_func_with_gemm()
+    mod = tvm.IRModule({"main": func})
+    mod = tensorize_tt(mod)
+    func = mod["main"]
+
+    sequence = collect_tt_intrinsic_sequence(func.body)
+    expected = [
+        "tt.tile_regs_acquire",
+        "tt.mm_init",
+        "tt.cb_wait_front",
+        "tt.cb_wait_front",
+        "tt.matmul_tiles",
+        "tt.cb_pop_front",
+        "tt.cb_pop_front",
+        "tt.tile_regs_commit",
+        "tt.tile_regs_wait",
+        "tt.cb_reserve_back",
+        "tt.pack_tile",
+        "tt.cb_push_back",
+        "tt.tile_regs_release",
+    ]
+
+    assert sequence == expected, f"Unexpected TT intrinsic sequence: {sequence}"
+
+    patterns = func.attrs["tt_matmul_patterns"]
+    assert len(patterns) == 1
+    pattern = patterns[0]
+    assert int(pattern["cb_out"]) == 16
+    assert bool(func.attrs["tt_has_tensorize"])
+
+
 def test_tensorize_tt_detects_manual_matmul_loops():
     """TensorizeTT should recognise handwritten matmul loop nests."""
     from tilelang.tt.passes import tensorize_tt
@@ -337,5 +405,6 @@ if __name__ == "__main__":
     test_tensorize_tt_skip_non_tt_functions()
     test_tensorize_tt_integration_with_ws1_ws2()
     test_tensorize_tt_records_pattern_metadata()
+    test_tensorize_tt_emits_intrinsic_sequence()
     test_tensorize_tt_detects_manual_matmul_loops()
     print("All TensorizeTT tests passed!")

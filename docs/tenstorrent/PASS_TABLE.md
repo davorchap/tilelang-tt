@@ -168,20 +168,58 @@ Applied only for Tenstorrent target via `OptimizeForTargetTT()`.
   "tile_shape": [32, 32],
   "dtype": "bf16",
   "nd_shard": {
-    "axes": ["B","H","M","N"],
-    "grid": [2,4,1,1],
-    "shard_shape_elems": [B//2,H//4,M,N],
-    "order": "row_major",
-    "align_tiles": true,
-    "projected_grid": [Gy,Gx],
-    "projected_shard_tiles": [Sm,Sn]
+    "axes": ["B", "H", "M", "N"],
+    "grid": [2, 4, 1, 1],
+    "shard_shape_elems": [B//2, H//4, M, N],
+    "projected_grid": [Gy, Gx],
+    "projected_shard_tiles": [Sm, Sn]
   }
-}
-
-"tt.partition_mode": "local_shard"
-"tt.core_ranges": [[y0,x0],[y1,x1], ...]
-"tt.runtime_args": ["start_id","count","Mt","Kt","Nt","Sm","Sn","Gy","Gx","sy","sx"]
-"tt.cb.A": {"page_size": 2048, "depth": 2, "data_format": "BFloat16_b"}
+},
+"tt.cb.A": {
+  "page_size": 2048,
+  "depth": 2,
+  "data_format": "BFloat16_b"
+},
+"tt.partition_mode": "local_shard",
+"tt.grid_tiles": [Mt, Nt],
+"tt.local_shape_tiles": [Sm, Sn],
+"tt.shard_grid": [Gy, Gx],
+"tt.runtime_arg_names": [
+  "tt_start_tile",
+  "tt_tile_count",
+  "Mt",
+  "Kt",
+  "Nt",
+  "Sm",
+  "Sn",
+  "Gy",
+  "Gx",
+  "tt_shard_coord_y",
+  "tt_shard_coord_x"
+],
+"tt.runtime_constants": {
+  "Mt": Mt,
+  "Nt": Nt,
+  "Kt": 1,
+  "Sm": Sm,
+  "Sn": Sn,
+  "Gy": Gy,
+  "Gx": Gx
+},
+"tt_runtime_args": {
+  "start_tile": {"name": "tt_start_tile", "dtype": "int32", "semantic": "tile_start"},
+  "tile_count": {"name": "tt_tile_count", "dtype": "int32", "semantic": "tile_count"},
+  "grid_shape": [grid_y, grid_x, grid_z],
+  "grid_tiles": [Mt, Nt],
+  "local_shape_tiles": [Sm, Sn],
+  "shard_grid": [Gy, Gx],
+  "runtime_constants": {"Mt": Mt, "Nt": Nt, "Kt": 1, "Sm": Sm, "Sn": Sn, "Gy": Gy, "Gx": Gx},
+  "param_order": ["tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt", "Sm", "Sn", "Gy", "Gx", "tt_shard_coord_y", "tt_shard_coord_x"],
+  "arg_names": ["tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt", "Sm", "Sn", "Gy", "Gx", "tt_shard_coord_y", "tt_shard_coord_x"],
+  "partition_mode": "local_shard"
+},
+"tt.core_ranges": [[x, y, x, y, start, count], "..."],
+"tt_core_runtime_args": [[start, count, Mt, 1, Nt, Sm, Sn, Gy, Gx, shard_sy, shard_sx], "..."]
 ```
 
 Legacy schedule/shard passes remain for compatibility:
@@ -199,7 +237,7 @@ Legacy schedule/shard passes remain for compatibility:
 | **tt_tiles_to_core_map** | 🟡 Legacy | Device | Tile assignments | Core (x, y) coords | Compatibility path when layout-aware metadata is unavailable | [📄 Doc](./passes/tt_tiles_to_core_map.md) |
 | **memory_space_lower_tt** | ✅ Complete | Memory | DRAM buffers | L1 circular buffers | Lower DRAM → L1 CB (consumes `tt.cb.*`) | [📄 Doc](./passes/memory_space_lower_tt.md) |
 | **tile_pad_tt** | ✅ Complete | Memory | Arbitrary shapes | Tile-aligned shapes | Pad to 32×32 tiles | [📄 Doc](./passes/tile_pad_tt.md) |
-| **tensorize_tt** | 🟡 Partial | Device | Loops | Loops + intrinsic annos | Detect patterns, annotate | [📄 Doc](./passes/tensorize_tt.md) |
+| **tensorize_tt** | 🟡 Partial | Device | Loops | Loops + TT intrinsic evaluate nodes | Detect matmul regions, rewrite to `tt.*` intrinsics, attach metadata | [📄 Doc](./passes/tensorize_tt.md) |
 | **rasterization_tt** | ⚠️ Planned | Optimization | Tile iteration | Optimized tile order | Remap tile iteration order | [📄 Spec](#rasterization_tt-specification) |
 | **tt_multicast_reuse** | ⚠️ Planned | Optimization | NOC ops | NOC + multicast | Insert multicast for reuse | [📄 Spec](#tt_multicast_reuse-specification) |
 | **verify_tt_ir** | ✅ Complete | Verification | TT IR | Verified TT IR | Verify TT constraints | [📄 Doc](./passes/verify_tt_ir.md) |
@@ -246,13 +284,21 @@ for kt in T.serial(Kt):
   for i, j in T.Parallel(32, 32):
     C[m, n] += A[m, kt] * B[kt, n]
 
-# After (annotated)
-AttrStmt("tt.matmul_k_loop", kt):
-  for kt in T.serial(Kt):
-    AttrStmt("tt.input_buffers", [A, B]):
-      AttrStmt("tt.output_buffer", C):
-        # Original loop body (not emitted by codegen)
-        for i, j: C[m, n] += A[m, kt] * B[kt, n]
+# After (intrinsics injected by TensorizeTT)
+tt.tile_regs_acquire()
+tt.mm_init(cb_in0, cb_in1, cb_out)
+for kt in T.serial(Kt):
+  tt.cb_wait_front(cb_in0, 1)
+  tt.cb_wait_front(cb_in1, 1)
+  tt.matmul_tiles(cb_in0, cb_in1, 0, 0, 0, 0)
+  tt.cb_pop_front(cb_in0, 1)
+  tt.cb_pop_front(cb_in1, 1)
+tt.tile_regs_commit()
+tt.tile_regs_wait()
+tt.cb_reserve_back(cb_out, 1)
+tt.pack_tile(0, cb_out)
+tt.cb_push_back(cb_out, 1)
+tt.tile_regs_release()
 ```
 
 ### Common Optimizations (Shared with GPU)
@@ -283,7 +329,7 @@ AttrStmt("tt.matmul_k_loop", kt):
 - Buffer residency → Partition mode (`global` vs `local_shard`) and runtime args.
 - Grid kernel → Persistent kernel with shard-aware `(m, n)` recovery.
 - DRAM buffers → L1 circular buffers.
-- Manual matmul loops → Annotated with `tt.matmul_k_loop`.
+- Manual matmul loops → Rewritten to `tt.*` intrinsic sequences and tracked via `tt_matmul_patterns`.
 - Buffers padded to 32×32 tile boundaries.
 
 ---
