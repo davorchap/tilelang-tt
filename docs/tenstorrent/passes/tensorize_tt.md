@@ -21,6 +21,7 @@ Bridge between TileLang's high level matmul pragmas and Tenstorrent codegen by a
   - `tt_has_tensorize`
 - Rewrites matched reduction loops into TT intrinsics (`tt.tile_regs_acquire`, `tt.mm_init`, `tt.matmul_tiles`, CB wait/pop, `tt.pack_tile`) using default CB indices. Legacy visitors still see a `tt.matmul_intrinsic` wrapper for each injected block.
 - Collects matmul metadata—including buffer roles, indices, loop vars, and reduction vars—in `tt_matmul_patterns` so downstream passes/codegen can reason about operand placement.
+- `codegen_tt_compute_visitor.cc` now streams the injected TT intrinsics directly instead of reinventing pattern detection.
 
 This minimal functionality allows codegen visitors to enumerate matmul regions without relying on brittle name-based heuristics.
 
