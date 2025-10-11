@@ -370,96 +370,26 @@ def OptimizeForTargetTT(mod: IRModule, target: Target) -> IRModule:
 - **tt_tiles_to_core_map** *(legacy fallback)*: Provide core assignments when layout-aware metadata is absent.
 - **memory_space_lower_tt**: Lower DRAM allocations to L1 circular buffers.
 - **tile_pad_tt**: Pad buffers to 32×32 tile boundaries.
-- **tensorize_tt**: ⭐ Pattern detection and intrinsic annotation (loop matchers in progress).
+- **tensorize_tt**: ⭐ Pattern detection + TT intrinsic injection (manual loop matcher complete; element-wise TBD).
 - **verify_tt_ir**: Verify TT constraints (grid size, CB counts, runtime args).
 
-### Phase 4: TensorizeTT Pass (INCOMPLETE)
+### Phase 4: TensorizeTT Pass
 
 **Location:** `src/transform/tt/tensorize_tt.cc`
 
-**Current Implementation:**
-
-```cpp
-class TensorizeTTMutator : public StmtMutator {
-  Stmt VisitStmt_(const AttrStmtNode* op) override {
-    // ⭐ Only handles T.gemm() intrinsic calls
-    if (op->attr_key == "pragma_gemm" ||
-        op->attr_key == "tl.gemm" ||
-        op->attr_key == "gemm_operation") {
-
-      matmul_count_++;
-      PrimExpr matmul_id = IntImm(DataType::Int(32), matmul_count_ - 1);
-      Stmt new_body = VisitStmt(op->body);
-
-      // Add annotation: tt.matmul_intrinsic
-      return AttrStmt(op->node, "tt.matmul_intrinsic", matmul_id, new_body);
-    }
-
-    return StmtMutator::VisitStmt_(op);
-  }
-};
-```
-
-**What's Missing:**
-- ❌ No pattern matching for manual matmul loops (K-loop with A[m,k] * B[k,n])
-- ❌ No detection of element-wise operations
-- ❌ No annotation of loop bodies with intrinsic metadata
-
-**What Should Be Added:**
-
-```cpp
-class TensorizeTTMutator : public StmtMutator {
-  Stmt VisitStmt_(const ForNode* op) override {
-    // Detect K-loop pattern
-    std::string loop_var = op->loop_var->name_hint;
-    bool is_k_loop = (loop_var == "kt" || loop_var == "k" ||
-                      loop_var.find("_k") != std::string::npos);
-
-    if (is_k_loop) {
-      // Analyze loop body to detect matmul pattern
-      // Look for: C[m,n] += A[m,k] * B[k,n]
-      MatmulPatternMatcher matcher;
-      if (matcher.Match(op->body)) {
-        // Annotate with tt.matmul_intrinsic
-        PrimExpr matmul_id = IntImm(DataType::Int(32), matmul_count_++);
-
-        // Create annotated body
-        Stmt annotated_body = AttrStmt(
-          op->loop_var,
-          "tt.matmul_k_loop",
-          matmul_id,
-          op->body
-        );
-
-        // Return new For loop with annotated body
-        return For(
-          op->loop_var,
-          op->min,
-          op->extent,
-          op->kind,
-          annotated_body
-        );
-      }
-    }
-
-    // Detect element-wise pattern
-    TileLoopAnalyzer analyzer;
-    if (analyzer.IsElementwiseTileLoop(op)) {
-      // Annotate with tt.elementwise_intrinsic
-      PrimExpr eltwise_id = IntImm(DataType::Int(32), eltwise_count_++);
-      Stmt annotated_body = AttrStmt(
-        op->loop_var,
-        "tt.elementwise_op",
-        eltwise_id,
-        op->body
-      );
-      return For(op->loop_var, op->min, op->extent, op->kind, annotated_body);
-    }
-
-    return StmtMutator::VisitStmt_(op);
-  }
-};
-```
+**Current State:**
+- Detects matmul regions from both frontend pragmas and handwritten K-loop
+  patterns, recording buffer roles, loop variables, and reduction variables in
+  `tt_matmul_patterns`.
+- Resolves circular-buffer IDs from `tt_circular_buffers` metadata and stores
+  them with the pattern (`cb_in0`, `cb_in1`, `cb_out`), falling back to the
+  canonical `c0/c1/c16` mapping when metadata is absent.
+- Rewrites the matched regions directly into TT intrinsics
+  (`tt.tile_regs_acquire`, `tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`,
+  `tt.cb_pop_front`, `tt.pack_tile`, etc.). The legacy `tt.matmul_intrinsic`
+  wrapper is no longer emitted—the intrinsic sequence *is* the IR.
+- Still TODO: element-wise tensorization, tilize/untilize helpers, and richer
+  diagnostics when buffer names do not align with CB metadata.
 
 ### Phase 5: Device Splitting (TT 3-Kernel Architecture)
 
@@ -587,46 +517,9 @@ if (is_k_loop) {
 
 To:
 ```cpp
-if (HasAnnotation(op->body, "tt.matmul_k_loop")) {
-  // Emit scaffolding
-  EmitMatmulIntrinsics();  // ✅ Emit intrinsics
-  return;  // Don't visit body
-}
-```
-
-### 3. Annotation Format
-
-```cpp
-// Example annotated IR after tensorize_tt pass:
-For(kt, 0, Kt,
-  AttrStmt(kt, "tt.matmul_k_loop", 0,
-    AttrStmt(_, "tt.input_buffers", {A, B},
-      AttrStmt(_, "tt.output_buffer", C,
-        // Original loop body (not emitted by codegen)
-        C[m,n] += A[m,k] * B[k,n]
-      )
-    )
-  )
-)
-```
-
-Codegen reads `tt.matmul_k_loop` annotation and emits:
-```cpp
-for (uint32_t kt = 0; kt < Kt; ++kt) {
-  cb_wait_front(cb_in0, 1);
-  cb_wait_front(cb_in1, 1);
-  matmul_tiles(cb_in0, cb_in1, 0, 0, 0, kt > 0);
-  cb_pop_front(cb_in0, 1);
-  cb_pop_front(cb_in1, 1);
-}
-```
-
-## Conclusion
-
-**Current Gap:** TT codegen tries to do pattern detection (heuristics based on variable names) AND code emission, which is fragile and incomplete.
-
-**Solution:** Follow GPU architecture:
-1. **Transform pass** (`tensorize_tt`) detects patterns and annotates IR
-2. **Codegen** reads annotations and emits intrinsics (no pattern detection)
-
-This separation makes the compiler more maintainable and allows IR optimizations to work correctly.
+With the intrinsic injection complete, the compute visitor no longer performs pattern
+detection. It simply emits the `for` loops and the `Evaluate(tt.*)` calls that
+`tensorize_tt` inserted, which print as familiar Metalium intrinsics after
+stripping the `tt.` prefix. This removes a large set of heuristic code paths and
+aligns the TT backend with the CUDA flow where transforms do the pattern
+detection and codegen just serialises the resulting intrinsics.

@@ -47,7 +47,9 @@
 #include <tvm/tir/transform.h>
 
 #include <initializer_list>
+#include <utility>
 #include <unordered_map>
+#include <string>
 #include <unordered_set>
 #include <vector>
 
@@ -273,75 +275,84 @@ class MatmulPatternCollector : public StmtVisitor {
  */
 class TensorizeMutator : public StmtMutator {
  public:
-  explicit TensorizeMutator(const MatmulCollection& collection)
-      : collection_(collection), matmul_count_(0) {}
+  TensorizeMutator(MatmulCollection* collection,
+                   const std::unordered_map<std::string, int>& buffer_cb_map)
+      : collection_(collection), buffer_cb_map_(buffer_cb_map) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) override {
-    // Check for GEMM/matmul pragma markers
-    // In TileLang, T.gemm() typically generates AttrStmt with specific keys
-    // For Phase 2, we look for matmul-related attributes
-
-    if (op->attr_key == "pragma_gemm" ||
-        op->attr_key == "tl.gemm" ||
+    if (op->attr_key == "pragma_gemm" || op->attr_key == "tl.gemm" ||
         op->attr_key == "gemm_operation") {
-
-      // This is a matmul operation - annotate with TT intrinsic info
-      matmul_count_++;
-
-      // Annotate with matmul ID as PrimExpr (AttrStmt value must be PrimExpr)
-      // For Phase 2, codegen will use this to generate matmul_tiles() calls
-      PrimExpr matmul_id = IntImm(DataType::Int(32), matmul_count_ - 1);
-
-      // Annotate this node with TT intrinsic metadata
-      // For Phase 2, we create a new AttrStmt wrapping the original
-      Stmt new_body = VisitStmt(op->body);
-
-      return AttrStmt(op->node, "tt.matmul_intrinsic", matmul_id, new_body);
+      // Strip legacy pragma wrapper; intrinsic sequence will be emitted directly.
+      return VisitStmt(op->body);
     }
-
-    // Default: recurse
     return StmtMutator::VisitStmt_(op);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) override {
-    auto it = collection_.store_to_index.find(op);
-    if (it == collection_.store_to_index.end()) {
+    auto it = collection_->store_to_index.find(op);
+    if (it == collection_->store_to_index.end()) {
       return StmtMutator::VisitStmt_(op);
     }
 
-    Array<Stmt> seq;
-    PrimExpr cb_in0 = Integer(0);
-    PrimExpr cb_in1 = Integer(1);
-    PrimExpr cb_out = Integer(16);
+    int pattern_index = it->second;
+    MatmulPatternInfo& pattern_info = collection_->infos[pattern_index];
+    Map<String, ObjectRef> metadata = pattern_info.metadata;
+
+    int cb_in0_id = ResolveCBId(metadata, "buffer_a", /*fallback=*/0);
+    int cb_in1_id = ResolveCBId(metadata, "buffer_b", /*fallback=*/1);
+    int cb_out_id = ResolveCBId(metadata, "buffer_c", /*fallback=*/16);
+
+    metadata.Set("cb_in0", Integer(cb_in0_id));
+    metadata.Set("cb_in1", Integer(cb_in1_id));
+    metadata.Set("cb_out", Integer(cb_out_id));
+    pattern_info.metadata = metadata;
+    collection_->metadata.Set(pattern_index, metadata);
+
+    PrimExpr cb_in0 = Integer(cb_in0_id);
+    PrimExpr cb_in1 = Integer(cb_in1_id);
+    PrimExpr cb_out = Integer(cb_out_id);
     PrimExpr one = Integer(1);
     PrimExpr zero = Integer(0);
 
+    Array<Stmt> seq;
     seq.push_back(MakeIntrinsic("tt.cb_wait_front", {cb_in0, one}));
     seq.push_back(MakeIntrinsic("tt.cb_wait_front", {cb_in1, one}));
-    seq.push_back(
-        MakeIntrinsic("tt.matmul_tiles", {cb_in0, cb_in1, zero, zero, zero, Integer(0)}));
+    seq.push_back(MakeIntrinsic(
+        "tt.matmul_tiles", {cb_in0, cb_in1, zero, zero, zero, Integer(0)}));
     seq.push_back(MakeIntrinsic("tt.cb_pop_front", {cb_in0, one}));
     seq.push_back(MakeIntrinsic("tt.cb_pop_front", {cb_in1, one}));
-    Stmt body = SeqStmt::Flatten(seq);
-    PrimExpr matmul_id = Integer(it->second);
-    return AttrStmt(op->buffer->data, "tt.matmul_intrinsic", matmul_id, std::move(body));
+
+    // Body no longer wrapped in legacy attr.
+    return SeqStmt::Flatten(seq);
   }
 
   Stmt VisitStmt_(const ForNode* op) override {
-    bool is_reduction_loop = collection_.reduction_loop_to_indices.count(op) > 0;
+    bool is_reduction_loop = collection_->reduction_loop_to_indices.count(op) > 0;
     Stmt new_stmt = StmtMutator::VisitStmt_(op);
     if (!is_reduction_loop) {
       return new_stmt;
     }
     ICHECK(new_stmt.as<ForNode>() != nullptr) << "Expected ForNode after mutation";
 
-    // For now we support a single matmul per reduction loop. Enforce to catch regressions.
-    ICHECK_EQ(collection_.reduction_loop_to_indices.at(op).size(), 1)
-        << "Multiple matmuls per reduction loop not yet supported";
+    const auto& indices = collection_->reduction_loop_to_indices.at(op);
+    ICHECK_EQ(indices.size(), 1) << "Multiple matmuls per reduction loop not yet supported";
+    int pattern_index = indices[0];
+    MatmulPatternInfo& pattern_info = collection_->infos[pattern_index];
+    Map<String, ObjectRef> metadata = pattern_info.metadata;
 
-    PrimExpr cb_in0 = Integer(0);
-    PrimExpr cb_in1 = Integer(1);
-    PrimExpr cb_out = Integer(16);
+    int cb_in0_id = ResolveCBId(metadata, "buffer_a", /*fallback=*/0);
+    int cb_in1_id = ResolveCBId(metadata, "buffer_b", /*fallback=*/1);
+    int cb_out_id = ResolveCBId(metadata, "buffer_c", /*fallback=*/16);
+
+    metadata.Set("cb_in0", Integer(cb_in0_id));
+    metadata.Set("cb_in1", Integer(cb_in1_id));
+    metadata.Set("cb_out", Integer(cb_out_id));
+    pattern_info.metadata = metadata;
+    collection_->metadata.Set(pattern_index, metadata);
+
+    PrimExpr cb_in0 = Integer(cb_in0_id);
+    PrimExpr cb_in1 = Integer(cb_in1_id);
+    PrimExpr cb_out = Integer(cb_out_id);
     PrimExpr one = Integer(1);
     PrimExpr zero = Integer(0);
 
@@ -358,11 +369,27 @@ class TensorizeMutator : public StmtMutator {
     return SeqStmt::Flatten(seq);
   }
 
-  int GetMatmulCount() const { return matmul_count_; }
-
  private:
-  const MatmulCollection& collection_;
-  int matmul_count_;
+  int ResolveCBId(const Map<String, ObjectRef>& metadata, const char* key,
+                  int fallback) const {
+    if (!metadata.count(key)) {
+      return fallback;
+    }
+    std::string buf_name = Downcast<String>(metadata[key]);
+    auto it = buffer_cb_map_.find(buf_name);
+    if (it != buffer_cb_map_.end()) {
+      return it->second;
+    }
+    // Heuristic fallback: try suffix "_tile" if present in CB metadata.
+    auto alt = buffer_cb_map_.find(buf_name + "_tile");
+    if (alt != buffer_cb_map_.end()) {
+      return alt->second;
+    }
+    return fallback;
+  }
+
+  MatmulCollection* collection_;
+  const std::unordered_map<std::string, int>& buffer_cb_map_;
 };
 
 /*!
@@ -386,8 +413,21 @@ PrimFunc TensorizeTTImpl(PrimFunc f) {
   MatmulPatternCollector collector;
   MatmulCollection collection = collector.Collect(f->body);
 
+  std::unordered_map<std::string, int> buffer_cb_map;
+  if (auto cb_configs =
+          f->attrs.GetAttr<Array<Map<String, ObjectRef>>>("tt_circular_buffers")) {
+    for (const Map<String, ObjectRef>& config : cb_configs.value()) {
+      if (!config.count("name") || !config.count("cb_id")) {
+        continue;
+      }
+      std::string buf_name = Downcast<String>(config["name"]);
+      int cb_id = Downcast<Integer>(config["cb_id"])->value;
+      buffer_cb_map.emplace(std::move(buf_name), cb_id);
+    }
+  }
+
   // Step 2: Apply tensorization transformation
-  TensorizeMutator mutator(collection);
+  TensorizeMutator mutator(&collection, buffer_cb_map);
   Stmt new_body = mutator(f->body);
 
   int matmul_count = static_cast<int>(collection.infos.size());

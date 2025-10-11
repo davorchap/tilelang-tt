@@ -32,6 +32,18 @@ def has_buffer_store(stmt):
     return found["value"]
 
 
+def has_tt_matmul_attr(stmt):
+    """Check whether a statement still contains legacy tt.matmul_intrinsic attrs."""
+    found = {"value": False}
+
+    def visitor(node):
+        if isinstance(node, tir.AttrStmt) and node.attr_key == "tt.matmul_intrinsic":
+            found["value"] = True
+
+    stmt_functor.post_order_visit(stmt, visitor)
+    return found["value"]
+
+
 def create_func_with_gemm():
     """Create a mock PrimFunc with gemm operations."""
     A = tir.decl_buffer((32, 32), "float16", name="A")
@@ -242,11 +254,15 @@ def test_tensorize_tt_records_pattern_metadata():
     assert int(pattern["accumulate"]) == 1
     assert len(pattern["loop_vars"]) == 0
     assert int(func.attrs["tt_num_matmuls"]) == 1
+    assert int(pattern["cb_in0"]) == 0
+    assert int(pattern["cb_in1"]) == 1
+    assert int(pattern["cb_out"]) == 16
 
     call_names = collect_call_names(func.body)
     assert "tt.mm_init" in call_names
     assert "tt.matmul_tiles" in call_names
     assert not has_buffer_store(func.body)
+    assert not has_tt_matmul_attr(func.body)
 
 
 def test_tensorize_tt_detects_manual_matmul_loops():
@@ -254,6 +270,13 @@ def test_tensorize_tt_detects_manual_matmul_loops():
     from tilelang.tt.passes import tensorize_tt
 
     func = create_manual_matmul_func()
+    cb_configs = tvm.runtime.convert([
+        {"cb_id": 4, "num_pages": 2, "tile_size": 2048, "name": "A"},
+        {"cb_id": 6, "num_pages": 2, "tile_size": 2048, "name": "B"},
+        {"cb_id": 9, "num_pages": 1, "tile_size": 2048, "name": "C"},
+    ])
+    func = func.with_attr("tt_circular_buffers", cb_configs)
+    func = func.with_attr("tt_num_cbs", tvm.tir.IntImm("int32", 3))
     mod = tvm.IRModule({"main": func})
     mod = tensorize_tt(mod)
     func = mod["main"]
@@ -271,11 +294,15 @@ def test_tensorize_tt_detects_manual_matmul_loops():
     assert [str(x) for x in pattern["B_indices"]] == ["k", "j"]
     assert [str(x) for x in pattern["C_indices"]] == ["i", "j"]
     assert int(pattern["accumulate"]) == 1
+    assert int(pattern["cb_in0"]) == 4
+    assert int(pattern["cb_in1"]) == 6
+    assert int(pattern["cb_out"]) == 9
 
     call_names = collect_call_names(func.body)
     assert "tt.mm_init" in call_names
     assert "tt.matmul_tiles" in call_names
     assert not has_buffer_store(func.body)
+    assert not has_tt_matmul_attr(func.body)
 
 
 if __name__ == "__main__":

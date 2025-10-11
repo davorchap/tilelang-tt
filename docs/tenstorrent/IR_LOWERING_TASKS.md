@@ -83,7 +83,7 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Why**: Moves pattern detection and lowering into the transform pipeline so codegen no longer reverse-engineers loops. This aligns TT tensorization with `tir.transform.InferFragment` on GPU and unlocks deterministic reader/compute/writer emission.
 
-**Status**: 🟡 Partial – GEMM pragmas are detected but we only stamp `tt.matmul_intrinsic` metadata; no intrinsic replacement yet.
+**Status**: 🟢 Active – GEMM pragmas and manual K-loop nests lower to explicit TT intrinsics; element-wise tensorization still pending.
 
 **Tasks**:
 1. **Define TT intrinsic calls in TIR** ✅  
@@ -92,9 +92,9 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 2. **Extend pattern matcher** ✅  
    - Handle both `T.gemm()` AttrStmt and raw K-loop nests (`for kk in range(Kt)`) with reduction semantics. *(Implemented via `MatmulPatternCollector` in `tensorize_tt.cc`, emitting `tt_matmul_patterns` metadata)*  
    - Capture operand buffers, CB IDs, accumulation state, and tile indices.
-3. **Inject intrinsic sequence** 🟡  
-   - Replace matched loop bodies with ordered TT intrinsic calls (mm_init → matmul_tiles → cb wait/pop → pack), preserving persistent loop scaffolding. *(Initial implementation injects default CB indices; TODO: derive from layout metadata.)*  
-   - Attach buffer metadata (`tt.input_buffers`, `tt.output_buffer`, `tt.cb_roles`) on the enclosing PrimFunc.
+3. **Inject intrinsic sequence** ✅  
+   - Replace matched loop bodies with ordered TT intrinsic calls (mm_init → matmul_tiles → cb wait/pop → pack), preserving persistent loop scaffolding. *(CB IDs resolved from `tt_circular_buffers`; falls back to canonical mapping when absent.)*  
+   - Attach buffer metadata (`tt_matmul_patterns` includes buffer roles, loop vars, reduction var, and resolved CB IDs) on the enclosing PrimFunc.
 4. **Simplify compute codegen** ✅  
    - Update `codegen_tt_compute_visitor.cc` to detect TT intrinsic calls and serialize them verbatim instead of using heuristic loop detection. *(Completed: visitor now emits loops verbatim and leverages intrinsic calls injected by `tensorize_tt`.)*  
    - Remove legacy pattern state (`current_pattern_`, `elementwise_init_emitted_`, etc.) once intrinsics drive emission. *(Completed by simplifying `codegen_tt_compute_visitor.cc`.)*
