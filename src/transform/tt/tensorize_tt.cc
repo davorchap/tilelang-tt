@@ -173,15 +173,37 @@ public:
 
 protected:
   void VisitStmt_(const AttrStmtNode *op) override {
-    bool is_gemm =
-        (op->attr_key == "pragma_gemm" || op->attr_key == "tl.gemm" ||
-         op->attr_key == "gemm_operation");
+    bool is_gemm = (op->attr_key == "pragma_gemm" ||
+                    op->attr_key == "tl.gemm" ||
+                    op->attr_key == "gemm_operation");
+    size_t before = patterns_.size();
     if (is_gemm) {
       ++gemm_attr_depth_;
     }
     StmtVisitor::VisitStmt_(op);
     if (is_gemm) {
       --gemm_attr_depth_;
+      if (patterns_.size() == before) {
+        // Fallback: pragma without a recognizable matmul loop
+        Map<String, ObjectRef> info;
+        info.Set("source", String("pragma"));
+        info.Set("buffer_a", String(""));
+        info.Set("buffer_b", String(""));
+        info.Set("buffer_c", String(""));
+        info.Set("A_indices", Array<PrimExpr>());
+        info.Set("B_indices", Array<PrimExpr>());
+        info.Set("C_indices", Array<PrimExpr>());
+        info.Set("accumulate", Bool(false));
+        info.Set("loop_vars", Array<String>());
+        info.Set("reduction_var", String(""));
+        info.Set("cb_in0", Integer(-1));
+        info.Set("cb_in1", Integer(-1));
+        info.Set("cb_out", Integer(-1));
+
+        MatmulPatternInfo placeholder;
+        placeholder.metadata = info;
+        patterns_.push_back(std::move(placeholder));
+      }
     }
   }
 
@@ -204,7 +226,7 @@ protected:
       info.Set("A_indices", match.indices_a);
       info.Set("B_indices", match.indices_b);
       info.Set("C_indices", match.indices_c);
-      info.Set("accumulate", Integer(match.accumulate ? 1 : 0));
+      info.Set("accumulate", Bool(match.accumulate));
 
       Array<String> loop_vars;
       for (const Var &v : loop_stack_) {

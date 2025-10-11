@@ -262,8 +262,8 @@ def test_tensorize_tt_records_pattern_metadata():
     assert len(patterns) == 1
     pattern = patterns[0]
     assert str(pattern["source"]) == "pragma"
-    assert int(pattern["accumulate"]) == 1
-    assert len(pattern["loop_vars"]) == 0
+    assert bool(pattern["accumulate"]) is True
+    assert [str(v) for v in pattern["loop_vars"]] == ["i", "j", "k"]
     assert int(func.attrs["tt_num_matmuls"]) == 1
     assert int(pattern["cb_in0"]) == 0
     assert int(pattern["cb_in1"]) == 1
@@ -319,7 +319,7 @@ def test_tensorize_tt_detects_manual_matmul_loops():
     assert [str(x) for x in pattern["A_indices"]] == ["i", "k"]
     assert [str(x) for x in pattern["B_indices"]] == ["k", "j"]
     assert [str(x) for x in pattern["C_indices"]] == ["i", "j"]
-    assert int(pattern["accumulate"]) == 1
+    assert bool(pattern["accumulate"]) is True
     assert int(pattern["cb_in0"]) == 4
     assert int(pattern["cb_in1"]) == 6
     assert int(pattern["cb_out"]) == 9
