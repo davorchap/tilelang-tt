@@ -77,21 +77,35 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Estimated Effort**: 2-3 days
 
-### Priority 3: Complete Tensorize TT Annotations (MEDIUM) 🟡
+### Priority 3: Tensorize TT Intrinsic Injection (HIGH) 🟡
 
-**What**: Extend `tensorize_tt.cc` to detect manual matmul and element-wise loops, emitting AttrStmt annotations consumed by compute codegen.
+**What**: Upgrade `tensorize_tt.cc` to inject Tenstorrent tile intrinsics directly into TIR and simplify compute codegen to faithfully emit those intrinsics, mirroring the mature CUDA flow.
 
-**Why**: Removes heuristic detection and unlocks intrinsic emission driven by metadata.
+**Why**: Moves pattern detection and lowering into the transform pipeline so codegen no longer reverse-engineers loops. This aligns TT tensorization with `tir.transform.InferFragment` on GPU and unlocks deterministic reader/compute/writer emission.
 
-**Status**: 🟡 Partial (T.gemm intrinsic path only)
+**Status**: 🟡 Partial – GEMM pragmas are detected but we only stamp `tt.matmul_intrinsic` metadata; no intrinsic replacement yet.
 
 **Tasks**:
-1. Implement matmul loop matcher (3-nested accumulation) and annotate buffers.
-2. Implement element-wise matcher for `T.grid` loops.
-3. Strip heuristic paths from compute codegen; rely on annotations.
-4. Update `tensorize_tt` documentation with the final matcher matrix.
+1. **Define TT intrinsic calls in TIR** ✅  
+   - Introduce `call_intrin` helpers (or extern handles) for `mm_init`, `matmul_tiles`, `cb_wait_front`, `cb_pop_front`, `tile_regs_*`, `pack_tile`, `binary_op_init_common`, etc. *(Implemented via `src/target/tt/tt_intrin.cc` and `tilelang/tt/intrin.py`)*  
+   - Ensure intrinsics carry CB indices and accumulate flags as explicit operands.
+2. **Extend pattern matcher**  
+   - Handle both `T.gemm()` AttrStmt and raw K-loop nests (`for kk in range(Kt)`) with reduction semantics.  
+   - Capture operand buffers, CB IDs, accumulation state, and tile indices.
+3. **Inject intrinsic sequence**  
+   - Replace matched loop bodies with ordered intrinsic calls (emit `Evaluate(call_intrin("tt.mm_init", ...))`, etc.), preserving persistent loop scaffolding.  
+   - Attach buffer metadata (`tt.input_buffers`, `tt.output_buffer`, `tt.cb_roles`) on the enclosing PrimFunc.
+4. **Simplify compute codegen**  
+   - Update `codegen_tt_compute_visitor.cc` to detect TT intrinsic calls and serialize them verbatim instead of using heuristic loop detection.  
+   - Remove legacy pattern state (`current_pattern_`, `elementwise_init_emitted_`, etc.) once intrinsics drive emission.
+5. **Element-wise + tilize coverage**  
+   - Extend matcher/injection for `T.grid(32, 32)` element-wise loops and tilize/untilize regions using `add_tiles`, `mul_tiles`, `tilize`, `untilize`.
+6. **Verification and tests**  
+   - Add TIR-level unit tests to assert the intrinsic sequence after `tensorize_tt`.  
+   - Update integration tests to confirm compute codegen mirrors the injected operations.  
+   - Refresh `tensorize_tt` documentation with intrinsic tables and matcher matrix.
 
-**Estimated Effort**: 2-3 days
+**Estimated Effort**: 3-4 days
 
 ### Priority 4: Integration Test Suite (MEDIUM) 🟢
 
@@ -168,9 +182,9 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 - [ ] Runtime argument contract documented for host + kernels.
 
 **Task 3 (Tensorize TT)**:
-- [ ] Detects manual matmul loops and element-wise patterns.
-- [ ] Emits attr-based annotations consumed by compute codegen.
-- [ ] Heuristic paths removed from compute visitor.
+- [ ] Matched regions are rewritten into explicit TT intrinsics (`tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`, etc.).
+- [ ] PrimFuncs carry buffer role metadata (`tt.input_buffers`, `tt.output_buffer`, `tt.cb_roles`) for consumer passes.
+- [ ] Compute codegen serializes injected intrinsics without heuristic pattern detection.
 
 **Task 4 (Integration Tests)**:
 - [x] Layout-aware feature matrix covered (DRAM/L1, interleaved/sharded).
@@ -201,7 +215,7 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 |------|-----------|--------------|
 | Layout-aware metadata passes | 3-4 days | Python annotations |
 | Shard-aware persistent + codegen updates | 2-3 days | Metadata passes |
-| Tensorize extensions | 2-3 days | Metadata + codegen |
+| Tensorize intrinsic injection | 3-4 days | Metadata + codegen |
 | Integration tests | 1 day | Tasks 1-2 |
 | Example refresh | 0.5 days | Tasks 1-3 |
 | Legacy pass deprecation | 2 days | Tasks 1-2 |
