@@ -307,7 +307,7 @@ if [ "$SKIP_TESTS" = false ]; then
     # Run all Tenstorrent tests
     echo -e "${YELLOW}Running all Tenstorrent Python tests...${NC}"
     cd testing/python
-    if pytest tt/ -v --tb=short -k "not gpu"; then
+    if pytest tt/ -v --tb=short; then
         echo -e "${GREEN}All tests passed${NC}"
     else
         echo -e "${YELLOW}Some tests failed (this may be expected if backend is incomplete)${NC}"

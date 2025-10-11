@@ -14,6 +14,7 @@ from tilelang.tt import (
     grid_to_persistent_tt,
     apply_tt_transform_passes,
     annotate_tt_schedule,
+    annotate_tt_layout,
 )
 
 
@@ -107,8 +108,24 @@ class TestGridToPersistentTT:
             with T.Kernel(2, 4) as (bx, by):
                 T.evaluate(A[bx, by])
 
-        prim = annotate_tt_schedule(
+        # Annotate with sharded layout required for local_shard mode
+        prim = annotate_tt_layout(
             shard_kernel,
+            {
+                "A": {
+                    "memory": "L1",
+                    "layout": "sharded",
+                    "nd_shard": {
+                        "axes": ["M", "N"],
+                        "grid": [2, 4],
+                        "shard_shape_elems": [64, 64],
+                    },
+                }
+            },
+        )
+
+        prim = annotate_tt_schedule(
+            prim,
             {
                 "partition_mode": "local_shard",
             },
