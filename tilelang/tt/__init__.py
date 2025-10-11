@@ -25,6 +25,7 @@ from .codegen import (
     emit_tt_artifacts,
     write_artifacts_to_disk,
 )
+from . import intrin
 
 __all__ = [
     "apply_tt_defaults",
@@ -42,4 +43,5 @@ __all__ = [
     "apply_tt_transform_passes",
     "emit_tt_artifacts",
     "write_artifacts_to_disk",
+    "intrin",
 ]

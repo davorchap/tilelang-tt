@@ -15,10 +15,12 @@ Bridge between TileLang's high level matmul pragmas and Tenstorrent codegen by a
 ## Current Behavior
 
 - Walks the TIR, looking for `AttrStmt` markers inserted by the frontend (`"pragma_gemm"`, `"tl.gemm"`, `"gemm_operation"`).
-- Wraps each matched region with a new `AttrStmt` tagged `"tt.matmul_intrinsic"` and assigns a unique matmul ID.
+- Rewrites matched regions into TT intrinsics (`tt.tile_regs_acquire`, `tt.mm_init`, `tt.matmul_tiles`, CB wait/pop, `tt.pack_tile`) using circular-buffer IDs resolved from `tt_circular_buffers` metadata (falls back to canonical `c0/c1/c16` when missing).
 - Attaches convenience attributes to the `PrimFunc`:
   - `tt_num_matmuls`
   - `tt_has_tensorize`
+- Collects matmul metadata—including buffer roles, indices, loop vars, reduction vars, and resolved CB IDs—in `tt_matmul_patterns` so downstream passes/codegen can reason about operand placement.
+- `codegen_tt_compute_visitor.cc` now streams the injected TT intrinsics directly instead of reinventing pattern detection; the legacy `tt.matmul_intrinsic` wrapper has been retired.
 
 This minimal functionality allows codegen visitors to enumerate matmul regions without relying on brittle name-based heuristics.
 
@@ -26,8 +28,6 @@ This minimal functionality allows codegen visitors to enumerate matmul regions w
 
 ## Missing Work
 
-- Pattern matching for handwritten loop nests (no `pragma_gemm`).
-- Buffer operand annotations (`tt.input_buffers`, `tt.output_buffer`).
 - Element-wise pattern detection.
 - Integration with reader / writer kernels for non-matmul intrinsics.
 
@@ -44,7 +44,7 @@ Covered indirectly via persistent transform stage integration tests that assert 
 ## Dependencies
 
 **Depends On**: None  
-**Depended On By**: `codegen_tt_compute_visitor.cc` (consumes `tt.matmul_intrinsic` annotations)
+**Depended On By**: `codegen_tt_compute_visitor.cc` (emits the injected TT intrinsics)
 
 ---
 
@@ -52,7 +52,7 @@ Covered indirectly via persistent transform stage integration tests that assert 
 
 - [x] Translate frontend GEMM pragmas into TT-specific annotations
 - [x] Count and label matmul regions
-- [ ] Detect unannotated loop patterns (future)
+- [x] Detect unannotated loop patterns (manual K-loop matcher)
 - [ ] Handle element-wise tensorization (future)
 
 ---
