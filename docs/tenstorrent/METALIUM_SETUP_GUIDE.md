@@ -308,18 +308,9 @@ pytest testing/python/tt/ -v
 
 ### Verify Generated Code Uses Real APIs
 
-```bash
-# Generate a simple matmul
-python examples/tenstorrent/example_matmul_tt_poc.py
-
-# Check generated host program
-cat /tmp/tt_artifacts/main.cpp | head -20
-
-# Should see:
-# #include "tt_metal/host_api.hpp"
-# #include "tt_metal/impl/device/mesh_device.hpp"
-# auto device = distributed::MeshDevice::create_unit_mesh(0);
-```
+> Tenstorrent example programs are being refreshed. Once the new samples land,
+> rerun this validation step with the updated scripts to inspect generated host
+> artifacts.
 
 ---
 
@@ -513,10 +504,8 @@ After successful setup:
    - Phase 2: API completion
    - Phase 3: Hardware execution
 
-2. **Run Examples**:
-   ```bash
-   python examples/tenstorrent/example_matmul_tt_poc.py
-   ```
+2. **Run Examples**: Tenstorrent sample scripts are being refreshed; revisit once
+   the new examples land.
 
 3. **Hardware Testing**: See hardware validation guide (coming soon)
 
