@@ -707,12 +707,12 @@ def tensorize_tt(mod: tvm.IRModule) -> tvm.IRModule:
     """Rewrite GEMM regions into Tenstorrent tile intrinsics.
 
     The pass scans for frontend GEMM markers (`"pragma_gemm"`, `"tl.gemm"`,
-    `"gemm_operation"`) or recognised loop patterns, replaces the matched regions
-    with TT intrinsic calls (`tt.mm_init`, `tt.matmul_tiles`, CB wait/pop, etc.), and
-    records matmul metadata (`tt_num_matmuls`, `tt_has_tensorize`,
-    `tt_matmul_patterns`). Circular-buffer indices are resolved from
-    `tt_circular_buffers` when present, falling back to canonical `c0/c1/c16` IDs.
-    Element-wise and non-matmul tensorization are still TODO.
+    `"gemm_operation"`), replaces the marked regions with TT intrinsic calls
+    (`tt.mm_init`, `tt.matmul_tiles`, CB wait/pop, etc.), and records matmul
+    metadata (`tt_num_matmuls`, `tt_has_tensorize`, `tt_matmul_patterns`).
+    Circular-buffer indices are resolved from `tt_circular_buffers` when present,
+    falling back to canonical `c0/c1/c16` IDs. Element-wise and non-matmul
+    tensorization are still TODO.
 
     Args:
         mod: The TVM IRModule to process (should contain GEMM pragmas)

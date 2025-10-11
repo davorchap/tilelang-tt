@@ -183,28 +183,9 @@ protected:
     StmtVisitor::VisitStmt_(op);
     if (is_gemm) {
       --gemm_attr_depth_;
-      if (patterns_.size() == before) {
-        // Fallback: pragma without a recognizable matmul loop
-        Map<String, ObjectRef> info;
-        info.Set("source", String("pragma"));
-        info.Set("buffer_a", String(""));
-        info.Set("buffer_b", String(""));
-        info.Set("buffer_c", String(""));
-        info.Set("A_indices", Array<PrimExpr>());
-        info.Set("B_indices", Array<PrimExpr>());
-        info.Set("C_indices", Array<PrimExpr>());
-        info.Set("accumulate", Bool(true)); // Changed to true
-        info.Set("loop_vars", Array<String>());
-        info.Set("reduction_var", String(""));
-        // CB IDs will be resolved during mutation
-        info.Set("cb_in0", Integer(-1));
-        info.Set("cb_in1", Integer(-1));
-        info.Set("cb_out", Integer(-1));
-
-        MatmulPatternInfo placeholder;
-        placeholder.metadata = info;
-        patterns_.push_back(std::move(placeholder));
-      }
+      ICHECK_GT(patterns_.size(), before)
+          << "TensorizeTT requires explicit `T.gemm` lowering; "
+             "unable to recognise matmul region inside pragma.";
     }
   }
 
@@ -217,6 +198,11 @@ protected:
   }
 
   void VisitStmt_(const BufferStoreNode *op) override {
+    if (gemm_attr_depth_ == 0) {
+      StmtVisitor::VisitStmt_(op);
+      return;
+    }
+
     MatmulMatch match;
     if (TryMatchMatmul(op, &match)) {
       Map<String, ObjectRef> info;

@@ -340,59 +340,22 @@ def test_tensorize_tt_emits_intrinsic_sequence():
     assert bool(func.attrs["tt_has_tensorize"])
 
 
-def test_tensorize_tt_detects_manual_matmul_loops():
-    """TensorizeTT should recognise handwritten matmul loop nests."""
+def test_tensorize_tt_ignores_manual_matmul_loops_without_marker():
+    """TensorizeTT should skip handwritten matmul loops that lack frontend GEMM markers."""
     from tilelang.tt.passes import tensorize_tt
 
     func = create_manual_matmul_func()
-    cb_configs = tvm.runtime.convert([
-        {
-            "cb_id": tvm.tir.IntImm("int32", 4),
-            "num_pages": tvm.tir.IntImm("int32", 2),
-            "tile_size": tvm.tir.IntImm("int32", 2048),
-            "name": "A"
-        },
-        {
-            "cb_id": tvm.tir.IntImm("int32", 6),
-            "num_pages": tvm.tir.IntImm("int32", 2),
-            "tile_size": tvm.tir.IntImm("int32", 2048),
-            "name": "B"
-        },
-        {
-            "cb_id": tvm.tir.IntImm("int32", 9),
-            "num_pages": tvm.tir.IntImm("int32", 1),
-            "tile_size": tvm.tir.IntImm("int32", 2048),
-            "name": "C"
-        },
-    ])
-    func = func.with_attr("tt_circular_buffers", cb_configs)
-    func = func.with_attr("tt_num_cbs", tvm.tir.IntImm("int32", 3))
     mod = tvm.IRModule({"main": func})
     mod = tensorize_tt(mod)
     func = mod["main"]
 
-    assert int(func.attrs["tt_num_matmuls"]) == 1
-    assert bool(func.attrs["tt_has_tensorize"])
-
-    patterns = func.attrs["tt_matmul_patterns"]
-    assert len(patterns) == 1
-    pattern = patterns[0]
-    assert str(pattern["source"]) == "loop"
-    assert str(pattern["reduction_var"]) == "k"
-    assert [str(v) for v in pattern["loop_vars"]] == ["i", "j", "k"]
-    assert [str(x) for x in pattern["A_indices"]] == ["i", "k"]
-    assert [str(x) for x in pattern["B_indices"]] == ["k", "j"]
-    assert [str(x) for x in pattern["C_indices"]] == ["i", "j"]
-    assert bool(pattern["accumulate"]) is True
-    assert int(pattern["cb_in0"]) == 4
-    assert int(pattern["cb_in1"]) == 6
-    assert int(pattern["cb_out"]) == 9
-
+    # No tensorization metadata should be attached.
+    assert "tt_num_matmuls" not in func.attrs
+    assert "tt_has_tensorize" not in func.attrs
     call_names = collect_call_names(func.body)
-    assert "tt.mm_init" in call_names
-    assert "tt.matmul_tiles" in call_names
-    assert not has_buffer_store(func.body)
-    assert not has_tt_matmul_attr(func.body)
+    assert "tt.mm_init" not in call_names
+    assert has_buffer_store(func.body)
+    assert has_tt_matmul_attr(func.body) is False
 
 
 if __name__ == "__main__":
@@ -406,5 +369,5 @@ if __name__ == "__main__":
     test_tensorize_tt_integration_with_ws1_ws2()
     test_tensorize_tt_records_pattern_metadata()
     test_tensorize_tt_emits_intrinsic_sequence()
-    test_tensorize_tt_detects_manual_matmul_loops()
+    test_tensorize_tt_ignores_manual_matmul_loops_without_marker()
     print("All TensorizeTT tests passed!")

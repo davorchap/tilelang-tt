@@ -513,14 +513,14 @@ for (uint32_t tile_idx = 0; tile_idx < num_output_tiles; ++tile_idx) {
 ### 🚧 Incomplete (Next Steps)
 
 **Pattern Detection:**
-- ❌ `tensorize_tt` pass only handles T.gemm() intrinsic calls
-- ❌ Manual matmul loops not detected
+- ✅ `tensorize_tt` pass rewrites frontend `T.gemm()` regions into TT intrinsics
+- ❌ Manual matmul loops without GEMM markers remain unsupported
 - ❌ Element-wise operations not annotated
 - ⚠️ Codegen uses heuristics (variable name "kt" → K-loop) instead of annotations
 
-**Issue:** Generated K-loop has scaffolding but body still has raw array operations instead of Metalium intrinsics.
+**Issue:** Handwritten matmul loops (without `T.gemm`) still lower to raw array operations instead of TT intrinsics.
 
-**Solution:** Extend `tensorize_tt.cc` to detect manual loop patterns and annotate IR. See [TT_BACKEND_TASKS.md](./TT_BACKEND_TASKS.md) for implementation plan.
+**Solution:** Either express matmuls through `T.gemm` (preferred) or extend `tensorize_tt.cc` with a guarded fallback in a future milestone. See [TT_BACKEND_TASKS.md](./TT_BACKEND_TASKS.md) for the current plan.
 
 **SDK Validation:**
 - ⚠️ Pending SDK access for hardware testing

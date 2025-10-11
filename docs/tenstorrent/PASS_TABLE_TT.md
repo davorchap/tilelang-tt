@@ -190,7 +190,7 @@ See [PASS_TABLE_SHARED.md](./PASS_TABLE_SHARED.md) for the optimization passes t
 - Buffer residency → Partition mode (`global` vs `local_shard`) and runtime args.
 - Grid kernel → Persistent kernel with shard-aware `(m, n)` recovery.
 - DRAM buffers → L1 circular buffers.
-- Manual matmul loops → Rewritten to `tt.*` intrinsic sequences and tracked via `tt_matmul_patterns`.
+- Frontend `T.gemm` regions → Rewritten to `tt.*` intrinsic sequences and tracked via `tt_matmul_patterns`.
 - Buffers padded to 32×32 tile boundaries.
 
 ---
