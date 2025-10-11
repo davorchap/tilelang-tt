@@ -20,17 +20,17 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 | Component | Status | Documentation |
 |-----------|--------|---------------|
-| **InferTTLayout** | ✅ Complete | [📄 passes/infer_layout_tt.md](./passes/infer_layout_tt.md) |
-| **PropagateTTLayout** | ✅ Complete | [📄 passes/propagate_layout_tt.md](./passes/propagate_layout_tt.md) |
-| **LayoutAwareWorkPartitionTT** | ✅ Complete | [📄 passes/layout_aware_partition_tt.md](./passes/layout_aware_partition_tt.md) |
+| **InferTTLayout** | 🟡 Validation follow-ups | [📄 passes/infer_layout_tt.md](./passes/infer_layout_tt.md) |
+| **PropagateTTLayout** | 🟡 Depth heuristics only | [📄 passes/propagate_layout_tt.md](./passes/propagate_layout_tt.md) |
+| **LayoutAwareWorkPartitionTT** | 🟡 Legacy schedule dependency | [📄 passes/layout_aware_partition_tt.md](./passes/layout_aware_partition_tt.md) |
 | **grid_to_persistent_tt** | 🟡 Follow-up diagnostics | [📄 passes/grid_to_persistent_tt.md](./passes/grid_to_persistent_tt.md) |
 
 > For a holistic view of the metadata + transform pipeline, refer to
 > [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md). This table is deliberately terse so that future edits can
 > stay in sync by updating the architecture doc once and linking from strategy trackers like this one.
-| **memory_space_lower_tt** | ✅ Complete (consume new metadata) | [📄 passes/memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) |
+| **memory_space_lower_tt** | 🟡 Heuristic CB sizing | [📄 passes/memory_space_lower_tt.md](./passes/memory_space_lower_tt.md) |
 | **tensorize_tt** | 🟡 Partial | [📄 passes/tensorize_tt.md](./passes/tensorize_tt.md) |
-| **verify_tt_ir** | ✅ Complete | [📄 passes/verify_tt_ir.md](./passes/verify_tt_ir.md) |
+| **verify_tt_ir** | 🟡 Legacy schema | [📄 passes/verify_tt_ir.md](./passes/verify_tt_ir.md) |
 | **infer_default_tt_schedule** | 🟡 Legacy | [📄 passes/infer_default_tt_schedule.md](./passes/infer_default_tt_schedule.md) |
 | **infer_default_tt_shard** | 🟡 Legacy | [📄 passes/infer_default_tt_shard.md](./passes/infer_default_tt_shard.md) |
 | **tt_tiles_to_core_map** | 🟡 Legacy | [📄 passes/tt_tiles_to_core_map.md](./passes/tt_tiles_to_core_map.md) |
@@ -58,9 +58,10 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 **Status**: ✅ Complete – core functionality and guardrails landed; remaining follow-ups are targeted diagnostics (halo hints, role-aware CB policy) tracked under future tasks.
 
 **Next follow-ups**:
-1. Strengthen halo/L1 capacity diagnostics (see Priority 4).
+1. Strengthen halo/L1 capacity diagnostics and enforce `nd_shard` axis/grid validation (including rejecting unsupported `halo` hints until implemented).
 2. Triage CB depth policy improvements once reuse/multicast design is finalized.
 3. Keep documentation in sync by pointing to shared sources instead of duplicating snippets (this file now references the architecture doc directly).
+4. Add dtype/format error reporting in `PropagateTTLayout` and extend metadata unit coverage for mixed dtypes.
 
 ### Priority 2: Shard-Aware Persistent Lowering & Codegen (HIGH) 🟢
 
@@ -74,6 +75,11 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 1. Extend persistent lowering to branch on `tt_partition_mode` and recover shard-local/global indices. ✅ (local_shard math emitted; more validation still needed)
 2. Update host/kernel generation to plumb the expanded runtime arg payload, enforce TA guardrails, and refresh templates. ✅ Complete (host metadata summary replaces legacy mock)
 3. Document the final runtime argument contract (architecture + pass docs). ✅ Covered in [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md#host--kernel-responsibilities) and linked throughout this tracker.
+4. Replace the `tt_tiles_per_core` dependency in layout-aware metadata with shard-derived `tt.core_ranges` / runtime args and remove the legacy fallback path. ⏳ TODO
+5. Gate `tt_tiles_to_core_map` behind the legacy pipeline so layout-aware metadata is not overwritten; add regression coverage for both modes. ⏳ TODO
+6. Teach `GridToPersistentTT` to honor the precomputed `tt.runtime_arg_names`, emit canonical `tt.runtime_args`, and validate local-shard runtime arguments. ⏳ TODO
+7. Rework `MemorySpaceLowerTT` to consume `tt.cb.*` attributes (page size, depth, format) instead of heuristics; cover non-square tiles and mixed dtypes. ⏳ TODO
+8. Refresh `VerifyTTIR` to validate layout-aware metadata (`tt.buffer.*`, `tt.cb.*`, `tt.partition_mode`) and port the negative tests to the new schema. ⏳ TODO
 
 **Estimated Effort**: 2-3 days
 
@@ -104,6 +110,8 @@ This document tracks high-level implementation tasks for completing the Tenstorr
    - Add TIR-level unit tests to assert the intrinsic sequence after `tensorize_tt`.  
    - Update integration tests to confirm compute codegen mirrors the injected operations.  
    - Refresh `tensorize_tt` documentation with intrinsic tables and matcher matrix.
+7. Support multiple matmul patterns per reduction loop (remove the single-pattern `ICHECK`) and keep outer-loop structure intact. ⏳ TODO
+8. Resolve CB IDs from `tt.cb.*` metadata (no `_tile` heuristics) and share the machinery with upcoming elementwise/tilize lowering. ⏳ TODO
 
 **Estimated Effort**: 3-4 days
 
