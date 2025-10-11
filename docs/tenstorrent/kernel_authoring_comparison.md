@@ -457,11 +457,9 @@ def kernel_with_annotations(...):
 
 ## Examples
 
-See `examples/tenstorrent/` for complete examples:
-- `example_gemm_cb_pipeline_tt.py`: Pipelined GEMM with circular buffers
-- `example_flash_attention_tt.py`: Flash Attention adapted for TT
-- `example_reduction_sum_tt.py`: Row-wise sum reduction
-- `example_elementwise_multi_tt.py`: Multi-operand elementwise operations
+The previous Tenstorrent example scripts have been retired while we rebuild the
+sample suite around the new layout-aware pipeline. Updated guides and kernels
+will be published alongside the refreshed examples.
 
 ---
 

@@ -130,17 +130,17 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 **Estimated Effort**: 1 day
 
-### Priority 5: Refresh Matmul Example & Guides (LOW) 🟢
+### Priority 5: Rebuild Tenstorrent Example Suite (LOW) 🟢
 
-**What**: Update `examples/tenstorrent/example_matmul_tt_poc.py` and associated documentation to demonstrate the layout-aware pipeline.
+**What**: Author a new set of Tenstorrent examples showcasing the layout-aware pipeline (replacing the retired `examples/tenstorrent/*` scripts) and wire updated docs/snippets once ready.
 
 **Why**: Developers need accurate reference material once the new flow ships.
 
 **Status**: ⏳ Pending Tasks 1-3
 
 **Tasks**:
-1. Replace placeholder loops with annotated TileLang ops mirroring the new metadata flow.
-2. Regenerate doc snippets (README, example docs) to match the updated sample.
+1. Draft fresh kernels (matmul, elementwise, attention) that lean on the layout-aware metadata pipeline.
+2. Publish usage guidance in README/setup guides aligned with the new samples.
 
 **Estimated Effort**: 0.5 days
 
