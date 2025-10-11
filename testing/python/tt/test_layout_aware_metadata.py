@@ -7,7 +7,6 @@ import tilelang.language as T
 
 from tilelang.tt import (
     annotate_tt_layout,
-    annotate_tt_schedule,
     apply_tt_defaults,
     apply_tt_metadata_passes,
     apply_layout_aware_metadata_passes,
@@ -18,10 +17,10 @@ from tilelang.tt import (
 
 
 def _build_simple_module():
+
     @T.prim_func
-    def matmul(A: T.Buffer((256, 256), "float16"),
-               B: T.Buffer((256, 256), "float16"),
-               C: T.Buffer((256, 256), "float16")):
+    def matmul(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"), C: T.Buffer(
+        (256, 256), "float16")):
         with T.Kernel(8, 8) as (bx, by):
             T.evaluate(0)
 
@@ -30,6 +29,7 @@ def _build_simple_module():
 
 
 class TestLayoutAwareMetadata:
+
     def test_pipeline_generates_buffer_and_cb_metadata(self):
         mod = _build_simple_module()
         mod = apply_tt_defaults(mod)
@@ -65,9 +65,9 @@ class TestLayoutAwareMetadata:
         assert int(constants["Nt"]) == 8
 
     def test_user_annotation_overrides_defaults(self):
+
         @T.prim_func
-        def annotated(A: T.Buffer((128, 128), "bfloat16"),
-                      B: T.Buffer((128, 128), "bfloat16")):
+        def annotated(A: T.Buffer((128, 128), "bfloat16"), B: T.Buffer((128, 128), "bfloat16")):
             with T.Kernel(4, 4) as (bx, by):
                 T.evaluate(0)
 
@@ -106,6 +106,7 @@ class TestLayoutAwareMetadata:
         ]
 
     def test_sharded_layout_projects_axes(self):
+
         @T.prim_func
         def sharded(A: T.Buffer((128, 256), "float16")):
             with T.Kernel(4, 8) as (bx, by):
@@ -138,6 +139,7 @@ class TestLayoutAwareMetadata:
         assert [int(x) for x in nd_shard["projected_shard_tiles"]] == [2, 4]
 
     def test_l1_shard_requires_tile_alignment(self):
+
         @T.prim_func
         def kernel(A: T.Buffer((64, 64), "float16")):
             with T.Kernel(2, 2) as (bx, by):

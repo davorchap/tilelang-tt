@@ -32,9 +32,11 @@
  * See: docs/tenstorrent/workstream4/Artifact Generation stage_STATUS.md
  */
 
+#include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
@@ -66,15 +68,15 @@ using tvm::String;
  * Returns Mt, Kt, Nt (tile counts)
  */
 struct MatmulDims {
-  int Mt;  // M dimension in tiles
-  int Kt;  // K dimension in tiles
-  int Nt;  // N dimension in tiles
-  int M;   // M dimension in elements
-  int K;   // K dimension in elements
-  int N;   // N dimension in elements
+  int Mt; // M dimension in tiles
+  int Kt; // K dimension in tiles
+  int Nt; // N dimension in tiles
+  int M;  // M dimension in elements
+  int K;  // K dimension in elements
+  int N;  // N dimension in elements
 };
 
-MatmulDims ExtractMatmulDims(const PrimFunc& func) {
+MatmulDims ExtractMatmulDims(const PrimFunc &func) {
   MatmulDims dims;
 
   // Try to get dimensions from grid metadata first
@@ -84,7 +86,7 @@ MatmulDims ExtractMatmulDims(const PrimFunc& func) {
   if (grid_x.defined() && grid_y.defined()) {
     dims.Nt = grid_x.value()->value;
     dims.Mt = grid_y.value()->value;
-    dims.Kt = dims.Mt;  // Assume square for MVP
+    dims.Kt = dims.Mt; // Assume square for MVP
 
     dims.N = dims.Nt * 32;
     dims.M = dims.Mt * 32;
@@ -105,7 +107,7 @@ MatmulDims ExtractMatmulDims(const PrimFunc& func) {
 /*!
  * \brief Generate TT compute kernel using IR-driven visitor
  */
-std::string EmitTTComputeKernelIRDriven(const PrimFunc& func) {
+std::string EmitTTComputeKernelIRDriven(const PrimFunc &func) {
   TTComputeCodegenVisitor visitor(func);
   return visitor.GetFullKernel();
 }
@@ -113,7 +115,7 @@ std::string EmitTTComputeKernelIRDriven(const PrimFunc& func) {
 /*!
  * \brief Generate TT reader kernel using IR-driven visitor
  */
-std::string EmitTTReaderKernelIRDriven(const PrimFunc& func) {
+std::string EmitTTReaderKernelIRDriven(const PrimFunc &func) {
   TTReaderCodegenVisitor visitor(func);
   return visitor.GetFullKernel();
 }
@@ -121,7 +123,7 @@ std::string EmitTTReaderKernelIRDriven(const PrimFunc& func) {
 /*!
  * \brief Generate TT writer kernel using IR-driven visitor
  */
-std::string EmitTTWriterKernelIRDriven(const PrimFunc& func) {
+std::string EmitTTWriterKernelIRDriven(const PrimFunc &func) {
   TTWriterCodegenVisitor visitor(func);
   return visitor.GetFullKernel();
 }
@@ -129,10 +131,10 @@ std::string EmitTTWriterKernelIRDriven(const PrimFunc& func) {
 /*!
  * \brief Generate TT host program (main.cpp)
  */
-std::string EmitTTHostProgram(const PrimFunc& func) {
+std::string EmitTTHostProgram(const PrimFunc &func) {
   std::ostringstream code;
 
-  auto quote = [](const std::string& value) {
+  auto quote = [](const std::string &value) {
     std::string escaped;
     escaped.reserve(value.size() + 2);
     escaped.push_back('"');
@@ -154,21 +156,32 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   }
 
   std::vector<std::string> runtime_arg_names;
-  if (auto names_attr = func->attrs.GetAttr<Array<String>>("tt.runtime_arg_names")) {
+  if (auto names_attr =
+          func->attrs.GetAttr<Array<String>>("tt.runtime_arg_names")) {
     runtime_arg_names.reserve(names_attr.value().size());
-    for (const auto& name : names_attr.value()) {
+    for (const auto &name : names_attr.value()) {
       runtime_arg_names.emplace_back(name);
     }
-  } else if (auto legacy_attr = func->attrs.GetAttr<Array<String>>("tt_runtime_arg_names")) {
+  } else if (auto legacy_attr =
+                 func->attrs.GetAttr<Array<String>>("tt_runtime_arg_names")) {
     runtime_arg_names.reserve(legacy_attr.value().size());
-    for (const auto& name : legacy_attr.value()) {
+    for (const auto &name : legacy_attr.value()) {
       runtime_arg_names.emplace_back(name);
     }
   }
   if (runtime_arg_names.empty()) {
     if (partition_mode == "local_shard") {
-      runtime_arg_names = {"tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt", "Sm", "Sn",
-                           "Gy", "Gx", "tt_shard_coord_y", "tt_shard_coord_x"};
+      runtime_arg_names = {"tt_start_tile",
+                           "tt_tile_count",
+                           "Mt",
+                           "Kt",
+                           "Nt",
+                           "Sm",
+                           "Sn",
+                           "Gy",
+                           "Gx",
+                           "tt_shard_coord_y",
+                           "tt_shard_coord_x"};
     } else {
       runtime_arg_names = {"tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt"};
     }
@@ -180,37 +193,40 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   size_t arg_count = runtime_arg_names.size();
 
   std::vector<std::pair<std::string, int64_t>> runtime_constants;
-  if (auto constants_attr = func->attrs.GetAttr<Map<String, ObjectRef>>("tt.runtime_constants")) {
-    for (const auto& kv : constants_attr.value()) {
+  if (auto constants_attr =
+          func->attrs.GetAttr<Map<String, ObjectRef>>("tt.runtime_constants")) {
+    for (const auto &kv : constants_attr.value()) {
       std::string key = std::string(kv.first);
-      const ObjectRef& value_ref = kv.second;
+      const ObjectRef &value_ref = kv.second;
       int64_t value = 0;
-      if (const auto* int_imm = value_ref.as<IntImmNode>()) {
+      if (const auto *int_imm = value_ref.as<IntImmNode>()) {
         value = int_imm->value;
-      } else if (const auto* float_imm = value_ref.as<FloatImmNode>()) {
+      } else if (const auto *float_imm = value_ref.as<FloatImmNode>()) {
         value = static_cast<int64_t>(float_imm->value);
-      } else if (value_ref->IsInstance<IntegerObj>()) {
-        value = Downcast<Integer>(value_ref).IntValue();
       }
       runtime_constants.emplace_back(key, value);
     }
   }
   std::sort(runtime_constants.begin(), runtime_constants.end(),
-            [](const std::pair<std::string, int64_t>& lhs,
-               const std::pair<std::string, int64_t>& rhs) { return lhs.first < rhs.first; });
+            [](const std::pair<std::string, int64_t> &lhs,
+               const std::pair<std::string, int64_t> &rhs) {
+              return lhs.first < rhs.first;
+            });
   std::unordered_map<std::string, int64_t> runtime_constant_lookup;
-  for (const auto& kv : runtime_constants) {
+  for (const auto &kv : runtime_constants) {
     runtime_constant_lookup.emplace(kv.first, kv.second);
   }
 
   std::vector<std::vector<int64_t>> core_runtime_args;
-  if (auto core_attr = func->attrs.GetAttr<Array<ObjectRef>>("tt_core_runtime_args")) {
-    for (const ObjectRef& row_obj : core_attr.value()) {
-      if (!row_obj->IsInstance<ArrayNode>()) continue;
+  if (auto core_attr =
+          func->attrs.GetAttr<Array<ObjectRef>>("tt_core_runtime_args")) {
+    for (const ObjectRef &row_obj : core_attr.value()) {
+      if (!row_obj.as<ffi::ArrayObj>())
+        continue;
       Array<Integer> row_array = Downcast<Array<Integer>>(row_obj);
       std::vector<int64_t> row;
       row.reserve(row_array.size());
-      for (const Integer& value : row_array) {
+      for (const Integer &value : row_array) {
         row.push_back(value.IntValue());
       }
       if (!row.empty()) {
@@ -225,20 +241,24 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   }
 
   if (core_runtime_args.empty()) {
-    if (auto tiles_attr = func->attrs.GetAttr<Array<ObjectRef>>("tt_tiles_per_core")) {
-      for (const ObjectRef& row_obj : tiles_attr.value()) {
-        if (!row_obj->IsInstance<ArrayNode>()) continue;
+    if (auto tiles_attr =
+            func->attrs.GetAttr<Array<ObjectRef>>("tt_tiles_per_core")) {
+      for (const ObjectRef &row_obj : tiles_attr.value()) {
+        if (!row_obj.as<ffi::ArrayObj>())
+          continue;
         Array<Integer> row_array = Downcast<Array<Integer>>(row_obj);
         int64_t start = row_array.size() > 0 ? row_array[0].IntValue() : 0;
         int64_t count = row_array.size() > 1 ? row_array[1].IntValue() : 0;
         std::vector<int64_t> row(arg_count, 0);
-        if (auto it = runtime_arg_index.find("tt_start_tile"); it != runtime_arg_index.end()) {
+        if (auto it = runtime_arg_index.find("tt_start_tile");
+            it != runtime_arg_index.end()) {
           row[it->second] = start;
         }
-        if (auto it = runtime_arg_index.find("tt_tile_count"); it != runtime_arg_index.end()) {
+        if (auto it = runtime_arg_index.find("tt_tile_count");
+            it != runtime_arg_index.end()) {
           row[it->second] = count;
         }
-        for (const auto& kv : runtime_constant_lookup) {
+        for (const auto &kv : runtime_constant_lookup) {
           auto it = runtime_arg_index.find(kv.first);
           if (it != runtime_arg_index.end()) {
             row[it->second] = kv.second;
@@ -252,8 +272,8 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   if (core_runtime_args.empty()) {
     core_runtime_args.push_back(std::vector<int64_t>(arg_count, 0));
   }
-  for (auto& row : core_runtime_args) {
-    for (int64_t& value : row) {
+  for (auto &row : core_runtime_args) {
+    for (int64_t &value : row) {
       ICHECK_GE(value, 0) << "Runtime argument values must be non-negative";
     }
   }
@@ -269,8 +289,8 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   };
   std::vector<BufferInfo> buffers;
   buffers.reserve(func->buffer_map.size());
-  for (const auto& kv : func->buffer_map) {
-    const Buffer& buffer = kv.second;
+  for (const auto &kv : func->buffer_map) {
+    const Buffer &buffer = kv.second;
     BufferInfo info;
     info.name = buffer->name;
     info.memory = "DRAM";
@@ -281,8 +301,9 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
     info.shard_grid_x = 1;
 
     std::string attr_key = "tt.buffer." + info.name;
-    if (auto meta_attr = func->attrs.GetAttr<Map<String, ObjectRef>>(attr_key)) {
-      const auto& meta = meta_attr.value();
+    if (auto meta_attr =
+            func->attrs.GetAttr<Map<String, ObjectRef>>(attr_key)) {
+      const auto &meta = meta_attr.value();
       if (meta.count(String("memory"))) {
         info.memory = std::string(Downcast<String>(meta[String("memory")]));
       }
@@ -290,16 +311,19 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
         info.layout = std::string(Downcast<String>(meta[String("layout")]));
       }
       if (meta.count(String("tile_shape"))) {
-        Array<Integer> tile_shape = Downcast<Array<Integer>>(meta[String("tile_shape")]);
+        Array<Integer> tile_shape =
+            Downcast<Array<Integer>>(meta[String("tile_shape")]);
         if (tile_shape.size() >= 2) {
           info.tile_rows = tile_shape[0].IntValue();
           info.tile_cols = tile_shape[1].IntValue();
         }
       }
       if (meta.count(String("nd_shard"))) {
-        Map<String, ObjectRef> nd = Downcast<Map<String, ObjectRef>>(meta[String("nd_shard")]);
+        Map<String, ObjectRef> nd =
+            Downcast<Map<String, ObjectRef>>(meta[String("nd_shard")]);
         if (nd.count(String("projected_grid"))) {
-          Array<Integer> grid = Downcast<Array<Integer>>(nd[String("projected_grid")]);
+          Array<Integer> grid =
+              Downcast<Array<Integer>>(nd[String("projected_grid")]);
           if (grid.size() >= 2) {
             info.shard_grid_y = grid[0].IntValue();
             info.shard_grid_x = grid[1].IntValue();
@@ -309,15 +333,17 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
     }
     buffers.push_back(std::move(info));
   }
-  std::sort(buffers.begin(), buffers.end(), [](const BufferInfo& lhs, const BufferInfo& rhs) {
-    return lhs.name < rhs.name;
-  });
+  std::sort(buffers.begin(), buffers.end(),
+            [](const BufferInfo &lhs, const BufferInfo &rhs) {
+              return lhs.name < rhs.name;
+            });
 
   size_t core_count = core_runtime_args.size();
 
   // Generate host program source
   code << "// Generated TT Host Metadata Program\n";
-  code << "// Partition-aware host summary derived from layout-aware metadata\n\n";
+  code << "// Partition-aware host summary derived from layout-aware "
+          "metadata\n\n";
   code << "#include <array>\n";
   code << "#include <cstdint>\n";
   code << "#include <iostream>\n";
@@ -334,8 +360,10 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   code << "  uint32_t shard_grid_y;\n";
   code << "  uint32_t shard_grid_x;\n";
   code << "  TensorAccessorArgs()\n";
-  code << "      : initialized(false), buffer(nullptr), memory(nullptr), layout(nullptr),\n";
-  code << "        tile_rows(0), tile_cols(0), shard_grid_y(0), shard_grid_x(0) {}\n";
+  code << "      : initialized(false), buffer(nullptr), memory(nullptr), "
+          "layout(nullptr),\n";
+  code << "        tile_rows(0), tile_cols(0), shard_grid_y(0), "
+          "shard_grid_x(0) {}\n";
   code << "  static TensorAccessorArgs Create(const char* buffer,\n";
   code << "                                    const char* memory,\n";
   code << "                                    const char* layout,\n";
@@ -358,7 +386,8 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
 
   code << "inline void GuardTensorAccessor(const TensorAccessorArgs& args) {\n";
   code << "  if (!args.initialized) {\n";
-  code << "    throw std::runtime_error(\"TensorAccessorArgs must be created via TensorAccessorArgs::Create\");\n";
+  code << "    throw std::runtime_error(\"TensorAccessorArgs must be created "
+          "via TensorAccessorArgs::Create\");\n";
   code << "  }\n";
   code << "}\n\n";
 
@@ -367,7 +396,8 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   code << "  uint32_t value;\n";
   code << "};\n\n";
 
-  code << "constexpr const char* kPartitionMode = " << quote(partition_mode) << ";\n";
+  code << "constexpr const char* kPartitionMode = " << quote(partition_mode)
+       << ";\n";
   code << "constexpr uint32_t kMt = " << dims.Mt << ";\n";
   code << "constexpr uint32_t kKt = " << dims.Kt << ";\n";
   code << "constexpr uint32_t kNt = " << dims.Nt << ";\n";
@@ -375,7 +405,8 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   code << "constexpr uint32_t kK = " << dims.K << ";\n";
   code << "constexpr uint32_t kN = " << dims.N << ";\n\n";
 
-  code << "constexpr std::array<const char*, " << arg_count << "> kRuntimeArgNames = {";
+  code << "constexpr std::array<const char*, " << arg_count
+       << "> kRuntimeArgNames = {";
   if (!runtime_arg_names.empty()) {
     code << "{";
     for (size_t i = 0; i < runtime_arg_names.size(); ++i) {
@@ -388,12 +419,14 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   }
   code << "};\n";
 
-  code << "constexpr std::array<RuntimeConstant, " << runtime_constants.size() << "> kRuntimeConstants = {";
+  code << "constexpr std::array<RuntimeConstant, " << runtime_constants.size()
+       << "> kRuntimeConstants = {";
   if (!runtime_constants.empty()) {
     code << "{\n";
     for (size_t i = 0; i < runtime_constants.size(); ++i) {
-      const auto& kv = runtime_constants[i];
-      code << "    {" << quote(kv.first) << ", " << static_cast<uint32_t>(kv.second) << "}";
+      const auto &kv = runtime_constants[i];
+      code << "    {" << quote(kv.first) << ", "
+           << static_cast<uint32_t>(kv.second) << "}";
       if (i + 1 < runtime_constants.size()) {
         code << ",";
       }
@@ -403,10 +436,10 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   }
   code << "};\n";
 
-  code << "constexpr std::array<std::array<uint32_t, " << arg_count << ">, " << core_count
-       << "> kCoreRuntimeArgs = {\n";
+  code << "constexpr std::array<std::array<uint32_t, " << arg_count << ">, "
+       << core_count << "> kCoreRuntimeArgs = {\n";
   for (size_t core = 0; core < core_count; ++core) {
-    const auto& row = core_runtime_args[core];
+    const auto &row = core_runtime_args[core];
     code << "    {";
     if (!row.empty()) {
       code << "{";
@@ -426,8 +459,10 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   }
   code << "};\n\n";
 
-  code << "static_assert(kCoreRuntimeArgs.size() >= 1, \"At least one core required\");\n";
-  code << "static_assert(kRuntimeArgNames.size() == 0 || kRuntimeArgNames.size() == kCoreRuntimeArgs[0].size(),\n";
+  code << "static_assert(kCoreRuntimeArgs.size() >= 1, \"At least one core "
+          "required\");\n";
+  code << "static_assert(kRuntimeArgNames.size() == 0 || "
+          "kRuntimeArgNames.size() == kCoreRuntimeArgs[0].size(),\n";
   code << "              \"Runtime argument schema mismatch\");\n\n";
 
   if (buffers.empty()) {
@@ -435,9 +470,10 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   } else {
     code << "TensorAccessorArgs tensor_accessors[] = {\n";
     for (size_t i = 0; i < buffers.size(); ++i) {
-      const BufferInfo& info = buffers[i];
-      code << "    TensorAccessorArgs::Create(" << quote(info.name) << ", " << quote(info.memory) << ", "
-           << quote(info.layout) << ", " << info.tile_rows << ", " << info.tile_cols << ", "
+      const BufferInfo &info = buffers[i];
+      code << "    TensorAccessorArgs::Create(" << quote(info.name) << ", "
+           << quote(info.memory) << ", " << quote(info.layout) << ", "
+           << info.tile_rows << ", " << info.tile_cols << ", "
            << info.shard_grid_y << ", " << info.shard_grid_x << ")";
       if (i + 1 < buffers.size()) {
         code << ",";
@@ -448,18 +484,24 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   }
 
   code << "int main() {\n";
-  code << "  std::cout << \"Tenstorrent Host Metadata Summary\" << std::endl;\n";
-  code << "  std::cout << \"Partition mode: \" << kPartitionMode << std::endl;\n";
-  code << "  std::cout << \"Tiled dims (Mt,Kt,Nt): \" << kMt << \", \" << kKt << \", \" << kNt << std::endl;\n";
-  code << "  std::cout << \"Element dims (M,K,N): \" << kM << \", \" << kK << \", \" << kN << std::endl;\n\n";
+  code
+      << "  std::cout << \"Tenstorrent Host Metadata Summary\" << std::endl;\n";
+  code << "  std::cout << \"Partition mode: \" << kPartitionMode << "
+          "std::endl;\n";
+  code << "  std::cout << \"Tiled dims (Mt,Kt,Nt): \" << kMt << \", \" << kKt "
+          "<< \", \" << kNt << std::endl;\n";
+  code << "  std::cout << \"Element dims (M,K,N): \" << kM << \", \" << kK << "
+          "\", \" << kN << std::endl;\n\n";
 
   code << "  for (const auto& ta : tensor_accessors) {\n";
   code << "    GuardTensorAccessor(ta);\n";
   code << "    std::cout << \"  buffer=\" << ta.buffer\n";
   code << "              << \", memory=\" << ta.memory\n";
   code << "              << \", layout=\" << ta.layout\n";
-  code << "              << \", tile=\" << ta.tile_rows << \"x\" << ta.tile_cols\n";
-  code << "              << \", shard=\" << ta.shard_grid_y << \"x\" << ta.shard_grid_x\n";
+  code << "              << \", tile=\" << ta.tile_rows << \"x\" << "
+          "ta.tile_cols\n";
+  code << "              << \", shard=\" << ta.shard_grid_y << \"x\" << "
+          "ta.shard_grid_x\n";
   code << "              << std::endl;\n";
   code << "  }\n\n";
 
@@ -468,11 +510,13 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
   code << "    std::cout << \"  (none)\" << std::endl;\n";
   code << "  } else {\n";
   code << "    for (const auto& constant : kRuntimeConstants) {\n";
-  code << "      std::cout << \"  \" << constant.name << \" = \" << constant.value << std::endl;\n";
+  code << "      std::cout << \"  \" << constant.name << \" = \" << "
+          "constant.value << std::endl;\n";
   code << "    }\n";
   code << "  }\n\n";
 
-  code << "  std::cout << \"Runtime args per core (\" << kCoreRuntimeArgs.size() << \" cores)\" << std::endl;\n";
+  code << "  std::cout << \"Runtime args per core (\" << "
+          "kCoreRuntimeArgs.size() << \" cores)\" << std::endl;\n";
   code << "  for (size_t core = 0; core < kCoreRuntimeArgs.size(); ++core) {\n";
   code << "    const auto& args = kCoreRuntimeArgs[core];\n";
   code << "    std::cout << \"  core \" << core;\n";
@@ -499,7 +543,7 @@ std::string EmitTTHostProgram(const PrimFunc& func) {
 /*!
  * \brief Generate tt.plan.json metadata
  */
-std::string EmitTTPlanJSON(const PrimFunc& func) {
+std::string EmitTTPlanJSON(const PrimFunc &func) {
   std::ostringstream json;
 
   // Read metadata
@@ -508,7 +552,8 @@ std::string EmitTTPlanJSON(const PrimFunc& func) {
   auto grid_z = func->attrs.GetAttr<Integer>("tt_grid_z");
   auto num_tiles = func->attrs.GetAttr<Integer>("tt_num_tiles");
   auto num_cores = func->attrs.GetAttr<Integer>("tt_num_cores");
-  auto tiles_per_core = func->attrs.GetAttr<Array<Array<Integer>>>("tt_tiles_per_core");
+  auto tiles_per_core =
+      func->attrs.GetAttr<Array<Array<Integer>>>("tt_tiles_per_core");
 
   json << "{\n";
   json << "  \"version\": \"1.0\",\n";
@@ -517,15 +562,20 @@ std::string EmitTTPlanJSON(const PrimFunc& func) {
 
   // Grid section
   json << "  \"grid\": {\n";
-  json << "    \"x\": " << (grid_x.defined() ? grid_x.value()->value : 1) << ",\n";
-  json << "    \"y\": " << (grid_y.defined() ? grid_y.value()->value : 1) << ",\n";
-  json << "    \"z\": " << (grid_z.defined() ? grid_z.value()->value : 1) << ",\n";
-  json << "    \"total_tiles\": " << (num_tiles.defined() ? num_tiles.value()->value : 1) << "\n";
+  json << "    \"x\": " << (grid_x.defined() ? grid_x.value()->value : 1)
+       << ",\n";
+  json << "    \"y\": " << (grid_y.defined() ? grid_y.value()->value : 1)
+       << ",\n";
+  json << "    \"z\": " << (grid_z.defined() ? grid_z.value()->value : 1)
+       << ",\n";
+  json << "    \"total_tiles\": "
+       << (num_tiles.defined() ? num_tiles.value()->value : 1) << "\n";
   json << "  },\n";
 
   // Cores section
   json << "  \"cores\": {\n";
-  json << "    \"num_cores\": " << (num_cores.defined() ? num_cores.value()->value : 64) << ",\n";
+  json << "    \"num_cores\": "
+       << (num_cores.defined() ? num_cores.value()->value : 64) << ",\n";
   json << "    \"topology\": \"8x8_grid\",\n";
   json << "    \"assignments\": [\n";
 
@@ -537,7 +587,8 @@ std::string EmitTTPlanJSON(const PrimFunc& func) {
 
       json << "      {\"core_id\": " << i << ", \"start_tile\": " << start
            << ", \"count\": " << count << "}";
-      if (i < tiles_per_core.value().size() - 1) json << ",";
+      if (i < tiles_per_core.value().size() - 1)
+        json << ",";
       json << "\n";
     }
   }
@@ -559,13 +610,14 @@ std::string EmitTTPlanJSON(const PrimFunc& func) {
 /*!
  * \brief Main codegen entry point - generates all TT artifacts
  */
-std::unordered_map<std::string, std::string> CodegenTT(const IRModule& mod, const std::string& target) {
+std::unordered_map<std::string, std::string>
+CodegenTT(const IRModule &mod, const std::string &target) {
   std::unordered_map<std::string, std::string> artifacts;
 
   // Get main function
   auto funcs = mod->functions;
   PrimFunc main_func;
-  for (const auto& kv : funcs) {
+  for (const auto &kv : funcs) {
     if (kv.first->name_hint == "main") {
       main_func = Downcast<PrimFunc>(kv.second);
       break;
@@ -593,12 +645,13 @@ std::unordered_map<std::string, std::string> CodegenTT(const IRModule& mod, cons
 /*!
  * \brief Python FFI wrapper for CodegenTT
  */
-Map<String, String> EmitTTArtifacts(const IRModule& mod, const std::string& target) {
+Map<String, String> EmitTTArtifacts(const IRModule &mod,
+                                    const std::string &target) {
   auto artifacts = CodegenTT(mod, target);
 
   // Convert std::unordered_map to TVM Map for Python
   Map<String, String> result;
-  for (const auto& kv : artifacts) {
+  for (const auto &kv : artifacts) {
     result.Set(kv.first, kv.second);
   }
 
@@ -608,11 +661,12 @@ Map<String, String> EmitTTArtifacts(const IRModule& mod, const std::string& targ
 /*!
  * \brief Build function for Tenstorrent target
  *
- * This is the entry point called by TVM's build system when target="tenstorrent".
- * It generates TT kernel code and returns a runtime module containing the artifacts.
+ * This is the entry point called by TVM's build system when
+ * target="tenstorrent". It generates TT kernel code and returns a runtime
+ * module containing the artifacts.
  *
- * For now, this is a dry-run implementation that generates code but doesn't compile
- * for actual hardware (that requires TT-Metalium SDK).
+ * For now, this is a dry-run implementation that generates code but doesn't
+ * compile for actual hardware (that requires TT-Metalium SDK).
  */
 runtime::Module BuildTileLangTT(IRModule mod, Target target) {
   // For now, just return a null module
@@ -634,5 +688,5 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("target.build.tilelang_tt", BuildTileLangTT);
 });
 
-}  // namespace tl
-}  // namespace tvm
+} // namespace tl
+} // namespace tvm

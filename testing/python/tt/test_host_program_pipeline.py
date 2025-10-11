@@ -45,7 +45,15 @@ def _make_tt_module(partition_mode: str = "global") -> tvm.IRModule:
             "tt_shard_coord_y",
             "tt_shard_coord_x",
         ]
-        runtime_constants: Dict[str, int] = {"Mt": 4, "Kt": 1, "Nt": 4, "Sm": 2, "Sn": 2, "Gy": 2, "Gx": 2}
+        runtime_constants: Dict[str, int] = {
+            "Mt": 4,
+            "Kt": 1,
+            "Nt": 4,
+            "Sm": 2,
+            "Sn": 2,
+            "Gy": 2,
+            "Gx": 2
+        }
         core_runtime_args: List[List[int]] = [
             [0, 4, 4, 1, 4, 2, 2, 2, 2, 0, 0],
             [0, 4, 4, 1, 4, 2, 2, 2, 2, 0, 1],
@@ -58,19 +66,28 @@ def _make_tt_module(partition_mode: str = "global") -> tvm.IRModule:
                 "memory": "L1",
                 "layout": "sharded",
                 "tile_shape": [32, 32],
-                "nd_shard": {"projected_grid": [2, 2], "projected_shard_tiles": [2, 2]},
+                "nd_shard": {
+                    "projected_grid": [2, 2],
+                    "projected_shard_tiles": [2, 2]
+                },
             },
             "B": {
                 "memory": "L1",
                 "layout": "sharded",
                 "tile_shape": [32, 32],
-                "nd_shard": {"projected_grid": [2, 2], "projected_shard_tiles": [2, 2]},
+                "nd_shard": {
+                    "projected_grid": [2, 2],
+                    "projected_shard_tiles": [2, 2]
+                },
             },
             "C": {
                 "memory": "L1",
                 "layout": "sharded",
                 "tile_shape": [32, 32],
-                "nd_shard": {"projected_grid": [2, 2], "projected_shard_tiles": [2, 2]},
+                "nd_shard": {
+                    "projected_grid": [2, 2],
+                    "projected_shard_tiles": [2, 2]
+                },
             },
         }
     else:
@@ -84,32 +101,42 @@ def _make_tt_module(partition_mode: str = "global") -> tvm.IRModule:
         core_runtime_args = [[0, total_tiles, grid_y, 1, grid_x]]
         tiles_per_core = [[0, total_tiles]]
         buffer_meta = {
-            "A": {"memory": "DRAM", "layout": "interleaved", "tile_shape": [32, 32]},
-            "B": {"memory": "DRAM", "layout": "interleaved", "tile_shape": [32, 32]},
-            "C": {"memory": "DRAM", "layout": "interleaved", "tile_shape": [32, 32]},
+            "A": {
+                "memory": "DRAM",
+                "layout": "interleaved",
+                "tile_shape": [32, 32]
+            },
+            "B": {
+                "memory": "DRAM",
+                "layout": "interleaved",
+                "tile_shape": [32, 32]
+            },
+            "C": {
+                "memory": "DRAM",
+                "layout": "interleaved",
+                "tile_shape": [32, 32]
+            },
         }
 
     num_tiles = grid_x * grid_y
     num_cores = len(core_runtime_args)
 
-    func = func.with_attrs(
-        {
-            "global_symbol": "main",
-            "tt_grid_x": grid_x,
-            "tt_grid_y": grid_y,
-            "tt_grid_z": 1,
-            "tt_num_tiles": num_tiles,
-            "tt_num_cores": num_cores,
-            "tt_tiles_per_core": tiles_per_core,
-            "tt.partition_mode": tvm.runtime.convert(partition_mode),
-            "tt.grid_tiles": tvm.runtime.convert([grid_y, grid_x]),
-            "tt.local_shape_tiles": tvm.runtime.convert(local_tiles),
-            "tt.shard_grid": tvm.runtime.convert(shard_grid),
-            "tt.runtime_constants": tvm.runtime.convert(runtime_constants),
-            "tt.runtime_arg_names": tvm.runtime.convert(runtime_arg_names),
-            "tt_core_runtime_args": tvm.runtime.convert(core_runtime_args),
-        }
-    )
+    func = func.with_attrs({
+        "global_symbol": "main",
+        "tt_grid_x": grid_x,
+        "tt_grid_y": grid_y,
+        "tt_grid_z": 1,
+        "tt_num_tiles": num_tiles,
+        "tt_num_cores": num_cores,
+        "tt_tiles_per_core": tiles_per_core,
+        "tt.partition_mode": tvm.runtime.convert(partition_mode),
+        "tt.grid_tiles": tvm.runtime.convert([grid_y, grid_x]),
+        "tt.local_shape_tiles": tvm.runtime.convert(local_tiles),
+        "tt.shard_grid": tvm.runtime.convert(shard_grid),
+        "tt.runtime_constants": tvm.runtime.convert(runtime_constants),
+        "tt.runtime_arg_names": tvm.runtime.convert(runtime_arg_names),
+        "tt_core_runtime_args": tvm.runtime.convert(core_runtime_args),
+    })
 
     for name, meta in buffer_meta.items():
         func = func.with_attr(f"tt.buffer.{name}", tvm.runtime.convert(meta))
@@ -150,8 +177,7 @@ def test_host_program_runtime_args_schema_local_shard():
     assert 'constexpr const char* kPartitionMode = "local_shard";' in host_cpp
     assert (
         'kRuntimeArgNames = {{"tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt", "Sm", "Sn", "Gy", '
-        '"Gx", "tt_shard_coord_y", "tt_shard_coord_x"}};'
-    ) in host_cpp
+        '"Gx", "tt_shard_coord_y", "tt_shard_coord_x"}};') in host_cpp
     assert "{{0, 4, 4, 1, 4, 2, 2, 2, 2, 0, 0}}" in host_cpp
     assert "{{0, 4, 4, 1, 4, 2, 2, 2, 2, 1, 1}}" in host_cpp
     assert 'TensorAccessorArgs::Create("A", "L1", "sharded", 32, 32, 2, 2)' in host_cpp

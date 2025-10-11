@@ -10,8 +10,7 @@ import math
 from typing import Any, Dict, Optional
 
 from tilelang import tvm as tvm
-from tvm.ir import DataType
-from tvm.runtime import convert
+from tvm.runtime import DataType, convert
 from tvm.tir import IntImm, FloatImm
 from tvm.tir.analysis import simplify
 
@@ -44,10 +43,10 @@ def annotate_tt_schedule(func: tvm.tir.PrimFunc, schedule: Dict[str, Any]) -> tv
 
 
 def _dtype_num_bytes(dtype_str: str) -> int:
-    dtype = DataType(dtype_str)
-    if dtype.bits % 8 != 0:
+    dt = DataType(dtype_str)
+    if dt.bits % 8 != 0:
         raise ValueError(f"Unsupported dtype bit-width for {dtype_str}")
-    return (dtype.bits // 8) * dtype.lanes
+    return (dt.bits // 8) * dt.lanes
 
 
 def _infer_data_format(dtype_str: str) -> str:
@@ -340,7 +339,9 @@ def infer_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
             layout_kind = layout_kind.lower()
             if layout_kind in ("dram_interleaved", "interleaved"):
                 layout_kind = "interleaved"
-            elif layout_kind != "sharded":
+            elif layout_kind == "sharded":
+                layout_kind = "sharded"
+            else:
                 layout_kind = "interleaved"
 
             dtype_str = str(metadata.get("dtype", buffer.dtype))
@@ -407,11 +408,9 @@ def infer_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
                     max(1, math.ceil(shard_n / tile_shape[1])),
                 ]
 
-                if buffer_meta["memory"].upper() == "L1":
-                    if shard_m % tile_shape[0] != 0 or shard_n % tile_shape[1] != 0:
-                        raise ValueError(
-                            f"L1 shard for buffer '{buffer_name}' must be tile-aligned"
-                        )
+                if buffer_meta["memory"].upper() == "L1" and (shard_m % tile_shape[0] != 0 or
+                                                              shard_n % tile_shape[1] != 0):
+                    raise ValueError(f"L1 shard for buffer '{buffer_name}' must be tile-aligned")
 
                 nd_shard_processed = dict(nd_shard)
                 nd_shard_processed["projected_grid"] = projected_grid
@@ -474,9 +473,7 @@ def propagate_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
 
         return new_func
 
-    pass_obj = tvm.tir.transform.prim_func_pass(
-        transform, opt_level=0, name="tl.PropagateTTLayout"
-    )
+    pass_obj = tvm.tir.transform.prim_func_pass(transform, opt_level=0, name="tl.PropagateTTLayout")
     return pass_obj(mod)
 
 
@@ -542,9 +539,7 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
 
         if partition_mode == "local_shard":
             if detected_grid is None or detected_tiles is None:
-                raise ValueError(
-                    "layout-aware partitioning requires sharded buffer metadata"
-                )
+                raise ValueError("layout-aware partitioning requires sharded buffer metadata")
             shard_grid = detected_grid
             local_tiles = detected_tiles
 
@@ -577,7 +572,7 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
         if partition_mode == "local_shard":
             runtime_constants.update({"Sm": Sm, "Sn": Sn, "Gy": Gy, "Gx": Gx})
 
-        mesh_width = int(round(num_cores ** 0.5))
+        mesh_width = int(round(num_cores**0.5))
         if mesh_width * mesh_width != num_cores:
             mesh_width = grid_x if grid_x > 0 else max(num_cores, 1)
 
@@ -602,21 +597,19 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
                     shard_sx = 0
 
                 core_ranges.append([x, y, x, y, start, count])
-                core_runtime_args.append(
-                    [
-                        start,
-                        count,
-                        Mt,
-                        1,
-                        Nt,
-                        Sm,
-                        Sn,
-                        Gy,
-                        Gx,
-                        shard_sy,
-                        shard_sx,
-                    ]
-                )
+                core_runtime_args.append([
+                    start,
+                    count,
+                    Mt,
+                    1,
+                    Nt,
+                    Sm,
+                    Sn,
+                    Gy,
+                    Gx,
+                    shard_sy,
+                    shard_sx,
+                ])
             else:
                 core_ranges.append([x, y, x, y, start, count])
                 core_runtime_args.append([start, count, Mt, 1, Nt])
@@ -633,8 +626,7 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
         return new_func
 
     pass_obj = tvm.tir.transform.prim_func_pass(
-        transform, opt_level=0, name="tl.LayoutAwareWorkPartitionTT"
-    )
+        transform, opt_level=0, name="tl.LayoutAwareWorkPartitionTT")
     return pass_obj(mod)
 
 

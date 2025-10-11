@@ -39,7 +39,7 @@ using namespace tir;
 // Constructor and core infrastructure
 //----------------------------------------------------------------------
 
-TTCodegenVisitor::TTCodegenVisitor(const PrimFunc& func)
+TTCodegenVisitor::TTCodegenVisitor(const PrimFunc &func)
     : func_(func), indent_level_(0), var_counter_(0) {
   // Partition mode metadata
   if (auto mode = func_->attrs.GetAttr<String>("tt.partition_mode")) {
@@ -48,21 +48,27 @@ TTCodegenVisitor::TTCodegenVisitor(const PrimFunc& func)
     partition_mode_ = "global";
   }
 
-  runtime_constants_ = func_->attrs.GetAttr<Map<String, ObjectRef>>("tt.runtime_constants");
+  if (auto constants = func_->attrs.GetAttr<Map<String, ObjectRef>>(
+          "tt.runtime_constants")) {
+    runtime_constants_ = constants.value();
+  }
 
   Array<String> runtime_names_attr;
-  if (auto names = func_->attrs.GetAttr<Array<String>>("tt.runtime_arg_names")) {
+  if (auto names =
+          func_->attrs.GetAttr<Array<String>>("tt.runtime_arg_names")) {
     runtime_names_attr = names.value();
-  } else if (auto runtime_args = func_->attrs.GetAttr<Map<String, ObjectRef>>("tt_runtime_args")) {
+  } else if (auto runtime_args = func_->attrs.GetAttr<Map<String, ObjectRef>>(
+                 "tt_runtime_args")) {
     if (runtime_args.value().count(String("arg_names"))) {
-      runtime_names_attr = Downcast<Array<String>>(runtime_args.value()[String("arg_names")]);
+      runtime_names_attr =
+          Downcast<Array<String>>(runtime_args.value()[String("arg_names")]);
     }
   }
 
   if (!runtime_names_attr.defined() || runtime_names_attr.empty()) {
     runtime_arg_names_ = {"tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt"};
   } else {
-    for (const auto& name : runtime_names_attr) {
+    for (const auto &name : runtime_names_attr) {
       runtime_arg_names_.push_back(name);
     }
   }
@@ -78,13 +84,13 @@ std::string TTCodegenVisitor::GetCode() const { return code_.str(); }
 
 void TTCodegenVisitor::Indent() {
   for (int i = 0; i < indent_level_; ++i) {
-    code_ << "    ";  // 4 spaces per indent level
+    code_ << "    "; // 4 spaces per indent level
   }
 }
 
-void TTCodegenVisitor::Emit(const std::string& text) { code_ << text; }
+void TTCodegenVisitor::Emit(const std::string &text) { code_ << text; }
 
-void TTCodegenVisitor::EmitLine(const std::string& line) {
+void TTCodegenVisitor::EmitLine(const std::string &line) {
   Indent();
   code_ << line << "\n";
 }
@@ -93,14 +99,14 @@ void TTCodegenVisitor::EmitLine(const std::string& line) {
 // Statement visitors
 //----------------------------------------------------------------------
 
-void TTCodegenVisitor::VisitStmt_(const ForNode* op) {
+void TTCodegenVisitor::VisitStmt_(const ForNode *op) {
   // Emit C++ for loop
   std::string loop_var = GetVarName(op->loop_var);
   std::string min_expr = EmitExpr(op->min);
   std::string extent_expr = EmitExpr(op->extent);
 
-  EmitLine("for (int " + loop_var + " = " + min_expr + "; " + loop_var + " < " + min_expr + " + " +
-           extent_expr + "; ++" + loop_var + ") {");
+  EmitLine("for (int " + loop_var + " = " + min_expr + "; " + loop_var + " < " +
+           min_expr + " + " + extent_expr + "; ++" + loop_var + ") {");
   IncIndent();
 
   // Visit loop body
@@ -110,7 +116,7 @@ void TTCodegenVisitor::VisitStmt_(const ForNode* op) {
   EmitLine("}");
 }
 
-void TTCodegenVisitor::VisitStmt_(const AttrStmtNode* op) {
+void TTCodegenVisitor::VisitStmt_(const AttrStmtNode *op) {
   // Check for TT-specific attributes
   std::string attr_key = op->attr_key;
 
@@ -132,13 +138,13 @@ void TTCodegenVisitor::VisitStmt_(const AttrStmtNode* op) {
   }
 }
 
-void TTCodegenVisitor::VisitStmt_(const AllocateNode* op) {
+void TTCodegenVisitor::VisitStmt_(const AllocateNode *op) {
   // Emit local variable declaration
   std::string var_name = GetVarName(op->buffer_var);
   std::string dtype_str;
 
   if (op->dtype == DataType::Float(16)) {
-    dtype_str = "uint16_t";  // fp16 as uint16_t
+    dtype_str = "uint16_t"; // fp16 as uint16_t
   } else if (op->dtype == DataType::Float(32)) {
     dtype_str = "float";
   } else if (op->dtype == DataType::Int(32)) {
@@ -150,7 +156,8 @@ void TTCodegenVisitor::VisitStmt_(const AllocateNode* op) {
   // Calculate total size
   std::ostringstream size_expr;
   for (size_t i = 0; i < op->extents.size(); ++i) {
-    if (i > 0) size_expr << " * ";
+    if (i > 0)
+      size_expr << " * ";
     size_expr << EmitExpr(op->extents[i]);
   }
 
@@ -160,13 +167,13 @@ void TTCodegenVisitor::VisitStmt_(const AllocateNode* op) {
   VisitStmt(op->body);
 }
 
-void TTCodegenVisitor::VisitStmt_(const DeclBufferNode* op) {
+void TTCodegenVisitor::VisitStmt_(const DeclBufferNode *op) {
   // Track buffer metadata (buffer name, CB ID if applicable)
   // This is mostly for metadata tracking, no code emission needed
   VisitStmt(op->body);
 }
 
-void TTCodegenVisitor::VisitStmt_(const BufferStoreNode* op) {
+void TTCodegenVisitor::VisitStmt_(const BufferStoreNode *op) {
   // Emit buffer store as assignment
   std::string buf_name = GetBufferName(op->buffer);
   std::string value_expr = EmitExpr(op->value);
@@ -174,21 +181,22 @@ void TTCodegenVisitor::VisitStmt_(const BufferStoreNode* op) {
   // Build index expression
   std::ostringstream indices;
   for (size_t i = 0; i < op->indices.size(); ++i) {
-    if (i > 0) indices << "][";
+    if (i > 0)
+      indices << "][";
     indices << EmitExpr(op->indices[i]);
   }
 
   EmitLine(buf_name + "[" + indices.str() + "] = " + value_expr + ";");
 }
 
-void TTCodegenVisitor::VisitStmt_(const SeqStmtNode* op) {
+void TTCodegenVisitor::VisitStmt_(const SeqStmtNode *op) {
   // Visit each statement in sequence
-  for (const Stmt& stmt : op->seq) {
+  for (const Stmt &stmt : op->seq) {
     VisitStmt(stmt);
   }
 }
 
-void TTCodegenVisitor::VisitStmt_(const IfThenElseNode* op) {
+void TTCodegenVisitor::VisitStmt_(const IfThenElseNode *op) {
   // Emit if-then-else
   std::string cond_expr = EmitExpr(op->condition);
   EmitLine("if (" + cond_expr + ") {");
@@ -206,7 +214,7 @@ void TTCodegenVisitor::VisitStmt_(const IfThenElseNode* op) {
   EmitLine("}");
 }
 
-void TTCodegenVisitor::VisitStmt_(const EvaluateNode* op) {
+void TTCodegenVisitor::VisitStmt_(const EvaluateNode *op) {
   // Emit expression as statement
   std::string expr_str = EmitExpr(op->value);
   if (!expr_str.empty()) {
@@ -218,29 +226,29 @@ void TTCodegenVisitor::VisitStmt_(const EvaluateNode* op) {
 // Expression visitors
 //----------------------------------------------------------------------
 
-void TTCodegenVisitor::VisitExpr_(const BufferLoadNode* op) {
+void TTCodegenVisitor::VisitExpr_(const BufferLoadNode *op) {
   // This is called during expression walking, but we need to return void
   // Actual expression code is generated by EmitExpr()
   // Do nothing here - expression emission is handled by EmitExpr()
 }
 
-void TTCodegenVisitor::VisitExpr_(const VarNode* op) {
+void TTCodegenVisitor::VisitExpr_(const VarNode *op) {
   // Do nothing - expression emission is handled by EmitExpr()
 }
 
-void TTCodegenVisitor::VisitExpr_(const IntImmNode* op) {
+void TTCodegenVisitor::VisitExpr_(const IntImmNode *op) {
   // Do nothing - expression emission is handled by EmitExpr()
 }
 
-void TTCodegenVisitor::VisitExpr_(const FloatImmNode* op) {
+void TTCodegenVisitor::VisitExpr_(const FloatImmNode *op) {
   // Do nothing - expression emission is handled by EmitExpr()
 }
 
-void TTCodegenVisitor::VisitExpr_(const AddNode* op) {
+void TTCodegenVisitor::VisitExpr_(const AddNode *op) {
   // Do nothing - expression emission is handled by EmitExpr()
 }
 
-void TTCodegenVisitor::VisitExpr_(const MulNode* op) {
+void TTCodegenVisitor::VisitExpr_(const MulNode *op) {
   // Do nothing - expression emission is handled by EmitExpr()
 }
 
@@ -248,11 +256,11 @@ void TTCodegenVisitor::VisitExpr_(const MulNode* op) {
 // Helper methods
 //----------------------------------------------------------------------
 
-std::string TTCodegenVisitor::GetVarName(const Var& var) {
+std::string TTCodegenVisitor::GetVarName(const Var &var) {
   return GetOrCreateVarName(var->name_hint);
 }
 
-std::string TTCodegenVisitor::GetBufferName(const Buffer& buf) {
+std::string TTCodegenVisitor::GetBufferName(const Buffer &buf) {
   // Use buffer name hint directly
   if (buf->name.empty()) {
     return "buf_" + std::to_string(reinterpret_cast<uintptr_t>(buf.get()));
@@ -260,69 +268,73 @@ std::string TTCodegenVisitor::GetBufferName(const Buffer& buf) {
   return buf->name;
 }
 
-std::string TTCodegenVisitor::EmitExpr(const PrimExpr& expr) {
+std::string TTCodegenVisitor::EmitExpr(const PrimExpr &expr) {
   // Recursively generate C++ expression code
   std::ostringstream expr_stream;
 
-  if (auto* int_imm = expr.as<IntImmNode>()) {
+  if (auto *int_imm = expr.as<IntImmNode>()) {
     expr_stream << int_imm->value;
-  } else if (auto* float_imm = expr.as<FloatImmNode>()) {
+  } else if (auto *float_imm = expr.as<FloatImmNode>()) {
     expr_stream << float_imm->value;
-  } else if (auto* var = expr.as<VarNode>()) {
+  } else if (auto *var = expr.as<VarNode>()) {
     expr_stream << GetVarName(GetRef<Var>(var));
-  } else if (auto* add = expr.as<AddNode>()) {
+  } else if (auto *add = expr.as<AddNode>()) {
     expr_stream << "(" << EmitExpr(add->a) << " + " << EmitExpr(add->b) << ")";
-  } else if (auto* sub = expr.as<SubNode>()) {
+  } else if (auto *sub = expr.as<SubNode>()) {
     expr_stream << "(" << EmitExpr(sub->a) << " - " << EmitExpr(sub->b) << ")";
-  } else if (auto* mul = expr.as<MulNode>()) {
+  } else if (auto *mul = expr.as<MulNode>()) {
     expr_stream << "(" << EmitExpr(mul->a) << " * " << EmitExpr(mul->b) << ")";
-  } else if (auto* div = expr.as<DivNode>()) {
+  } else if (auto *div = expr.as<DivNode>()) {
     expr_stream << "(" << EmitExpr(div->a) << " / " << EmitExpr(div->b) << ")";
-  } else if (auto* mod = expr.as<ModNode>()) {
+  } else if (auto *mod = expr.as<ModNode>()) {
     expr_stream << "(" << EmitExpr(mod->a) << " % " << EmitExpr(mod->b) << ")";
-  } else if (auto* floor_div = expr.as<FloorDivNode>()) {
-    expr_stream << "(" << EmitExpr(floor_div->a) << " / " << EmitExpr(floor_div->b) << ")";
-  } else if (auto* floor_mod = expr.as<FloorModNode>()) {
-    expr_stream << "(" << EmitExpr(floor_mod->a) << " % " << EmitExpr(floor_mod->b) << ")";
-  } else if (auto* lt = expr.as<LTNode>()) {
+  } else if (auto *floor_div = expr.as<FloorDivNode>()) {
+    expr_stream << "(" << EmitExpr(floor_div->a) << " / "
+                << EmitExpr(floor_div->b) << ")";
+  } else if (auto *floor_mod = expr.as<FloorModNode>()) {
+    expr_stream << "(" << EmitExpr(floor_mod->a) << " % "
+                << EmitExpr(floor_mod->b) << ")";
+  } else if (auto *lt = expr.as<LTNode>()) {
     expr_stream << "(" << EmitExpr(lt->a) << " < " << EmitExpr(lt->b) << ")";
-  } else if (auto* le = expr.as<LENode>()) {
+  } else if (auto *le = expr.as<LENode>()) {
     expr_stream << "(" << EmitExpr(le->a) << " <= " << EmitExpr(le->b) << ")";
-  } else if (auto* gt = expr.as<GTNode>()) {
+  } else if (auto *gt = expr.as<GTNode>()) {
     expr_stream << "(" << EmitExpr(gt->a) << " > " << EmitExpr(gt->b) << ")";
-  } else if (auto* ge = expr.as<GENode>()) {
+  } else if (auto *ge = expr.as<GENode>()) {
     expr_stream << "(" << EmitExpr(ge->a) << " >= " << EmitExpr(ge->b) << ")";
-  } else if (auto* eq = expr.as<EQNode>()) {
+  } else if (auto *eq = expr.as<EQNode>()) {
     expr_stream << "(" << EmitExpr(eq->a) << " == " << EmitExpr(eq->b) << ")";
-  } else if (auto* ne = expr.as<NENode>()) {
+  } else if (auto *ne = expr.as<NENode>()) {
     expr_stream << "(" << EmitExpr(ne->a) << " != " << EmitExpr(ne->b) << ")";
-  } else if (auto* buf_load = expr.as<BufferLoadNode>()) {
+  } else if (auto *buf_load = expr.as<BufferLoadNode>()) {
     std::string buf_name = GetBufferName(buf_load->buffer);
     expr_stream << buf_name << "[";
     for (size_t i = 0; i < buf_load->indices.size(); ++i) {
-      if (i > 0) expr_stream << "][";
+      if (i > 0)
+        expr_stream << "][";
       expr_stream << EmitExpr(buf_load->indices[i]);
     }
     expr_stream << "]";
-  } else if (auto* ramp = expr.as<RampNode>()) {
-    // Ramp node represents vectorized index: base + stride * lane_id for each lane
-    // For TT, this should ideally be handled at statement level with tile operations
-    // For now, emit the base (TODO: proper tile operation emission)
+  } else if (auto *ramp = expr.as<RampNode>()) {
+    // Ramp node represents vectorized index: base + stride * lane_id for each
+    // lane For TT, this should ideally be handled at statement level with tile
+    // operations For now, emit the base (TODO: proper tile operation emission)
     expr_stream << EmitExpr(ramp->base);
-  } else if (auto* broadcast = expr.as<BroadcastNode>()) {
+  } else if (auto *broadcast = expr.as<BroadcastNode>()) {
     // Broadcast node represents replicating a scalar across vector lanes
     // For TT, just emit the scalar value
     expr_stream << EmitExpr(broadcast->value);
-  } else if (auto* cast = expr.as<CastNode>()) {
+  } else if (auto *cast = expr.as<CastNode>()) {
     // Cast node for type conversion
     // Emit C-style cast
     expr_stream << "((" << cast->dtype << ")" << EmitExpr(cast->value) << ")";
-  } else if (auto* call = expr.as<CallNode>()) {
+  } else if (auto *call = expr.as<CallNode>()) {
     // Handle function calls
-    if (auto* global_var = call->op.as<GlobalVarNode>()) {
+    if (auto *global_var = call->op.as<GlobalVarNode>()) {
       expr_stream << global_var->name_hint << "(";
       for (size_t i = 0; i < call->args.size(); ++i) {
-        if (i > 0) expr_stream << ", ";
+        if (i > 0)
+          expr_stream << ", ";
         expr_stream << EmitExpr(call->args[i]);
       }
       expr_stream << ")";
@@ -337,31 +349,31 @@ std::string TTCodegenVisitor::EmitExpr(const PrimExpr& expr) {
   return expr_stream.str();
 }
 
-bool TTCodegenVisitor::IsCircularBuffer(const Buffer& buf) {
+bool TTCodegenVisitor::IsCircularBuffer(const Buffer &buf) {
   // Check if buffer scope indicates L1 memory
   std::string scope = buf.scope();
   return (scope == "local" || scope == "shared");
 }
 
-int TTCodegenVisitor::GetCBId(const Buffer& buf) {
+int TTCodegenVisitor::GetCBId(const Buffer &buf) {
   // Look up CB ID from metadata map
   auto it = buffer_to_cb_id_.find(buf.get());
   if (it != buffer_to_cb_id_.end()) {
     return it->second;
   }
-  return -1;  // Not a circular buffer
+  return -1; // Not a circular buffer
 }
 
-bool TTCodegenVisitor::IsGlobalBuffer(const Buffer& buf) {
+bool TTCodegenVisitor::IsGlobalBuffer(const Buffer &buf) {
   std::string scope = buf.scope();
   return (scope == "global" || scope.empty());
 }
 
-int TTCodegenVisitor::GetDTypeSize(const DataType& dtype) {
+int TTCodegenVisitor::GetDTypeSize(const DataType &dtype) {
   if (dtype == DataType::Float(16)) {
-    return 2;  // fp16 = 2 bytes
+    return 2; // fp16 = 2 bytes
   } else if (dtype == DataType::Float(32)) {
-    return 4;  // fp32 = 4 bytes
+    return 4; // fp32 = 4 bytes
   } else if (dtype == DataType::Int(32)) {
     return 4;
   } else if (dtype == DataType::Int(16)) {
@@ -369,14 +381,15 @@ int TTCodegenVisitor::GetDTypeSize(const DataType& dtype) {
   } else if (dtype == DataType::Int(8)) {
     return 1;
   } else {
-    return 4;  // Default
+    return 4; // Default
   }
 }
 
 void TTCodegenVisitor::InitBufferMetadata() {
   // Extract circular buffer information from func attributes
   // Look for tt_circular_buffers attribute (list of CB configs)
-  auto cb_configs = func_->attrs.GetAttr<Array<Map<String, ObjectRef>>>("tt_circular_buffers");
+  auto cb_configs = func_->attrs.GetAttr<Array<Map<String, ObjectRef>>>(
+      "tt_circular_buffers");
 
   if (cb_configs.defined()) {
     for (size_t i = 0; i < cb_configs.value().size(); ++i) {
@@ -391,7 +404,7 @@ void TTCodegenVisitor::InitBufferMetadata() {
         std::string buf_name = Downcast<String>(buf_name_ref);
 
         // Find buffer by name in func params
-        for (const auto& param : func_->params) {
+        for (const auto &param : func_->params) {
           if (param->name_hint == buf_name) {
             // Map buffer to CB ID
             // Note: We need to map BufferNode*, not the name
@@ -405,7 +418,7 @@ void TTCodegenVisitor::InitBufferMetadata() {
   }
 }
 
-std::string TTCodegenVisitor::GetOrCreateVarName(const std::string& original) {
+std::string TTCodegenVisitor::GetOrCreateVarName(const std::string &original) {
   // Check if we already have a mapping
   auto it = var_name_map_.find(original);
   if (it != var_name_map_.end()) {
@@ -426,8 +439,9 @@ std::string TTCodegenVisitor::GetOrCreateVarName(const std::string& original) {
   }
 
   // Check for C++ keywords and add suffix if needed
-  static const std::vector<std::string> keywords = {"if",   "else", "for",  "while", "do",
-                                                     "void", "int",  "float", "return", "break"};
+  static const std::vector<std::string> keywords = {
+      "if",   "else", "for",   "while",  "do",
+      "void", "int",  "float", "return", "break"};
   if (std::find(keywords.begin(), keywords.end(), cpp_name) != keywords.end()) {
     cpp_name += "_var";
   }
@@ -437,5 +451,5 @@ std::string TTCodegenVisitor::GetOrCreateVarName(const std::string& original) {
   return cpp_name;
 }
 
-}  // namespace tl
-}  // namespace tvm
+} // namespace tl
+} // namespace tvm
