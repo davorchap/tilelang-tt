@@ -19,6 +19,7 @@ Bridge between TileLang's high level matmul pragmas and Tenstorrent codegen by a
 - Attaches convenience attributes to the `PrimFunc`:
   - `tt_num_matmuls`
   - `tt_has_tensorize`
+- Rewrites matched reduction loops into TT intrinsics (`tt.tile_regs_acquire`, `tt.mm_init`, `tt.matmul_tiles`, CB wait/pop, `tt.pack_tile`) using default CB indices. Legacy visitors still see a `tt.matmul_intrinsic` wrapper for each injected block.
 - Collects matmul metadata—including buffer roles, indices, loop vars, and reduction vars—in `tt_matmul_patterns` so downstream passes/codegen can reason about operand placement.
 
 This minimal functionality allows codegen visitors to enumerate matmul regions without relying on brittle name-based heuristics.
@@ -28,7 +29,7 @@ This minimal functionality allows codegen visitors to enumerate matmul regions w
 ## Missing Work
 
 - Pattern matching for handwritten loop nests (no `pragma_gemm`).
-- Buffer operand annotations (`tt.input_buffers`, `tt.output_buffer`).
+- Buffer operand annotations (`tt.input_buffers`, `tt.output_buffer`) and real CB index wiring derived from layout metadata.
 - Element-wise pattern detection.
 - Integration with reader / writer kernels for non-matmul intrinsics.
 

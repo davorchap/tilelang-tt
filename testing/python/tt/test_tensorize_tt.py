@@ -5,6 +5,31 @@ This pass lowers high-level matmul operations to TT intrinsics.
 
 import tvm
 from tvm import tir
+from tvm.tir import stmt_functor
+
+
+def collect_call_names(stmt):
+    """Collect intrinsic call names from a TIR statement."""
+    names = set()
+
+    def visitor(node):
+        if isinstance(node, tir.Call):
+            names.add(node.op.name)
+
+    stmt_functor.post_order_visit(stmt, visitor)
+    return names
+
+
+def has_buffer_store(stmt):
+    """Check whether the statement still contains BufferStore nodes."""
+    found = {"value": False}
+
+    def visitor(node):
+        if isinstance(node, tir.BufferStore):
+            found["value"] = True
+
+    stmt_functor.post_order_visit(stmt, visitor)
+    return found["value"]
 
 
 def create_func_with_gemm():
@@ -218,6 +243,11 @@ def test_tensorize_tt_records_pattern_metadata():
     assert len(pattern["loop_vars"]) == 0
     assert int(func.attrs["tt_num_matmuls"]) == 1
 
+    call_names = collect_call_names(func.body)
+    assert "tt.mm_init" in call_names
+    assert "tt.matmul_tiles" in call_names
+    assert not has_buffer_store(func.body)
+
 
 def test_tensorize_tt_detects_manual_matmul_loops():
     """TensorizeTT should recognise handwritten matmul loop nests."""
@@ -241,6 +271,11 @@ def test_tensorize_tt_detects_manual_matmul_loops():
     assert [str(x) for x in pattern["B_indices"]] == ["k", "j"]
     assert [str(x) for x in pattern["C_indices"]] == ["i", "j"]
     assert int(pattern["accumulate"]) == 1
+
+    call_names = collect_call_names(func.body)
+    assert "tt.mm_init" in call_names
+    assert "tt.matmul_tiles" in call_names
+    assert not has_buffer_store(func.body)
 
 
 if __name__ == "__main__":

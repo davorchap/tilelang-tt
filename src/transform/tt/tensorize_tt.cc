@@ -39,11 +39,15 @@
 
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/container.h>
+#include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/stmt_visitor.h>
 #include <tvm/tir/transform.h>
 
+#include <initializer_list>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -53,6 +57,28 @@ namespace tl {
 using namespace tir;
 
 namespace {
+
+inline Stmt MakeIntrinsic(const char* op_name, std::initializer_list<PrimExpr> args = {}) {
+  Array<PrimExpr> call_args;
+  for (const PrimExpr& arg : args) {
+    call_args.push_back(arg);
+  }
+  PrimExpr call = Call(DataType::Void(), Op::Get(op_name), call_args);
+  return Evaluate(call);
+}
+
+struct MatmulPatternInfo {
+  Map<String, ObjectRef> metadata;
+  const BufferStoreNode* store{nullptr};
+  const ForNode* reduction_loop{nullptr};
+};
+
+struct MatmulCollection {
+  Array<Map<String, ObjectRef>> metadata;
+  std::vector<MatmulPatternInfo> infos;
+  std::unordered_map<const BufferStoreNode*, int> store_to_index;
+  std::unordered_map<const ForNode*, std::vector<int>> reduction_loop_to_indices;
+};
 
 struct MatmulMatch {
   Buffer buffer_a;
@@ -127,10 +153,25 @@ bool TryMatchMatmul(const BufferStoreNode* store, MatmulMatch* match) {
 
 class MatmulPatternCollector : public StmtVisitor {
  public:
-  Array<Map<String, ObjectRef>> operator()(const Stmt& stmt) {
+  MatmulCollection Collect(const Stmt& stmt) {
     patterns_.clear();
+    store_to_index_.clear();
+    reduction_loop_to_indices_.clear();
+
     VisitStmt(stmt);
-    return Array<Map<String, ObjectRef>>(patterns_.begin(), patterns_.end());
+
+    Array<Map<String, ObjectRef>> metadata_arr;
+    metadata_arr.reserve(patterns_.size());
+    for (const MatmulPatternInfo& info : patterns_) {
+      metadata_arr.push_back(info.metadata);
+    }
+
+    MatmulCollection result;
+    result.metadata = std::move(metadata_arr);
+    result.infos = patterns_;
+    result.store_to_index = store_to_index_;
+    result.reduction_loop_to_indices = reduction_loop_to_indices_;
+    return result;
   }
 
  protected:
@@ -148,8 +189,10 @@ class MatmulPatternCollector : public StmtVisitor {
 
   void VisitStmt_(const ForNode* op) override {
     loop_stack_.push_back(op->loop_var);
+    loop_node_stack_.push_back(op);
     StmtVisitor::VisitStmt_(op);
     loop_stack_.pop_back();
+    loop_node_stack_.pop_back();
   }
 
   void VisitStmt_(const BufferStoreNode* op) override {
@@ -164,9 +207,6 @@ class MatmulPatternCollector : public StmtVisitor {
       info.Set("B_indices", match.indices_b);
       info.Set("C_indices", match.indices_c);
       info.Set("accumulate", Integer(match.accumulate ? 1 : 0));
-      info.Set("cb_in0", Integer(-1));
-      info.Set("cb_in1", Integer(-1));
-      info.Set("cb_out", Integer(-1));
 
       Array<String> loop_vars;
       for (const Var& v : loop_stack_) {
@@ -187,14 +227,42 @@ class MatmulPatternCollector : public StmtVisitor {
         info.Set("reduction_var", String(red->name_hint));
       }
 
-      patterns_.push_back(info);
+      MatmulPatternInfo pattern_info;
+      pattern_info.metadata = info;
+      pattern_info.store = op;
+
+      String reduction_var;
+      if (info.count("reduction_var")) {
+        reduction_var = Downcast<String>(info["reduction_var"]);
+      }
+
+      const ForNode* reduction_loop = nullptr;
+      if (!reduction_var.empty()) {
+        for (auto it = loop_node_stack_.rbegin(); it != loop_node_stack_.rend(); ++it) {
+          if ((*it)->loop_var->name_hint == reduction_var) {
+            reduction_loop = *it;
+            break;
+          }
+        }
+      }
+      pattern_info.reduction_loop = reduction_loop;
+
+      int pattern_index = static_cast<int>(patterns_.size());
+      patterns_.push_back(std::move(pattern_info));
+      store_to_index_[op] = pattern_index;
+      if (reduction_loop != nullptr) {
+        reduction_loop_to_indices_[reduction_loop].push_back(pattern_index);
+      }
     }
     StmtVisitor::VisitStmt_(op);
   }
 
  private:
-  std::vector<Map<String, ObjectRef>> patterns_;
+  std::vector<MatmulPatternInfo> patterns_;
+  std::unordered_map<const BufferStoreNode*, int> store_to_index_;
+  std::unordered_map<const ForNode*, std::vector<int>> reduction_loop_to_indices_;
   std::vector<Var> loop_stack_;
+  std::vector<const ForNode*> loop_node_stack_;
   int gemm_attr_depth_{0};
 };
 
@@ -205,7 +273,8 @@ class MatmulPatternCollector : public StmtVisitor {
  */
 class TensorizeMutator : public StmtMutator {
  public:
-  TensorizeMutator() : matmul_count_(0) {}
+  explicit TensorizeMutator(const MatmulCollection& collection)
+      : collection_(collection), matmul_count_(0) {}
 
   Stmt VisitStmt_(const AttrStmtNode* op) override {
     // Check for GEMM/matmul pragma markers
@@ -234,9 +303,65 @@ class TensorizeMutator : public StmtMutator {
     return StmtMutator::VisitStmt_(op);
   }
 
+  Stmt VisitStmt_(const BufferStoreNode* op) override {
+    auto it = collection_.store_to_index.find(op);
+    if (it == collection_.store_to_index.end()) {
+      return StmtMutator::VisitStmt_(op);
+    }
+
+    Array<Stmt> seq;
+    PrimExpr cb_in0 = Integer(0);
+    PrimExpr cb_in1 = Integer(1);
+    PrimExpr cb_out = Integer(16);
+    PrimExpr one = Integer(1);
+    PrimExpr zero = Integer(0);
+
+    seq.push_back(MakeIntrinsic("tt.cb_wait_front", {cb_in0, one}));
+    seq.push_back(MakeIntrinsic("tt.cb_wait_front", {cb_in1, one}));
+    seq.push_back(
+        MakeIntrinsic("tt.matmul_tiles", {cb_in0, cb_in1, zero, zero, zero, Integer(0)}));
+    seq.push_back(MakeIntrinsic("tt.cb_pop_front", {cb_in0, one}));
+    seq.push_back(MakeIntrinsic("tt.cb_pop_front", {cb_in1, one}));
+    Stmt body = SeqStmt::Flatten(seq);
+    PrimExpr matmul_id = Integer(it->second);
+    return AttrStmt(op->buffer->data, "tt.matmul_intrinsic", matmul_id, std::move(body));
+  }
+
+  Stmt VisitStmt_(const ForNode* op) override {
+    bool is_reduction_loop = collection_.reduction_loop_to_indices.count(op) > 0;
+    Stmt new_stmt = StmtMutator::VisitStmt_(op);
+    if (!is_reduction_loop) {
+      return new_stmt;
+    }
+    ICHECK(new_stmt.as<ForNode>() != nullptr) << "Expected ForNode after mutation";
+
+    // For now we support a single matmul per reduction loop. Enforce to catch regressions.
+    ICHECK_EQ(collection_.reduction_loop_to_indices.at(op).size(), 1)
+        << "Multiple matmuls per reduction loop not yet supported";
+
+    PrimExpr cb_in0 = Integer(0);
+    PrimExpr cb_in1 = Integer(1);
+    PrimExpr cb_out = Integer(16);
+    PrimExpr one = Integer(1);
+    PrimExpr zero = Integer(0);
+
+    Array<Stmt> seq;
+    seq.push_back(MakeIntrinsic("tt.tile_regs_acquire"));
+    seq.push_back(MakeIntrinsic("tt.mm_init", {cb_in0, cb_in1, cb_out}));
+    seq.push_back(new_stmt);
+    seq.push_back(MakeIntrinsic("tt.tile_regs_commit"));
+    seq.push_back(MakeIntrinsic("tt.tile_regs_wait"));
+    seq.push_back(MakeIntrinsic("tt.cb_reserve_back", {cb_out, one}));
+    seq.push_back(MakeIntrinsic("tt.pack_tile", {zero, cb_out}));
+    seq.push_back(MakeIntrinsic("tt.cb_push_back", {cb_out, one}));
+    seq.push_back(MakeIntrinsic("tt.tile_regs_release"));
+    return SeqStmt::Flatten(seq);
+  }
+
   int GetMatmulCount() const { return matmul_count_; }
 
  private:
+  const MatmulCollection& collection_;
   int matmul_count_;
 };
 
@@ -259,13 +384,13 @@ PrimFunc TensorizeTTImpl(PrimFunc f) {
 
   // Collect matmul metadata (supports pragmas and manual loops)
   MatmulPatternCollector collector;
-  Array<Map<String, ObjectRef>> matmul_patterns = collector(f->body);
+  MatmulCollection collection = collector.Collect(f->body);
 
   // Step 2: Apply tensorization transformation
-  TensorizeMutator mutator;
+  TensorizeMutator mutator(collection);
   Stmt new_body = mutator(f->body);
 
-  int matmul_count = static_cast<int>(matmul_patterns.size());
+  int matmul_count = static_cast<int>(collection.infos.size());
 
   // If no matmul operations found, return unchanged
   if (matmul_count == 0) {
@@ -281,7 +406,7 @@ PrimFunc TensorizeTTImpl(PrimFunc f) {
   // Step 4: Attach matmul metadata
   new_func = WithAttr(new_func, "tt_num_matmuls", Integer(matmul_count));
   new_func = WithAttr(new_func, "tt_has_tensorize", Bool(true));
-  new_func = WithAttr(new_func, "tt_matmul_patterns", matmul_patterns);
+  new_func = WithAttr(new_func, "tt_matmul_patterns", collection.metadata);
 
   return new_func;
 }
