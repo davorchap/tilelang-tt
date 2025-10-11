@@ -30,20 +30,22 @@ def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
     )
 
     # Attach metadata inference stage schedule metadata
+    # Note: Convert Python ints to IntImm for FFI compatibility
     num_tiles = grid_x * grid_y
     tiles_per_core = []
     for i in range(num_cores):
         start_id = i % num_tiles  # Simplified assignment
         count = 1
-        tiles_per_core.append([start_id, count])
+        # Convert list elements to IntImm for FFI
+        tiles_per_core.append([tvm.tir.IntImm("int32", start_id), tvm.tir.IntImm("int32", count)])
 
     func = func.with_attrs({
         "global_symbol": "main",
-        "tt_grid_x": grid_x,
-        "tt_grid_y": grid_y,
-        "tt_grid_z": 1,
-        "tt_num_tiles": num_tiles,
-        "tt_num_cores": num_cores,
+        "tt_grid_x": tvm.tir.IntImm("int32", grid_x),
+        "tt_grid_y": tvm.tir.IntImm("int32", grid_y),
+        "tt_grid_z": tvm.tir.IntImm("int32", 1),
+        "tt_num_tiles": tvm.tir.IntImm("int32", num_tiles),
+        "tt_num_cores": tvm.tir.IntImm("int32", num_cores),
         "tt_tiles_per_core": tiles_per_core,
     })
 

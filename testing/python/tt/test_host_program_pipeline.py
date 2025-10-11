@@ -8,12 +8,37 @@ payloads) and guardrails required by the new pipeline.
 
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import tvm
 from tvm import tir
 
 import tilelang.tt as tt
+
+
+def _convert_dict_for_ffi(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert a Python dict to be FFI-compatible (helper for tests)."""
+    result = {}
+    for key, value in d.items():
+        if isinstance(value, bool):
+            result[key] = tvm.tir.IntImm("int32", 1 if value else 0)
+        elif isinstance(value, int):
+            result[key] = tvm.tir.IntImm("int32", value)
+        elif isinstance(value, (list, tuple)):
+            converted_list = []
+            for elem in value:
+                if isinstance(elem, bool):
+                    converted_list.append(tvm.tir.IntImm("int32", 1 if elem else 0))
+                elif isinstance(elem, int):
+                    converted_list.append(tvm.tir.IntImm("int32", elem))
+                else:
+                    converted_list.append(elem)
+            result[key] = converted_list
+        elif isinstance(value, dict):
+            result[key] = _convert_dict_for_ffi(value)
+        else:
+            result[key] = value
+    return result
 
 
 def _make_tt_module(partition_mode: str = "global") -> tvm.IRModule:
@@ -121,25 +146,34 @@ def _make_tt_module(partition_mode: str = "global") -> tvm.IRModule:
     num_tiles = grid_x * grid_y
     num_cores = len(core_runtime_args)
 
+    # Convert all nested structures to FFI-compatible format
+    tiles_per_core_ffi = []
+    for start, count in tiles_per_core:
+        tiles_per_core_ffi.append([tvm.tir.IntImm("int32", start), tvm.tir.IntImm("int32", count)])
+
+    runtime_constants_ffi = _convert_dict_for_ffi(runtime_constants)
+    core_runtime_args_ffi = [_convert_dict_for_ffi({"vals": r})["vals"] for r in core_runtime_args]
+
     func = func.with_attrs({
         "global_symbol": "main",
-        "tt_grid_x": grid_x,
-        "tt_grid_y": grid_y,
-        "tt_grid_z": 1,
-        "tt_num_tiles": num_tiles,
-        "tt_num_cores": num_cores,
-        "tt_tiles_per_core": tiles_per_core,
+        "tt_grid_x": tvm.tir.IntImm("int32", grid_x),
+        "tt_grid_y": tvm.tir.IntImm("int32", grid_y),
+        "tt_grid_z": tvm.tir.IntImm("int32", 1),
+        "tt_num_tiles": tvm.tir.IntImm("int32", num_tiles),
+        "tt_num_cores": tvm.tir.IntImm("int32", num_cores),
+        "tt_tiles_per_core": tiles_per_core_ffi,
         "tt.partition_mode": tvm.runtime.convert(partition_mode),
         "tt.grid_tiles": tvm.runtime.convert([grid_y, grid_x]),
         "tt.local_shape_tiles": tvm.runtime.convert(local_tiles),
         "tt.shard_grid": tvm.runtime.convert(shard_grid),
-        "tt.runtime_constants": tvm.runtime.convert(runtime_constants),
+        "tt.runtime_constants": runtime_constants_ffi,
         "tt.runtime_arg_names": tvm.runtime.convert(runtime_arg_names),
-        "tt_core_runtime_args": tvm.runtime.convert(core_runtime_args),
+        "tt_core_runtime_args": core_runtime_args_ffi,
     })
 
     for name, meta in buffer_meta.items():
-        func = func.with_attr(f"tt.buffer.{name}", tvm.runtime.convert(meta))
+        meta_ffi = _convert_dict_for_ffi(meta)
+        func = func.with_attr(f"tt.buffer.{name}", meta_ffi)
 
     mod = tvm.IRModule({"main": func})
     return mod

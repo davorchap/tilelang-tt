@@ -35,6 +35,22 @@ def create_func_with_complete_metadata():
     # persistent transform stage metadata
     func = func.with_attr("tt_persistent_loop", tvm.tir.IntImm("int32", 1))
 
+    # Additional required attributes for validation
+    func = func.with_attr("tt_schedule", {"policy": "contiguous", "order": "row_major"})
+    func = func.with_attr("tt_shard", {"mode": "global"})
+    func = func.with_attr("tt_runtime_args", {
+        "start_tile": {"name": "tt_start_tile", "dtype": "int32"},
+        "tile_count": {"name": "tt_tile_count", "dtype": "int32"},
+        "grid_shape": [8, 8, 1],
+        "partition_mode": "global",
+        "param_order": ["tt_start_tile", "tt_tile_count"],
+        "iteration_ndims": tvm.tir.IntImm("int32", 2),
+        "iteration_symbols": ["bx", "by"],
+        "grid_tiles": [8, 8],
+        "local_shape_tiles": [8, 8],
+        "shard_grid": [1, 1]
+    })
+
     return func
 
 

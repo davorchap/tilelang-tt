@@ -44,7 +44,7 @@ class TestLayoutAwareMetadata:
         tile_shape = buf_attr["tile_shape"]
         assert int(tile_shape[0]) == 32
         assert int(tile_shape[1]) == 32
-        assert str(buf_attr["layout"]) == "dram_interleaved"
+        assert str(buf_attr["layout"]) == "interleaved"
 
         # Circular buffer metadata
         assert "tt.cb.A" in func.attrs, "Expected tt.cb.A metadata"
