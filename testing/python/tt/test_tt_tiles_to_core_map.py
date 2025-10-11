@@ -1,6 +1,14 @@
-"""Test TTTilesToCoreMap pass (persistent transform stage Phase 2).
+"""Test TTTilesToCoreMap pass (Legacy Compatibility Layer).
 
-This pass maps logical tile assignments to physical core coordinates.
+LEGACY: This pass (tt_tiles_to_core_map) is marked as legacy compatibility in PASS_TABLE.md.
+It provides a compatibility path when layout-aware metadata is unavailable. The new canonical
+approach uses LayoutAwareWorkPartitionTT which directly emits tt.core_ranges and tt.runtime_args
+based on buffer residency and partition mode.
+
+This test validates that the legacy pass correctly maps logical tile assignments to physical
+core coordinates for backward compatibility.
+
+See docs/tenstorrent/PASS_TABLE.md for current vs legacy pass status.
 """
 
 import tvm
@@ -153,8 +161,8 @@ def test_tt_tiles_to_core_map_skip_without_metadata():
     assert func.attrs is None or "tt_core_ranges" not in func.attrs, "Should not add core ranges without metadata inference stage metadata"
 
 
-def test_tt_tiles_to_core_map_consistency_with_ws2():
-    """Test TTTilesToCoreMap output is consistent with metadata inference stage input."""
+def test_tt_tiles_to_core_map_consistency_with_metadata():
+    """Test TTTilesToCoreMap output is consistent with metadata inference input."""
     from tilelang.tt.passes import tt_tiles_to_core_map
 
     func = create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8)
@@ -193,8 +201,8 @@ def test_tt_tiles_to_core_map_consistency_with_ws2():
         assert args_count == original_count, f"Core {core_id} runtime args count mismatch"
 
 
-def test_tt_tiles_to_core_map_integration_with_ws2():
-    """Test TTTilesToCoreMap integrates with metadata inference stage passes."""
+def test_tt_tiles_to_core_map_integration_with_metadata():
+    """Test TTTilesToCoreMap integrates with metadata inference passes."""
     from tilelang.tt.passes import apply_tt_metadata_passes, tt_tiles_to_core_map
     from tilelang.tt.target import apply_tt_defaults
 
@@ -216,7 +224,7 @@ def test_tt_tiles_to_core_map_integration_with_ws2():
 
     mod = tvm.IRModule({"main": func})
 
-    # Apply TT defaults stage -> metadata inference stage -> TTTilesToCoreMap pipeline
+    # Apply TT defaults -> metadata inference -> TTTilesToCoreMap pipeline
     mod = apply_tt_defaults(mod)
     mod = apply_tt_metadata_passes(mod)
     mod = tt_tiles_to_core_map(mod)
@@ -224,8 +232,8 @@ def test_tt_tiles_to_core_map_integration_with_ws2():
     func = mod["main"]
 
     # Verify all metadata exists
-    assert "tt_schedule_policy" in func.attrs, "Should have TT defaults stage defaults"
-    assert "tt_tiles_per_core" in func.attrs, "Should have metadata inference stage schedule metadata"
+    assert "tt_schedule_policy" in func.attrs, "Should have TT defaults"
+    assert "tt_tiles_per_core" in func.attrs, "Should have metadata inference schedule metadata"
     assert "tt_core_ranges" in func.attrs, "Should have TTTilesToCoreMap output"
     assert "tt_core_runtime_args" in func.attrs, "Should have runtime args"
 
@@ -236,6 +244,6 @@ if __name__ == "__main__":
     test_tt_tiles_to_core_map_coordinates()
     test_tt_tiles_to_core_map_runtime_args()
     test_tt_tiles_to_core_map_skip_without_metadata()
-    test_tt_tiles_to_core_map_consistency_with_ws2()
-    test_tt_tiles_to_core_map_integration_with_ws2()
+    test_tt_tiles_to_core_map_consistency_with_metadata()
+    test_tt_tiles_to_core_map_integration_with_metadata()
     print("All TTTilesToCoreMap tests passed!")
