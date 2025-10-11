@@ -213,7 +213,7 @@ The script runs Tenstorrent backend tests:
 
 2. **All Tenstorrent tests:**
    ```bash
-   pytest testing/python/tt/ -v --tb=short -k "not gpu"
+   pytest testing/python/tt/ -v --tb=short
    ```
 
 **Test environment:**

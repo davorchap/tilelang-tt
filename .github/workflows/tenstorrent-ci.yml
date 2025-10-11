@@ -180,7 +180,7 @@ jobs:
         run: |
           export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
           cd testing/python
-          pytest tt/ -v --tb=short -k "not gpu"
+          pytest tt/ -v --tb=short
 
       - name: Save TVM build cache
         uses: actions/cache/save@v4
