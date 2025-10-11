@@ -48,8 +48,8 @@ TTCodegenVisitor::TTCodegenVisitor(const PrimFunc &func)
     partition_mode_ = "global";
   }
 
-  if (auto constants = func_->attrs.GetAttr<Map<String, ObjectRef>>(
-          "tt.runtime_constants")) {
+  if (auto constants =
+          func_->attrs.GetAttr<Map<String, ObjectRef>>("tt.runtime_constants")) {
     runtime_constants_ = constants.value();
   }
 
@@ -330,18 +330,19 @@ std::string TTCodegenVisitor::EmitExpr(const PrimExpr &expr) {
     expr_stream << "((" << cast->dtype << ")" << EmitExpr(cast->value) << ")";
   } else if (auto *call = expr.as<CallNode>()) {
     // Handle function calls
-    if (auto* op_node = call->op.as<OpNode>()) {
+    if (auto *op_node = call->op.as<OpNode>()) {
       std::string call_name = op_node->name;
       if (call_name.rfind("tt.", 0) == 0) {
         call_name = call_name.substr(3);
       }
       expr_stream << call_name << "(";
       for (size_t i = 0; i < call->args.size(); ++i) {
-        if (i > 0) expr_stream << ", ";
+        if (i > 0)
+          expr_stream << ", ";
         expr_stream << EmitExpr(call->args[i]);
       }
       expr_stream << ")";
-    } else if (auto* global_var = call->op.as<GlobalVarNode>()) {
+    } else if (auto *global_var = call->op.as<GlobalVarNode>()) {
       expr_stream << global_var->name_hint << "(";
       for (size_t i = 0; i < call->args.size(); ++i) {
         if (i > 0)

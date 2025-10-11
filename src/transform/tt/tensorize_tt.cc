@@ -38,19 +38,17 @@
  */
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/container.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
-#include <tvm/tir/stmt_visitor.h>
 #include <tvm/tir/transform.h>
 
 #include <initializer_list>
-#include <utility>
-#include <unordered_map>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -60,9 +58,10 @@ using namespace tir;
 
 namespace {
 
-inline Stmt MakeIntrinsic(const char* op_name, std::initializer_list<PrimExpr> args = {}) {
+inline Stmt MakeIntrinsic(const char *op_name,
+                          std::initializer_list<PrimExpr> args = {}) {
   Array<PrimExpr> call_args;
-  for (const PrimExpr& arg : args) {
+  for (const PrimExpr &arg : args) {
     call_args.push_back(arg);
   }
   PrimExpr call = Call(DataType::Void(), Op::Get(op_name), call_args);
@@ -71,15 +70,16 @@ inline Stmt MakeIntrinsic(const char* op_name, std::initializer_list<PrimExpr> a
 
 struct MatmulPatternInfo {
   Map<String, ObjectRef> metadata;
-  const BufferStoreNode* store{nullptr};
-  const ForNode* reduction_loop{nullptr};
+  const BufferStoreNode *store{nullptr};
+  const ForNode *reduction_loop{nullptr};
 };
 
 struct MatmulCollection {
   Array<Map<String, ObjectRef>> metadata;
   std::vector<MatmulPatternInfo> infos;
-  std::unordered_map<const BufferStoreNode*, int> store_to_index;
-  std::unordered_map<const ForNode*, std::vector<int>> reduction_loop_to_indices;
+  std::unordered_map<const BufferStoreNode *, int> store_to_index;
+  std::unordered_map<const ForNode *, std::vector<int>>
+      reduction_loop_to_indices;
 };
 
 struct MatmulMatch {
@@ -92,52 +92,55 @@ struct MatmulMatch {
   bool accumulate{false};
 };
 
-inline const BufferLoadNode* AsBufferLoad(const PrimExpr& expr) {
-  if (const auto* load = expr.as<BufferLoadNode>()) {
+inline const BufferLoadNode *AsBufferLoad(const PrimExpr &expr) {
+  if (const auto *load = expr.as<BufferLoadNode>()) {
     return load;
   }
-  if (const auto* cast = expr.as<CastNode>()) {
+  if (const auto *cast = expr.as<CastNode>()) {
     return AsBufferLoad(cast->value);
   }
   return nullptr;
 }
 
-inline void CollectVars(const PrimExpr& expr, std::unordered_set<const VarNode*>* vars) {
-  PostOrderVisit(expr, [&](const ObjectRef& obj) {
-    if (const auto* v = obj.as<VarNode>()) {
+inline void CollectVars(const PrimExpr &expr,
+                        std::unordered_set<const VarNode *> *vars) {
+  PostOrderVisit(expr, [&](const ObjectRef &obj) {
+    if (const auto *v = obj.as<VarNode>()) {
       vars->insert(v);
     }
   });
 }
 
-inline std::unordered_set<const VarNode*> CollectVars(const Array<PrimExpr>& indices) {
-  std::unordered_set<const VarNode*> vars;
-  for (const PrimExpr& idx : indices) {
+inline std::unordered_set<const VarNode *>
+CollectVars(const Array<PrimExpr> &indices) {
+  std::unordered_set<const VarNode *> vars;
+  for (const PrimExpr &idx : indices) {
     CollectVars(idx, &vars);
   }
   return vars;
 }
 
-bool TryMatchMatmul(const BufferStoreNode* store, MatmulMatch* match) {
-  const auto* add = store->value.as<AddNode>();
+bool TryMatchMatmul(const BufferStoreNode *store, MatmulMatch *match) {
+  const auto *add = store->value.as<AddNode>();
   if (add == nullptr) {
     return false;
   }
 
-  const BufferLoadNode* c_load = AsBufferLoad(add->a);
+  const BufferLoadNode *c_load = AsBufferLoad(add->a);
 
-  const MulNode* mul = add->b.as<MulNode>();
+  const MulNode *mul = add->b.as<MulNode>();
   if (c_load == nullptr || !store->buffer.same_as(c_load->buffer)) {
     c_load = AsBufferLoad(add->b);
     mul = add->a.as<MulNode>();
   }
 
-  if (c_load == nullptr || !store->buffer.same_as(c_load->buffer) || mul == nullptr) {
+  if (c_load == nullptr || !store->buffer.same_as(c_load->buffer) ||
+      mul == nullptr) {
     return false;
   }
 
-  const BufferLoadNode* load_a = AsBufferLoad(mul->a);
-  const BufferLoadNode* load_b = AsBufferLoad(mul->b);
+  const BufferLoadNode *load_a = AsBufferLoad(mul->a);
+  const BufferLoadNode *load_b = AsBufferLoad(mul->b);
 
   if (load_a == nullptr || load_b == nullptr) {
     return false;
@@ -154,8 +157,8 @@ bool TryMatchMatmul(const BufferStoreNode* store, MatmulMatch* match) {
 }
 
 class MatmulPatternCollector : public StmtVisitor {
- public:
-  MatmulCollection Collect(const Stmt& stmt) {
+public:
+  MatmulCollection Collect(const Stmt &stmt) {
     patterns_.clear();
     store_to_index_.clear();
     reduction_loop_to_indices_.clear();
@@ -164,7 +167,7 @@ class MatmulPatternCollector : public StmtVisitor {
 
     Array<Map<String, ObjectRef>> metadata_arr;
     metadata_arr.reserve(patterns_.size());
-    for (const MatmulPatternInfo& info : patterns_) {
+    for (const MatmulPatternInfo &info : patterns_) {
       metadata_arr.push_back(info.metadata);
     }
 
@@ -176,10 +179,11 @@ class MatmulPatternCollector : public StmtVisitor {
     return result;
   }
 
- protected:
-  void VisitStmt_(const AttrStmtNode* op) override {
-    bool is_gemm = (op->attr_key == "pragma_gemm" || op->attr_key == "tl.gemm" ||
-                    op->attr_key == "gemm_operation");
+protected:
+  void VisitStmt_(const AttrStmtNode *op) override {
+    bool is_gemm =
+        (op->attr_key == "pragma_gemm" || op->attr_key == "tl.gemm" ||
+         op->attr_key == "gemm_operation");
     if (is_gemm) {
       ++gemm_attr_depth_;
     }
@@ -189,7 +193,7 @@ class MatmulPatternCollector : public StmtVisitor {
     }
   }
 
-  void VisitStmt_(const ForNode* op) override {
+  void VisitStmt_(const ForNode *op) override {
     loop_stack_.push_back(op->loop_var);
     loop_node_stack_.push_back(op);
     StmtVisitor::VisitStmt_(op);
@@ -197,7 +201,7 @@ class MatmulPatternCollector : public StmtVisitor {
     loop_node_stack_.pop_back();
   }
 
-  void VisitStmt_(const BufferStoreNode* op) override {
+  void VisitStmt_(const BufferStoreNode *op) override {
     MatmulMatch match;
     if (TryMatchMatmul(op, &match)) {
       Map<String, ObjectRef> info;
@@ -211,7 +215,7 @@ class MatmulPatternCollector : public StmtVisitor {
       info.Set("accumulate", Integer(match.accumulate ? 1 : 0));
 
       Array<String> loop_vars;
-      for (const Var& v : loop_stack_) {
+      for (const Var &v : loop_stack_) {
         loop_vars.push_back(String(v->name_hint));
       }
       info.Set("loop_vars", loop_vars);
@@ -219,13 +223,13 @@ class MatmulPatternCollector : public StmtVisitor {
       auto vars_a = CollectVars(match.indices_a);
       auto vars_b = CollectVars(match.indices_b);
       auto vars_c = CollectVars(match.indices_c);
-      for (const VarNode* v : vars_c) {
+      for (const VarNode *v : vars_c) {
         vars_a.erase(v);
         vars_b.erase(v);
       }
       vars_a.insert(vars_b.begin(), vars_b.end());
       if (vars_a.size() == 1) {
-        const VarNode* red = *vars_a.begin();
+        const VarNode *red = *vars_a.begin();
         info.Set("reduction_var", String(red->name_hint));
       }
 
@@ -238,9 +242,10 @@ class MatmulPatternCollector : public StmtVisitor {
         reduction_var = Downcast<String>(info["reduction_var"]);
       }
 
-      const ForNode* reduction_loop = nullptr;
+      const ForNode *reduction_loop = nullptr;
       if (!reduction_var.empty()) {
-        for (auto it = loop_node_stack_.rbegin(); it != loop_node_stack_.rend(); ++it) {
+        for (auto it = loop_node_stack_.rbegin(); it != loop_node_stack_.rend();
+             ++it) {
           if ((*it)->loop_var->name_hint == reduction_var) {
             reduction_loop = *it;
             break;
@@ -259,43 +264,45 @@ class MatmulPatternCollector : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
- private:
+private:
   std::vector<MatmulPatternInfo> patterns_;
-  std::unordered_map<const BufferStoreNode*, int> store_to_index_;
-  std::unordered_map<const ForNode*, std::vector<int>> reduction_loop_to_indices_;
+  std::unordered_map<const BufferStoreNode *, int> store_to_index_;
+  std::unordered_map<const ForNode *, std::vector<int>>
+      reduction_loop_to_indices_;
   std::vector<Var> loop_stack_;
-  std::vector<const ForNode*> loop_node_stack_;
+  std::vector<const ForNode *> loop_node_stack_;
   int gemm_attr_depth_{0};
 };
 
-}  // namespace
+} // namespace
 
 /*!
  * \brief Visitor to identify and annotate matmul operations
  */
 class TensorizeMutator : public StmtMutator {
- public:
-  TensorizeMutator(MatmulCollection* collection,
-                   const std::unordered_map<std::string, int>& buffer_cb_map)
+public:
+  TensorizeMutator(MatmulCollection *collection,
+                   const std::unordered_map<std::string, int> &buffer_cb_map)
       : collection_(collection), buffer_cb_map_(buffer_cb_map) {}
 
-  Stmt VisitStmt_(const AttrStmtNode* op) override {
+  Stmt VisitStmt_(const AttrStmtNode *op) override {
     if (op->attr_key == "pragma_gemm" || op->attr_key == "tl.gemm" ||
         op->attr_key == "gemm_operation") {
-      // Strip legacy pragma wrapper; intrinsic sequence will be emitted directly.
+      // Strip legacy pragma wrapper; intrinsic sequence will be emitted
+      // directly.
       return VisitStmt(op->body);
     }
     return StmtMutator::VisitStmt_(op);
   }
 
-  Stmt VisitStmt_(const BufferStoreNode* op) override {
+  Stmt VisitStmt_(const BufferStoreNode *op) override {
     auto it = collection_->store_to_index.find(op);
     if (it == collection_->store_to_index.end()) {
       return StmtMutator::VisitStmt_(op);
     }
 
     int pattern_index = it->second;
-    MatmulPatternInfo& pattern_info = collection_->infos[pattern_index];
+    MatmulPatternInfo &pattern_info = collection_->infos[pattern_index];
     Map<String, ObjectRef> metadata = pattern_info.metadata;
 
     int cb_in0_id = ResolveCBId(metadata, "buffer_a", /*fallback=*/0);
@@ -326,18 +333,21 @@ class TensorizeMutator : public StmtMutator {
     return SeqStmt::Flatten(seq);
   }
 
-  Stmt VisitStmt_(const ForNode* op) override {
-    bool is_reduction_loop = collection_->reduction_loop_to_indices.count(op) > 0;
+  Stmt VisitStmt_(const ForNode *op) override {
+    bool is_reduction_loop =
+        collection_->reduction_loop_to_indices.count(op) > 0;
     Stmt new_stmt = StmtMutator::VisitStmt_(op);
     if (!is_reduction_loop) {
       return new_stmt;
     }
-    ICHECK(new_stmt.as<ForNode>() != nullptr) << "Expected ForNode after mutation";
+    ICHECK(new_stmt.as<ForNode>() != nullptr)
+        << "Expected ForNode after mutation";
 
-    const auto& indices = collection_->reduction_loop_to_indices.at(op);
-    ICHECK_EQ(indices.size(), 1) << "Multiple matmuls per reduction loop not yet supported";
+    const auto &indices = collection_->reduction_loop_to_indices.at(op);
+    ICHECK_EQ(indices.size(), 1)
+        << "Multiple matmuls per reduction loop not yet supported";
     int pattern_index = indices[0];
-    MatmulPatternInfo& pattern_info = collection_->infos[pattern_index];
+    MatmulPatternInfo &pattern_info = collection_->infos[pattern_index];
     Map<String, ObjectRef> metadata = pattern_info.metadata;
 
     int cb_in0_id = ResolveCBId(metadata, "buffer_a", /*fallback=*/0);
@@ -369,8 +379,8 @@ class TensorizeMutator : public StmtMutator {
     return SeqStmt::Flatten(seq);
   }
 
- private:
-  int ResolveCBId(const Map<String, ObjectRef>& metadata, const char* key,
+private:
+  int ResolveCBId(const Map<String, ObjectRef> &metadata, const char *key,
                   int fallback) const {
     if (!metadata.count(key)) {
       return fallback;
@@ -388,8 +398,8 @@ class TensorizeMutator : public StmtMutator {
     return fallback;
   }
 
-  MatmulCollection* collection_;
-  const std::unordered_map<std::string, int>& buffer_cb_map_;
+  MatmulCollection *collection_;
+  const std::unordered_map<std::string, int> &buffer_cb_map_;
 };
 
 /*!
@@ -414,9 +424,9 @@ PrimFunc TensorizeTTImpl(PrimFunc f) {
   MatmulCollection collection = collector.Collect(f->body);
 
   std::unordered_map<std::string, int> buffer_cb_map;
-  if (auto cb_configs =
-          f->attrs.GetAttr<Array<Map<String, ObjectRef>>>("tt_circular_buffers")) {
-    for (const Map<String, ObjectRef>& config : cb_configs.value()) {
+  if (auto cb_configs = f->attrs.GetAttr<Array<Map<String, ObjectRef>>>(
+          "tt_circular_buffers")) {
+    for (const Map<String, ObjectRef> &config : cb_configs.value()) {
       if (!config.count("name") || !config.count("cb_id")) {
         continue;
       }
@@ -459,7 +469,7 @@ using namespace tir::transform;
  * \return The TIR pass
  */
 Pass TensorizeTT() {
-  auto pass_func = [=](PrimFunc f, const IRModule& m, const PassContext& ctx) {
+  auto pass_func = [=](PrimFunc f, const IRModule &m, const PassContext &ctx) {
     return TensorizeTTImpl(std::move(f));
   };
   return CreatePrimFuncPass(pass_func, 0, "tl.TensorizeTT", {});
@@ -471,5 +481,5 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef().def("tl.transform.TensorizeTT", TensorizeTT);
 });
 
-}  // namespace tl
-}  // namespace tvm
+} // namespace tl
+} // namespace tvm

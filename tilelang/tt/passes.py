@@ -12,7 +12,6 @@ from typing import Any, Dict, Optional
 from tilelang import tvm as tvm
 from tvm.runtime import DataType, convert
 from tvm.tir import IntImm, FloatImm
-from tvm.tir.analysis import simplify
 
 
 def annotate_tt_layout(func: tvm.tir.PrimFunc, layout: Dict[str, Any]) -> tvm.tir.PrimFunc:
@@ -107,12 +106,12 @@ def _convert_to_python(obj: Any) -> Any:
     if isinstance(obj, FloatImm):
         return float(obj)
     if isinstance(obj, tvm.tir.PrimExpr):
-        simplified = simplify(obj)
-        if isinstance(simplified, IntImm):
-            return int(simplified)
-        if isinstance(simplified, FloatImm):
-            return float(simplified)
-        return simplified
+        # Try to convert to int/float if possible, otherwise return as-is
+        if isinstance(obj, IntImm):
+            return int(obj)
+        if isinstance(obj, FloatImm):
+            return float(obj)
+        return obj
     return obj
 
 

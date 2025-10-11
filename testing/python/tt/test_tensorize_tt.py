@@ -271,9 +271,24 @@ def test_tensorize_tt_detects_manual_matmul_loops():
 
     func = create_manual_matmul_func()
     cb_configs = tvm.runtime.convert([
-        {"cb_id": 4, "num_pages": 2, "tile_size": 2048, "name": "A"},
-        {"cb_id": 6, "num_pages": 2, "tile_size": 2048, "name": "B"},
-        {"cb_id": 9, "num_pages": 1, "tile_size": 2048, "name": "C"},
+        {
+            "cb_id": 4,
+            "num_pages": 2,
+            "tile_size": 2048,
+            "name": "A"
+        },
+        {
+            "cb_id": 6,
+            "num_pages": 2,
+            "tile_size": 2048,
+            "name": "B"
+        },
+        {
+            "cb_id": 9,
+            "num_pages": 1,
+            "tile_size": 2048,
+            "name": "C"
+        },
     ])
     func = func.with_attr("tt_circular_buffers", cb_configs)
     func = func.with_attr("tt_num_cbs", tvm.tir.IntImm("int32", 3))

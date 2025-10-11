@@ -32,7 +32,7 @@ namespace tl {
 
 using namespace tir;
 
-TTComputeCodegenVisitor::TTComputeCodegenVisitor(const PrimFunc& func)
+TTComputeCodegenVisitor::TTComputeCodegenVisitor(const PrimFunc &func)
     : TTCodegenVisitor(func) {}
 
 std::string TTComputeCodegenVisitor::GetFullKernel() {
@@ -51,25 +51,31 @@ std::string TTComputeCodegenVisitor::GetFullKernel() {
 
   int start_idx = GetRuntimeArgIndex("tt_start_tile");
   ICHECK_GE(start_idx, 0) << "Missing tt_start_tile runtime argument";
-  EmitLine("uint32_t tt_start_tile = get_arg_val<uint32_t>(" + std::to_string(start_idx) + ");");
+  EmitLine("uint32_t tt_start_tile = get_arg_val<uint32_t>(" +
+           std::to_string(start_idx) + ");");
 
   int count_idx = GetRuntimeArgIndex("tt_tile_count");
   ICHECK_GE(count_idx, 0) << "Missing tt_tile_count runtime argument";
-  EmitLine("uint32_t tt_tile_count = get_arg_val<uint32_t>(" + std::to_string(count_idx) + ");");
+  EmitLine("uint32_t tt_tile_count = get_arg_val<uint32_t>(" +
+           std::to_string(count_idx) + ");");
 
   int kt_idx = GetRuntimeArgIndex("Kt");
   if (kt_idx >= 0) {
-    EmitLine("uint32_t Kt = get_arg_val<uint32_t>(" + std::to_string(kt_idx) + ");");
+    EmitLine("uint32_t Kt = get_arg_val<uint32_t>(" + std::to_string(kt_idx) +
+             ");");
   } else {
-    EmitLine("uint32_t Kt = " + std::to_string(GetRuntimeConst<int>("Kt", 1)) + ";");
+    EmitLine("uint32_t Kt = " + std::to_string(GetRuntimeConst<int>("Kt", 1)) +
+             ";");
   }
 
   bool has_shard_coord_y = HasRuntimeArg("tt_shard_coord_y");
   bool has_shard_coord_x = HasRuntimeArg("tt_shard_coord_x");
 
   if (is_local_shard) {
-    ICHECK(has_shard_coord_y) << "local_shard partition mode requires tt_shard_coord_y arg";
-    ICHECK(has_shard_coord_x) << "local_shard partition mode requires tt_shard_coord_x arg";
+    ICHECK(has_shard_coord_y)
+        << "local_shard partition mode requires tt_shard_coord_y arg";
+    ICHECK(has_shard_coord_x)
+        << "local_shard partition mode requires tt_shard_coord_x arg";
   }
   if (has_shard_coord_y) {
     EmitLine("uint32_t tt_shard_coord_y = get_arg_val<uint32_t>(" +
@@ -100,7 +106,8 @@ void TTComputeCodegenVisitor::EmitPreamble() {
   auto num_cores = func_->attrs.GetAttr<Integer>("tt_num_cores");
 
   if (grid_x.defined() && grid_y.defined()) {
-    code_ << "// Grid: " << grid_x.value()->value << "x" << grid_y.value()->value << "\n";
+    code_ << "// Grid: " << grid_x.value()->value << "x"
+          << grid_y.value()->value << "\n";
   }
   if (num_cores.defined()) {
     code_ << "// Cores: " << num_cores.value()->value << "\n";
@@ -128,8 +135,10 @@ void TTComputeCodegenVisitor::EmitPreamble() {
   EmitLine("inline void cb_push_back(uint32_t cb_id, uint32_t n_tiles) {}");
   EmitLine("");
   EmitLine("// Mock TT matmul compute APIs for dry-run");
-  EmitLine("inline void mm_init(uint32_t cb_in0, uint32_t cb_in1, uint32_t cb_out = 16) {}");
-  EmitLine("inline void matmul_tiles(uint32_t cb_in0, uint32_t cb_in1, uint32_t tile_idx_in0, "
+  EmitLine("inline void mm_init(uint32_t cb_in0, uint32_t cb_in1, uint32_t "
+           "cb_out = 16) {}");
+  EmitLine("inline void matmul_tiles(uint32_t cb_in0, uint32_t cb_in1, "
+           "uint32_t tile_idx_in0, "
            "uint32_t tile_idx_in1, uint32_t dst_tile_idx, bool transpose) {}");
   EmitLine("");
   EmitLine("// Mock TT tile register APIs for dry-run");
@@ -139,10 +148,13 @@ void TTComputeCodegenVisitor::EmitPreamble() {
   EmitLine("inline void tile_regs_release() {}");
   EmitLine("");
   EmitLine("// Mock TT element-wise compute APIs for dry-run");
-  EmitLine("inline void binary_op_init_common(uint32_t cb_in0, uint32_t cb_in1, "
-           "uint32_t cb_out = 16) {}");
-  EmitLine("inline void add_tiles_init(uint32_t cb_in0 = 0, uint32_t cb_in1 = 1) {}");
-  EmitLine("inline void add_tiles(uint32_t cb_a, uint32_t cb_b, uint32_t idx_a, uint32_t idx_b, "
+  EmitLine(
+      "inline void binary_op_init_common(uint32_t cb_in0, uint32_t cb_in1, "
+      "uint32_t cb_out = 16) {}");
+  EmitLine("inline void add_tiles_init(uint32_t cb_in0 = 0, uint32_t cb_in1 = "
+           "1) {}");
+  EmitLine("inline void add_tiles(uint32_t cb_a, uint32_t cb_b, uint32_t "
+           "idx_a, uint32_t idx_b, "
            "uint32_t idx_dst) {}");
   EmitLine("inline void pack_tile(uint32_t idx_dst, uint32_t cb_out) {}");
 #endif
@@ -154,27 +166,27 @@ void TTComputeCodegenVisitor::EmitPreamble() {
   EmitLine("");
 }
 
-void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
+void TTComputeCodegenVisitor::VisitStmt_(const ForNode *op) {
   std::string loop_var = GetVarName(op->loop_var);
   std::string min_expr = EmitExpr(op->min);
   std::string extent_expr = EmitExpr(op->extent);
 
-  EmitLine("for (uint32_t " + loop_var + " = " + min_expr + "; " + loop_var + " < " +
-           min_expr + " + " + extent_expr + "; ++" + loop_var + ") {");
+  EmitLine("for (uint32_t " + loop_var + " = " + min_expr + "; " + loop_var +
+           " < " + min_expr + " + " + extent_expr + "; ++" + loop_var + ") {");
   IncIndent();
   VisitStmt(op->body);
   DecIndent();
   EmitLine("}");
 }
 
-void TTComputeCodegenVisitor::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key.rfind("tt.", 0) == 0) {
+void TTComputeCodegenVisitor::VisitStmt_(const AttrStmtNode *op) {
+  std::string attr_key = std::string(op->attr_key);
+  if (attr_key.rfind("tt.", 0) == 0) {
     VisitStmt(op->body);
     return;
   }
   TTCodegenVisitor::VisitStmt_(op);
 }
 
-}  // namespace tl
-}  // namespace tvm
-
+} // namespace tl
+} // namespace tvm

@@ -1,5 +1,5 @@
-#include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
 
 namespace tvm {
 namespace tl {
@@ -9,10 +9,10 @@ using namespace tir;
 
 constexpr CallEffectKind kOpaque = CallEffectKind::kOpaque;
 
-#define TT_REGISTER_OP(Name, NumInputs)                                                    \
-  TVM_REGISTER_OP(Name)                                                                    \
-      .set_num_inputs(NumInputs)                                                           \
-      .set_attr<TCallEffectKind>("TCallEffectKind", Integer(kOpaque))                      \
+#define TT_REGISTER_OP(Name, NumInputs)                                        \
+  TVM_REGISTER_OP(Name)                                                        \
+      .set_num_inputs(NumInputs)                                               \
+      .set_attr<TCallEffectKind>("TCallEffectKind", Integer(kOpaque))          \
       .set_attr<TScriptPrinterName>("TScriptPrinterName", Name)
 
 // Matmul lifecycle intrinsics
@@ -43,7 +43,6 @@ TT_REGISTER_OP("tt.untilize", 3);
 
 #undef TT_REGISTER_OP
 
-}  // namespace tt
-}  // namespace tl
-}  // namespace tvm
-
+} // namespace tt
+} // namespace tl
+} // namespace tvm

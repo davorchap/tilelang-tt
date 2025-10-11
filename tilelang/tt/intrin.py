@@ -13,6 +13,7 @@ def _call_void_intrin(op_name: str, *args: tir.PrimExpr) -> tir.Stmt:
 
 # --- Matmul pipeline ------------------------------------------------------- #
 
+
 def mm_init(cb_in0: tir.PrimExpr, cb_in1: tir.PrimExpr, cb_out: tir.PrimExpr) -> tir.Stmt:
     """Emit TT mm_init(cb_in0, cb_in1, cb_out)."""
     return _call_void_intrin("tt.mm_init", cb_in0, cb_in1, cb_out)
@@ -65,6 +66,7 @@ def pack_tile(dst_tile_idx: tir.PrimExpr, cb_out: tir.PrimExpr) -> tir.Stmt:
 
 # --- Circular buffer primitives ------------------------------------------- #
 
+
 def cb_wait_front(cb: tir.PrimExpr, tiles: tir.PrimExpr) -> tir.Stmt:
     """Emit TT cb_wait_front(cb, tiles)."""
     return _call_void_intrin("tt.cb_wait_front", cb, tiles)
@@ -87,7 +89,9 @@ def cb_push_back(cb: tir.PrimExpr, tiles: tir.PrimExpr) -> tir.Stmt:
 
 # --- Elementwise helpers --------------------------------------------------- #
 
-def binary_op_init_common(cb_in0: tir.PrimExpr, cb_in1: tir.PrimExpr, cb_out: tir.PrimExpr) -> tir.Stmt:
+
+def binary_op_init_common(cb_in0: tir.PrimExpr, cb_in1: tir.PrimExpr,
+                          cb_out: tir.PrimExpr) -> tir.Stmt:
     """Emit TT binary_op_init_common(cb_in0, cb_in1, cb_out)."""
     return _call_void_intrin("tt.binary_op_init_common", cb_in0, cb_in1, cb_out)
 
@@ -125,6 +129,7 @@ def mul_tiles(
 
 
 # --- Layout helpers ------------------------------------------------------- #
+
 
 def tilize(cb_src: tir.PrimExpr, cb_dst: tir.PrimExpr, tile_idx: tir.PrimExpr) -> tir.Stmt:
     """Emit TT tilize(cb_src, cb_dst, tile_idx)."""

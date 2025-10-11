@@ -47,12 +47,12 @@ namespace tl {
  * - Pattern-specific tile intrinsics
  */
 class TTComputeCodegenVisitor : public TTCodegenVisitor {
- public:
+public:
   /*!
    * \brief Constructor
    * \param func The PrimFunc to generate compute kernel from
    */
-  explicit TTComputeCodegenVisitor(const PrimFunc& func);
+  explicit TTComputeCodegenVisitor(const PrimFunc &func);
 
   /*!
    * \brief Emit complete compute kernel including preamble
@@ -60,25 +60,25 @@ class TTComputeCodegenVisitor : public TTCodegenVisitor {
    */
   std::string GetFullKernel();
 
- protected:
+protected:
   /*!
    * \brief Visit for loop node (emits uint32_t loops)
    */
-  void VisitStmt_(const ForNode* op) override;
+  void VisitStmt_(const ForNode *op) override;
 
   /*!
    * \brief Visit attribute statement (detect matmul intrinsic, copy ops)
    */
-  void VisitStmt_(const AttrStmtNode* op) override;
+  void VisitStmt_(const AttrStmtNode *op) override;
 
- private:
+private:
   /*!
    * \brief Emit kernel preamble (includes, mock APIs, CB defines)
    */
   void EmitPreamble();
 };
 
-}  // namespace tl
-}  // namespace tvm
+} // namespace tl
+} // namespace tvm
 
-#endif  // TVM_TARGET_TT_CODEGEN_TT_COMPUTE_VISITOR_H_
+#endif // TVM_TARGET_TT_CODEGEN_TT_COMPUTE_VISITOR_H_
