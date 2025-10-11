@@ -3,7 +3,7 @@
 LEGACY: These tests validate the legacy schedule and sharding inference passes
 (infer_default_tt_schedule, infer_default_tt_shard) that provide default metadata
 when no user annotations are present. These passes are marked as legacy compatibility
-in PASS_TABLE.md and will be phased out in favor of the layout-aware pipeline
+in PASS_TABLE_TT.md and will be phased out in favor of the layout-aware pipeline
 (InferTTLayout → PropagateTTLayout → LayoutAwareWorkPartitionTT).
 
 These tests verify that:
@@ -12,7 +12,7 @@ These tests verify that:
 2. Sharding inference generates correct layout metadata (legacy defaults)
 3. Metadata format matches expectations for downstream passes
 
-See docs/tenstorrent/PASS_TABLE.md for current vs legacy pass status.
+See docs/tenstorrent/PASS_TABLE_TT.md for current vs legacy pass status.
 """
 
 import pytest

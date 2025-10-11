@@ -34,7 +34,9 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 |----------|---------|----------|
 | **[TT_ARCHITECTURE.md](TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture | All developers |
 | **[IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md)** | GPU vs TT lowering pipeline comparison | Compiler engineers |
-| **[PASS_TABLE.md](PASS_TABLE.md)** | Comprehensive pass reference (layout-aware roadmap) | Transform developers |
+| **[PASS_TABLE_SHARED.md](PASS_TABLE_SHARED.md)** | Shared lowering/optimization passes | Transform developers |
+| **[PASS_TABLE_GPU.md](PASS_TABLE_GPU.md)** | CUDA/ROCm-only pass reference | GPU backend developers |
+| **[PASS_TABLE_TT.md](PASS_TABLE_TT.md)** | Tenstorrent pass reference (layout-aware roadmap) | TT backend developers |
 | **[IR_LOWERING_TASKS.md](IR_LOWERING_TASKS.md)** | Pattern detection implementation tasks | Contributors |
 
 ### 🚀 Setup & Usage

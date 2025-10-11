@@ -161,7 +161,7 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 
 ### Priority 7: Refresh Analysis & Architecture Docs (LOW) 🟢
 
-**What**: Rewrite `IR_LOWERING_ANALYSIS.md`, `PASS_TABLE.md`, and `TT_ARCHITECTURE.md` sections to describe the final layout-aware pipeline instead of “planned” language.
+**What**: Rewrite `IR_LOWERING_ANALYSIS.md`, `PASS_TABLE_SHARED.md`/`PASS_TABLE_GPU.md`/`PASS_TABLE_TT.md`, and `TT_ARCHITECTURE.md` sections to describe the final layout-aware pipeline instead of “planned” language.
 
 **Why**: Keeps long-form documentation authoritative and prevents confusion for new contributors.
 
@@ -256,7 +256,7 @@ For detailed specifications, implementation notes, and tests for each transform 
 ## Related Documents
 
 - [IR Lowering Analysis](./IR_LOWERING_ANALYSIS.md) - Detailed analysis of GPU vs TT
-- [PASS_TABLE.md](./PASS_TABLE.md) - Complete pass reference (60+ passes)
+- [PASS_TABLE_SHARED.md](./PASS_TABLE_SHARED.md), [PASS_TABLE_GPU.md](./PASS_TABLE_GPU.md), [PASS_TABLE_TT.md](./PASS_TABLE_TT.md) - Complete pass references by target (shared, GPU, Tenstorrent)
 - [TT_ARCHITECTURE.md](./TT_ARCHITECTURE.md) - Complete TT backend architecture
 
 ---

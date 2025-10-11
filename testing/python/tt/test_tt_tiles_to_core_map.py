@@ -1,6 +1,6 @@
 """Test TTTilesToCoreMap pass (Legacy Compatibility Layer).
 
-LEGACY: This pass (tt_tiles_to_core_map) is marked as legacy compatibility in PASS_TABLE.md.
+LEGACY: This pass (tt_tiles_to_core_map) is marked as legacy compatibility in PASS_TABLE_TT.md.
 It provides a compatibility path when layout-aware metadata is unavailable. The new canonical
 approach uses LayoutAwareWorkPartitionTT which directly emits tt.core_ranges and tt.runtime_args
 based on buffer residency and partition mode.
@@ -8,7 +8,7 @@ based on buffer residency and partition mode.
 This test validates that the legacy pass correctly maps logical tile assignments to physical
 core coordinates for backward compatibility.
 
-See docs/tenstorrent/PASS_TABLE.md for current vs legacy pass status.
+See docs/tenstorrent/PASS_TABLE_TT.md for current vs legacy pass status.
 """
 
 import tvm

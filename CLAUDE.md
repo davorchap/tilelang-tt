@@ -27,7 +27,7 @@ Guidelines for Claude Code when collaborating on this repository.
 - Backend overview & doc index: `docs/tenstorrent/README.md`
 - CI/local parity workflows: `docs/tenstorrent/CI.md`
 - SDK setup for hardware validation: `docs/tenstorrent/METALIUM_SETUP_GUIDE.md`
-- Pass roadmaps & analysis: `docs/tenstorrent/IR_LOWERING_TASKS.md`, `docs/tenstorrent/IR_LOWERING_ANALYSIS.md`, `docs/tenstorrent/PASS_TABLE.md`
+- Pass roadmaps & analysis: `docs/tenstorrent/IR_LOWERING_TASKS.md`, `docs/tenstorrent/IR_LOWERING_ANALYSIS.md`, `docs/tenstorrent/PASS_TABLE_SHARED.md`, `docs/tenstorrent/PASS_TABLE_GPU.md`, `docs/tenstorrent/PASS_TABLE_TT.md`
 - Build deep-dive & scripts: `docs/tenstorrent/local_build_guide.md`
 
 Review these files when making changes; update them if instructions drift from reality.
