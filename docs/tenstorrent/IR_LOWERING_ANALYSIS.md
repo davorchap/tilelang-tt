@@ -412,114 +412,50 @@ def SplitTTKernels(mod: IRModule) -> Tuple[IRModule, IRModule]:
 
 **Location:** `src/target/tt/codegen_tt_*.cc`
 
-**Current Implementation (INCOMPLETE):**
+**Current Implementation:**
+
+- `TensorizeTT` lowers matched matmul loops into explicit TT intrinsic calls before codegen, emitting `tt.tile_regs_acquire`, `tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`, `tt.cb_pop_front`, `tt.cb_reserve_back`, `tt.pack_tile`, and `tt.cb_push_back` sequences (`src/transform/tt/tensorize_tt.cc`).
+- `TTComputeCodegenVisitor` walks the existing IR without heuristics. It prints the surrounding loop structure and the `Evaluate(tt.*)` nodes left behind by tensorization (`src/target/tt/codegen_tt_compute_visitor.cc`).
 
 ```cpp
-// Compute visitor
-Stmt VisitStmt_(const ForNode* op) override {
-  std::string loop_var = op->loop_var->name_hint;
-  bool is_k_loop = (loop_var == "kt" || loop_var.find("kt") != std::string::npos);
+void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {
+  std::string loop_var = GetVarName(op->loop_var);
+  std::string min_expr = EmitExpr(op->min);
+  std::string extent_expr = EmitExpr(op->extent);
+  EmitLine("for (uint32_t " + loop_var + " = " + min_expr + "; " +
+           loop_var + " < " + min_expr + " + " + extent_expr + "; ++" +
+           loop_var + ") {");
+  IncIndent();
+  VisitStmt(op->body);
+  DecIndent();
+  EmitLine("}");
+}
 
-  if (is_k_loop) {
-    // Emit K-loop scaffolding
-    if (!dst_acquired_) {
-      EmitTileRegsAcquire();
-    }
-    if (!matmul_init_emitted_) {
-      EmitLine("mm_init(cb_in0, cb_in1, cb_out0);");
-    }
-
-    EmitLine("for (uint32_t " + loop_var + " = ...) {");
-
-    // ❌ PROBLEM: Visits body, emits raw IR
-    VisitStmt(op->body);  // Should check for annotations!
-
-    EmitLine("}");
+void TTComputeCodegenVisitor::VisitStmt_(const AttrStmtNode* op) {
+  std::string attr_key = std::string(op->attr_key);
+  if (attr_key.rfind("tt.", 0) == 0) {
+    VisitStmt(op->body);
+    return;
   }
+  TTCodegenVisitor::VisitStmt_(op);
 }
 ```
 
-**What Should Happen:**
-
-```cpp
-Stmt VisitStmt_(const ForNode* op) override {
-  std::string loop_var = op->loop_var->name_hint;
-
-  // Check for tt.matmul_k_loop annotation
-  if (auto* attr = op->body.as<AttrStmtNode>()) {
-    if (attr->attr_key == "tt.matmul_k_loop") {
-      // K-loop detected via annotation
-      if (!dst_acquired_) {
-        EmitTileRegsAcquire();
-      }
-      if (!matmul_init_emitted_) {
-        EmitLine("mm_init(cb_in0, cb_in1, cb_out0);");
-      }
-
-      EmitLine("for (uint32_t " + loop_var + " = 0; " +
-               loop_var + " < Kt; ++" + loop_var + ") {");
-
-      // ✅ Emit intrinsics instead of visiting body
-      EmitLine("  cb_wait_front(cb_in0, 1);");
-      EmitLine("  cb_wait_front(cb_in1, 1);");
-      EmitLine("  ");
-      EmitLine("  bool accumulate = (" + loop_var + " > 0);");
-      EmitLine("  matmul_tiles(cb_in0, cb_in1, 0, 0, 0, accumulate);");
-      EmitLine("  ");
-      EmitLine("  cb_pop_front(cb_in0, 1);");
-      EmitLine("  cb_pop_front(cb_in1, 1);");
-
-      EmitLine("}");
-
-      // After K-loop
-      EmitLine("tile_regs_commit();");
-      EmitLine("tile_regs_wait();");
-      EmitLine("pack_tile(0, cb_out0);");
-
-      return;  // Don't visit body!
-    }
-  }
-
-  // Fallback: visit normally
-  return StmtMutator::VisitStmt_(op);
-}
-```
+- Evaluate nodes fall through to `TTCodegenVisitor::VisitStmt_(const EvaluateNode* op)`, which renders the intrinsic call after stripping the `tt.` prefix inside `EmitExpr`. The generated C++ therefore already contains `mm_init`, `matmul_tiles`, `cb_wait_front`, etc.
+- Remaining TODOs: `TensorizeTT` still guards against multiple matmuls in the same reduction loop, and element-wise tensorization plus tilize/untilize lowering remain unimplemented.
 
 ## Comparison Summary
 
-| Aspect | GPU (CUDA) | Tenstorrent (Current) | Tenstorrent (Should Be) |
-|--------|------------|----------------------|-------------------------|
-| **Pattern Detection** | Transform pass (`InferFragment`) | Codegen heuristics (variable name) | Transform pass (`tensorize_tt`) ✅ |
-| **Annotation Method** | AttrStmt with fragment metadata | None (codegen guesses) | AttrStmt with intrinsic ID ✅ |
-| **Intrinsic Insertion** | Frontend (`T.gemm()` → intrinsics) | None (manual loops) | Transform pass annotations ✅ |
-| **Codegen Role** | Read annotations, emit code | Detect patterns AND emit code ❌ | Read annotations, emit code ✅ |
-| **IR Representation** | Intrinsic calls (tvm_mma_sync) | Raw loops and array ops | Annotated loops ✅ |
-| **Device Splitting** | IR transform (SplitHostDevice) | Codegen (3 visitors) | Codegen (3 visitors) ✅ |
+| Aspect | GPU (CUDA) | Tenstorrent (Current) |
+|--------|------------|-----------------------|
+| **Pattern Detection** | Transform pass (`InferFragment`) finds TensorCore regions | Transform pass (`TensorizeTT`) rewrites matmul loops into TT intrinsics |
+| **Annotation Method** | AttrStmt metadata on fragment buffers (`fragment_shape`, `fragment_layout`) | Evaluate nodes with `tt.*` intrinsics + `tt_matmul_patterns`/`tt_num_matmuls` metadata |
+| **Intrinsic Insertion** | Frontend lowering inserts `tvm_load_matrix_sync`/`tvm_mma_sync` | `TensorizeTT` emits `tt.tile_regs_*`, `tt.mm_init`, `tt.matmul_tiles`, wait/pop intrinsics |
+| **Codegen Role** | Emit CUDA/PTX from annotated IR (no pattern detection) | Emit Metalium intrinsics directly from intrinsic-bearing IR (no heuristics) |
+| **IR Representation** | Intrinsic calls guarded by fragment annotations | Intrinsic calls (`Evaluate(tt.*)`) surrounded by TT runtime metadata |
+| **Device Splitting** | `SplitHostDevice` separates host/device functions | 3-visitor split happens during codegen (`TTReader/Compute/WriterCodegenVisitor`) |
 
 ## Recommended Architecture Changes
 
-### 1. Extend `tensorize_tt.cc`
-
-Add pattern matching for:
-- Manual matmul loops (K-loop detection)
-- Element-wise operations
-- Other TT intrinsics (copy, etc.)
-
-### 2. Update Compute Visitor
-
-Change from:
-```cpp
-if (is_k_loop) {
-  // Emit scaffolding
-  VisitStmt(op->body);  // ❌ Emits raw IR
-}
-```
-
-To:
-```cpp
-With the intrinsic injection complete, the compute visitor no longer performs pattern
-detection. It simply emits the `for` loops and the `Evaluate(tt.*)` calls that
-`tensorize_tt` inserted, which print as familiar Metalium intrinsics after
-stripping the `tt.` prefix. This removes a large set of heuristic code paths and
-aligns the TT backend with the CUDA flow where transforms do the pattern
-detection and codegen just serialises the resulting intrinsics.
+- Extend `TensorizeTT` to support multiple matmuls per reduction loop, element-wise tensorization, and richer diagnostics when CB metadata is missing or ambiguous.
+- Add regression coverage ensuring the TT codegen visitors continue to treat `Evaluate(tt.*)` nodes as intrinsics as new operations are added.
