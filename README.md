@@ -236,7 +236,7 @@ def sdpa(Q, K, V, O, scale: T.float32, causal: T.int32):
 ## Roadmap & Remaining Work
 
 We no longer track the backend via phased milestones. Instead, the authoritative plan is maintained in
-[docs/tenstorrent/IR_LOWERING_TASKS.md](docs/tenstorrent/IR_LOWERING_TASKS.md). A condensed snapshot:
+[docs/tenstorrent/TT_BACKEND_TASKS.md](docs/tenstorrent/TT_BACKEND_TASKS.md). A condensed snapshot:
 
 | Track | Status | Notes |
 |-------|--------|-------|

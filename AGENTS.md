@@ -18,7 +18,7 @@
 - CI and local parity workflow: `docs/tenstorrent/CI.md`
 - Backend overview and doc index: `docs/tenstorrent/README.md`
 - SDK setup for hardware runs: `docs/tenstorrent/METALIUM_SETUP_GUIDE.md`
-- Additional guides (e.g., `local_build_guide.md`, `IR_LOWERING_TASKS.md`) expand on build details and pass roadmaps.
+- Additional guides (e.g., `local_build_guide.md`, `TT_BACKEND_TASKS.md`) expand on build details and pass roadmaps.
 
 ## Build, Test, and Development Commands
 - `python -m venv .venv && source .venv/bin/activate` — create an isolated environment (recommended for all workflows).
