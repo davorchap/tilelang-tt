@@ -92,8 +92,8 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 2. **Extend pattern matcher** ✅  
    - Handle both `T.gemm()` AttrStmt and raw K-loop nests (`for kk in range(Kt)`) with reduction semantics. *(Implemented via `MatmulPatternCollector` in `tensorize_tt.cc`, emitting `tt_matmul_patterns` metadata)*  
    - Capture operand buffers, CB IDs, accumulation state, and tile indices.
-3. **Inject intrinsic sequence**  
-   - Replace matched loop bodies with ordered intrinsic calls (emit `Evaluate(call_intrin("tt.mm_init", ...))`, etc.), preserving persistent loop scaffolding.  
+3. **Inject intrinsic sequence** 🟡  
+   - Replace matched loop bodies with ordered TT intrinsic calls (mm_init → matmul_tiles → cb wait/pop → pack), preserving persistent loop scaffolding. *(Initial implementation injects default CB indices; TODO: derive from layout metadata.)*  
    - Attach buffer metadata (`tt.input_buffers`, `tt.output_buffer`, `tt.cb_roles`) on the enclosing PrimFunc.
 4. **Simplify compute codegen**  
    - Update `codegen_tt_compute_visitor.cc` to detect TT intrinsic calls and serialize them verbatim instead of using heuristic loop detection.  
@@ -182,7 +182,7 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 - [ ] Runtime argument contract documented for host + kernels.
 
 **Task 3 (Tensorize TT)**:
-- [ ] Matched regions are rewritten into explicit TT intrinsics (`tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`, etc.).
+- [x] Matched regions are rewritten into explicit TT intrinsics (`tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`, etc.). *(CB indices currently default; hook to metadata still TODO.)*
 - [x] PrimFuncs carry buffer role metadata (`tt_matmul_patterns` with buffer roles/indices, loop vars, reduction var).
 - [ ] Compute codegen serializes injected intrinsics without heuristic pattern detection.
 
