@@ -75,7 +75,6 @@ struct MatmulPatternInfo {
 };
 
 struct MatmulCollection {
-  Array<Map<String, ObjectRef>> metadata;
   std::vector<MatmulPatternInfo> infos;
   std::unordered_map<const BufferStoreNode *, int> store_to_index;
   std::unordered_map<const ForNode *, std::vector<int>>
@@ -165,14 +164,7 @@ public:
 
     VisitStmt(stmt);
 
-    Array<Map<String, ObjectRef>> metadata_arr;
-    metadata_arr.reserve(patterns_.size());
-    for (const MatmulPatternInfo &info : patterns_) {
-      metadata_arr.push_back(info.metadata);
-    }
-
     MatmulCollection result;
-    result.metadata = std::move(metadata_arr);
     result.infos = patterns_;
     result.store_to_index = store_to_index_;
     result.reduction_loop_to_indices = reduction_loop_to_indices_;
@@ -313,7 +305,6 @@ public:
     metadata.Set("cb_in1", Integer(cb_in1_id));
     metadata.Set("cb_out", Integer(cb_out_id));
     pattern_info.metadata = metadata;
-    collection_->metadata.Set(pattern_index, metadata);
 
     PrimExpr cb_in0 = Integer(cb_in0_id);
     PrimExpr cb_in1 = Integer(cb_in1_id);
@@ -358,7 +349,6 @@ public:
     metadata.Set("cb_in1", Integer(cb_in1_id));
     metadata.Set("cb_out", Integer(cb_out_id));
     pattern_info.metadata = metadata;
-    collection_->metadata.Set(pattern_index, metadata);
 
     PrimExpr cb_in0 = Integer(cb_in0_id);
     PrimExpr cb_in1 = Integer(cb_in1_id);
@@ -456,7 +446,13 @@ PrimFunc TensorizeTTImpl(PrimFunc f) {
   // Step 4: Attach matmul metadata
   new_func = WithAttr(new_func, "tt_num_matmuls", Integer(matmul_count));
   new_func = WithAttr(new_func, "tt_has_tensorize", Bool(true));
-  new_func = WithAttr(new_func, "tt_matmul_patterns", collection.metadata);
+
+  Array<Map<String, ObjectRef>> patterns_attr;
+  patterns_attr.reserve(collection.infos.size());
+  for (const MatmulPatternInfo &info : collection.infos) {
+    patterns_attr.push_back(info.metadata);
+  }
+  new_func = WithAttr(new_func, "tt_matmul_patterns", patterns_attr);
 
   return new_func;
 }
