@@ -95,9 +95,9 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 3. **Inject intrinsic sequence** 🟡  
    - Replace matched loop bodies with ordered TT intrinsic calls (mm_init → matmul_tiles → cb wait/pop → pack), preserving persistent loop scaffolding. *(Initial implementation injects default CB indices; TODO: derive from layout metadata.)*  
    - Attach buffer metadata (`tt.input_buffers`, `tt.output_buffer`, `tt.cb_roles`) on the enclosing PrimFunc.
-4. **Simplify compute codegen**  
-   - Update `codegen_tt_compute_visitor.cc` to detect TT intrinsic calls and serialize them verbatim instead of using heuristic loop detection.  
-   - Remove legacy pattern state (`current_pattern_`, `elementwise_init_emitted_`, etc.) once intrinsics drive emission.
+4. **Simplify compute codegen** ✅  
+   - Update `codegen_tt_compute_visitor.cc` to detect TT intrinsic calls and serialize them verbatim instead of using heuristic loop detection. *(Completed: visitor now emits loops verbatim and leverages intrinsic calls injected by `tensorize_tt`.)*  
+   - Remove legacy pattern state (`current_pattern_`, `elementwise_init_emitted_`, etc.) once intrinsics drive emission. *(Completed by simplifying `codegen_tt_compute_visitor.cc`.)*
 5. **Element-wise + tilize coverage**  
    - Extend matcher/injection for `T.grid(32, 32)` element-wise loops and tilize/untilize regions using `add_tiles`, `mul_tiles`, `tilize`, `untilize`.
 6. **Verification and tests**  
@@ -184,7 +184,7 @@ This document tracks high-level implementation tasks for completing the Tenstorr
 **Task 3 (Tensorize TT)**:
 - [x] Matched regions are rewritten into explicit TT intrinsics (`tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`, etc.). *(CB indices currently default; hook to metadata still TODO.)*
 - [x] PrimFuncs carry buffer role metadata (`tt_matmul_patterns` with buffer roles/indices, loop vars, reduction var).
-- [ ] Compute codegen serializes injected intrinsics without heuristic pattern detection.
+- [x] Compute codegen serializes injected intrinsics without heuristic pattern detection.
 
 **Task 4 (Integration Tests)**:
 - [x] Layout-aware feature matrix covered (DRAM/L1, interleaved/sharded).
