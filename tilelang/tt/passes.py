@@ -123,6 +123,43 @@ def _get_attr(attrs: Optional[tvm.ir.container.Map], key: str, default: Any = No
     return default
 
 
+def _convert_dict_for_ffi(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert a Python dict to be FFI-compatible.
+
+    The new FFI requires Map values to be TVM Objects when passing through FFI to C++.
+    This function converts Python primitives (bool, int) to TVM IntImm objects.
+    It also converts lists/tuples containing primitives to lists of IntImm objects
+    so that C++ Downcast<Array<Integer>> operations succeed.
+    """
+    result = {}
+    for key, value in d.items():
+        if isinstance(value, bool):
+            # Convert bool to IntImm (0 or 1)
+            result[key] = tvm.runtime.const(int(value), "int32")
+        elif isinstance(value, int):
+            # Convert int to IntImm
+            result[key] = tvm.runtime.const(value, "int32")
+        elif isinstance(value, (list, tuple)):
+            # Convert lists/tuples containing primitives to lists with IntImm
+            converted_list = []
+            for elem in value:
+                if isinstance(elem, bool):
+                    converted_list.append(tvm.runtime.const(int(elem), "int32"))
+                elif isinstance(elem, int):
+                    converted_list.append(tvm.runtime.const(elem, "int32"))
+                else:
+                    # Keep non-primitives as-is (TVM objects, strings, etc.)
+                    converted_list.append(elem)
+            result[key] = converted_list
+        elif isinstance(value, dict):
+            # Recursively convert nested dicts
+            result[key] = _convert_dict_for_ffi(value)
+        else:
+            # Keep everything else as-is (strings, Arrays, TVM objects)
+            result[key] = value
+    return result
+
+
 def infer_default_tt_schedule(mod: tvm.IRModule) -> tvm.IRModule:
     """Infer default Tenstorrent schedule metadata.
 
@@ -422,7 +459,9 @@ def infer_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
                 }
                 buffer_meta["legacy_shard"] = legacy_entry
 
-            new_func = new_func.with_attr(f"tt.buffer.{buffer_name}", convert(buffer_meta))
+            # Convert primitives (especially bools) to ints for FFI compatibility
+            buffer_meta_ffi = _convert_dict_for_ffi(buffer_meta)
+            new_func = new_func.with_attr(f"tt.buffer.{buffer_name}", buffer_meta_ffi)
 
         return new_func
 
@@ -468,7 +507,9 @@ def propagate_tt_layout(mod: tvm.IRModule) -> tvm.IRModule:
                 "data_format": str(data_format),
             }
 
-            new_func = new_func.with_attr(f"tt.cb.{buffer_name}", convert(cb_entry))
+            # Convert primitives to IntImm for FFI compatibility
+            cb_entry_ffi = _convert_dict_for_ffi(cb_entry)
+            new_func = new_func.with_attr(f"tt.cb.{buffer_name}", cb_entry_ffi)
 
         return new_func
 
@@ -571,6 +612,9 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
         if partition_mode == "local_shard":
             runtime_constants.update({"Sm": Sm, "Sn": Sn, "Gy": Gy, "Gx": Gx})
 
+        # Convert primitives to IntImm for FFI compatibility
+        runtime_constants_ffi = _convert_dict_for_ffi(runtime_constants)
+
         mesh_width = int(round(num_cores**0.5))
         if mesh_width * mesh_width != num_cores:
             mesh_width = grid_x if grid_x > 0 else max(num_cores, 1)
@@ -613,14 +657,17 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
                 core_ranges.append([x, y, x, y, start, count])
                 core_runtime_args.append([start, count, Mt, 1, Nt])
 
-        new_func = func.with_attr("tt.partition_mode", convert(partition_mode))
-        new_func = new_func.with_attr("tt.grid_tiles", convert(grid_tiles))
-        new_func = new_func.with_attr("tt.local_shape_tiles", convert(local_tiles))
-        new_func = new_func.with_attr("tt.shard_grid", convert(shard_grid))
-        new_func = new_func.with_attr("tt.runtime_arg_names", convert(runtime_arg_names))
-        new_func = new_func.with_attr("tt.runtime_constants", convert(runtime_constants))
-        new_func = new_func.with_attr("tt.core_ranges", convert(core_ranges))
-        new_func = new_func.with_attr("tt_core_runtime_args", convert(core_runtime_args))
+        new_func = func.with_attr("tt.partition_mode", partition_mode)
+        new_func = new_func.with_attr("tt.grid_tiles", grid_tiles)
+        new_func = new_func.with_attr("tt.local_shape_tiles", local_tiles)
+        new_func = new_func.with_attr("tt.shard_grid", shard_grid)
+        new_func = new_func.with_attr("tt.runtime_arg_names", runtime_arg_names)
+        new_func = new_func.with_attr("tt.runtime_constants", runtime_constants_ffi)
+        # Convert nested lists of ints to IntImm for FFI compatibility
+        core_ranges_ffi = [_convert_dict_for_ffi({"vals": r})["vals"] for r in core_ranges]
+        core_runtime_args_ffi = [_convert_dict_for_ffi({"vals": r})["vals"] for r in core_runtime_args]
+        new_func = new_func.with_attr("tt.core_ranges", core_ranges_ffi)
+        new_func = new_func.with_attr("tt_core_runtime_args", core_runtime_args_ffi)
 
         return new_func
 
