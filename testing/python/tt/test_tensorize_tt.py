@@ -44,15 +44,36 @@ def has_tt_matmul_attr(stmt):
     return found["value"]
 
 
+def build_matmul_loop(A, B, C, suffix=""):
+    """Construct a tiled matmul loop nest."""
+    i = tir.Var(f"i{suffix}", "int32")
+    j = tir.Var(f"j{suffix}", "int32")
+    k = tir.Var(f"k{suffix}", "int32")
+
+    c_load = tir.BufferLoad(C, [i, j])
+    a_load = tir.BufferLoad(A, [i, k])
+    b_load = tir.BufferLoad(B, [k, j])
+    updated = c_load + a_load * b_load
+
+    store = tir.BufferStore(C, updated, [i, j])
+    k_loop = tir.For(k, 0, 32, tir.ForKind.SERIAL, store)
+    j_loop = tir.For(j, 0, 32, tir.ForKind.SERIAL, k_loop)
+    return tir.For(i, 0, 32, tir.ForKind.SERIAL, j_loop)
+
+
 def create_func_with_gemm():
     """Create a mock PrimFunc with gemm operations."""
     A = tir.decl_buffer((32, 32), "float16", name="A")
     B = tir.decl_buffer((32, 32), "float16", name="B")
     C = tir.decl_buffer((32, 32), "float16", name="C")
 
-    # Create body with gemm pragma (simulating T.gemm)
-    gemm_body = tir.Evaluate(0)
-    body = tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm_body)
+    body = build_matmul_loop(A, B, C)
+    body = tir.AttrStmt(
+        C.data,
+        "pragma_gemm",
+        tvm.tir.StringImm("matmul"),
+        body,
+    )
 
     func = tir.PrimFunc([A, B, C], body)
 
@@ -68,10 +89,15 @@ def create_func_with_multiple_gemms():
     B = tir.decl_buffer((32, 32), "float16", name="B")
     C = tir.decl_buffer((32, 32), "float16", name="C")
 
-    # Create multiple gemm operations (simulating K-loop)
-    gemm1 = tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), tir.Evaluate(0))
-    gemm2 = tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), tir.Evaluate(1))
-    body = tir.SeqStmt([gemm1, gemm2])
+    gemm1 = build_matmul_loop(A, B, C, suffix="_0")
+    gemm2 = build_matmul_loop(A, B, C, suffix="_1")
+    attr1 = tir.AttrStmt(
+        C.data, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm1
+    )
+    attr2 = tir.AttrStmt(
+        C.data, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm2
+    )
+    body = tir.SeqStmt([attr1, attr2])
 
     func = tir.PrimFunc([A, B, C], body)
     func = func.with_attr("tt_schedule_policy", "contiguous")
@@ -85,22 +111,7 @@ def create_manual_matmul_func():
     B = tir.decl_buffer((32, 32), "float16", name="B")
     C = tir.decl_buffer((32, 32), "float16", name="C")
 
-    i = tir.Var("i", "int32")
-    j = tir.Var("j", "int32")
-    k = tir.Var("k", "int32")
-
-    a_load = tir.BufferLoad(A, [i, k])
-    b_load = tir.BufferLoad(B, [k, j])
-    c_load = tir.BufferLoad(C, [i, j])
-    product = a_load * b_load
-    updated = c_load + product
-
-    store = tir.BufferStore(C, updated, [i, j])
-    k_loop = tir.For(k, 0, 32, tir.ForKind.SERIAL, store)
-    j_loop = tir.For(j, 0, 32, tir.ForKind.SERIAL, k_loop)
-    i_loop = tir.For(i, 0, 32, tir.ForKind.SERIAL, j_loop)
-
-    func = tir.PrimFunc([A, B, C], i_loop)
+    func = tir.PrimFunc([A, B, C], build_matmul_loop(A, B, C))
     func = func.with_attr("tt_schedule_policy", "contiguous")
 
     return func
