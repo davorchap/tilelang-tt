@@ -61,7 +61,9 @@ def create_fully_annotated_module(grid_x, grid_y, num_cores=64):
         count = 1 if num_tiles >= num_cores else 0
         if i < num_tiles:
             # Convert list elements to IntImm for FFI
-            tiles_per_core.append([tvm.tir.IntImm("int32", start_id), tvm.tir.IntImm("int32", count)])
+            tiles_per_core.append(
+                [tvm.tir.IntImm("int32", start_id),
+                 tvm.tir.IntImm("int32", count)])
 
     func = func.with_attrs({
         "global_symbol": "main",
