@@ -665,7 +665,9 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
         new_func = new_func.with_attr("tt.runtime_constants", runtime_constants_ffi)
         # Convert nested lists of ints to IntImm for FFI compatibility
         core_ranges_ffi = [_convert_dict_for_ffi({"vals": r})["vals"] for r in core_ranges]
-        core_runtime_args_ffi = [_convert_dict_for_ffi({"vals": r})["vals"] for r in core_runtime_args]
+        core_runtime_args_ffi = [
+            _convert_dict_for_ffi({"vals": r})["vals"] for r in core_runtime_args
+        ]
         new_func = new_func.with_attr("tt.core_ranges", core_ranges_ffi)
         new_func = new_func.with_attr("tt_core_runtime_args", core_runtime_args_ffi)
 

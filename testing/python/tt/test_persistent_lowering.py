@@ -105,7 +105,7 @@ class TestGridToPersistentTT:
         @T.prim_func
         def shard_kernel(A: T.Buffer((128, 256), "float16")):
             with T.Kernel(2, 4) as (bx, by):
-                T.evaluate(A[bx + by])
+                T.evaluate(A[bx, by])
 
         prim = annotate_tt_schedule(
             shard_kernel,
