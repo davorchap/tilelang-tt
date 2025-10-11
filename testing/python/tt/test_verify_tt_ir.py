@@ -8,7 +8,7 @@ from tvm import tir
 
 
 def create_func_with_complete_metadata():
-    """Create a mock PrimFunc with complete TT defaults stage-3 metadata."""
+    """Create a mock PrimFunc with complete TT metadata."""
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
     B = tir.decl_buffer((256, 256), "float16", name="B", scope="global")
     C = tir.decl_buffer((256, 256), "float16", name="C", scope="global")
@@ -38,13 +38,13 @@ def create_func_with_complete_metadata():
     return func
 
 
-def create_func_missing_ws1_metadata():
-    """Create a mock PrimFunc missing TT defaults stage metadata."""
+def create_func_missing_defaults_metadata():
+    """Create a mock PrimFunc missing TT defaults metadata."""
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
     body = tir.Evaluate(0)
     func = tir.PrimFunc([A], body)
 
-    # Has tt_schedule_policy but missing other TT defaults stage attributes
+    # Has tt_schedule_policy but missing other TT defaults attributes
     func = func.with_attr("tt_schedule_policy", "contiguous")
     func = func.with_attr("tt_schedule_order", "row_major")
     # Missing: tt_layout_type, tt_tile_height, tt_tile_width
@@ -52,20 +52,20 @@ def create_func_missing_ws1_metadata():
     return func
 
 
-def create_func_missing_ws2_metadata():
-    """Create a mock PrimFunc missing metadata inference stage metadata."""
+def create_func_missing_inference_metadata():
+    """Create a mock PrimFunc missing metadata inference metadata."""
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
     body = tir.Evaluate(0)
     func = tir.PrimFunc([A], body)
 
-    # TT defaults stage metadata present
+    # TT defaults metadata present
     func = func.with_attr("tt_schedule_policy", "contiguous")
     func = func.with_attr("tt_schedule_order", "row_major")
     func = func.with_attr("tt_layout_type", "dram_interleaved")
     func = func.with_attr("tt_tile_height", tvm.tir.IntImm("int32", 32))
     func = func.with_attr("tt_tile_width", tvm.tir.IntImm("int32", 32))
 
-    # Missing metadata inference stage metadata - should be flagged as error
+    # Missing metadata inference metadata - should be flagged as error
     # No tt_grid_x, tt_grid_y, etc.
 
     return func
@@ -129,36 +129,36 @@ def test_verify_tt_ir_validation_passes():
     assert int(func.attrs["tt_validation_error_count"]) == 0, "Should have no errors"
 
 
-def test_verify_tt_ir_detects_missing_ws1():
-    """Test VerifyTTIR detects missing TT defaults stage metadata."""
+def test_verify_tt_ir_detects_missing_defaults():
+    """Test VerifyTTIR detects missing TT defaults metadata."""
     from tilelang.tt.passes import verify_tt_ir
 
-    func = create_func_missing_ws1_metadata()
+    func = create_func_missing_defaults_metadata()
     mod = tvm.IRModule({"main": func})
 
     mod = verify_tt_ir(mod)
     func = mod["main"]
 
-    # Should detect missing TT defaults stage attributes
+    # Should detect missing TT defaults attributes
     assert "tt_ir_validated" in func.attrs, "Should have validation result"
     assert not bool(
-        func.attrs["tt_ir_validated"]), "Validation should fail with missing TT defaults stage"
+        func.attrs["tt_ir_validated"]), "Validation should fail with missing TT defaults"
     assert int(func.attrs["tt_validation_error_count"]) > 0, "Should have errors"
 
 
-def test_verify_tt_ir_detects_missing_ws2():
-    """Test VerifyTTIR detects missing metadata inference stage metadata."""
+def test_verify_tt_ir_detects_missing_inference():
+    """Test VerifyTTIR detects missing metadata inference metadata."""
     from tilelang.tt.passes import verify_tt_ir
 
-    func = create_func_missing_ws2_metadata()
+    func = create_func_missing_inference_metadata()
     mod = tvm.IRModule({"main": func})
 
     mod = verify_tt_ir(mod)
     func = mod["main"]
 
-    # Should detect missing metadata inference stage attributes
-    assert not bool(func.attrs["tt_ir_validated"]
-                   ), "Validation should fail with missing metadata inference stage"
+    # Should detect missing metadata inference attributes
+    assert not bool(
+        func.attrs["tt_ir_validated"]), "Validation should fail with missing metadata inference"
     assert int(func.attrs["tt_validation_error_count"]) > 0, "Should have errors"
 
 
@@ -199,7 +199,7 @@ def test_verify_tt_ir_skip_non_tt_functions():
 
 
 def test_verify_tt_ir_integration_with_full_pipeline():
-    """Test VerifyTTIR integrates with full TT defaults stage→metadata inference stage→persistent transform stage pipeline."""
+    """Test VerifyTTIR integrates with full apply_tt_defaults→metadata inference→transform pipeline."""
     from tilelang.tt.passes import apply_tt_metadata_passes, apply_tt_transform_passes
     from tilelang.tt.target import apply_tt_defaults
 
@@ -217,7 +217,7 @@ def test_verify_tt_ir_integration_with_full_pipeline():
 
     mod = tvm.IRModule({"main": func})
 
-    # Apply TT defaults stage → metadata inference stage → persistent transform stage (includes VerifyTTIR)
+    # Apply TT defaults → metadata inference → transform pipeline (includes VerifyTTIR)
     mod = apply_tt_defaults(mod)
     mod = apply_tt_metadata_passes(mod)
     mod = apply_tt_transform_passes(mod)
@@ -225,8 +225,8 @@ def test_verify_tt_ir_integration_with_full_pipeline():
     func = mod["main"]
 
     # Verify all metadata exists
-    assert "tt_schedule_policy" in func.attrs, "Should have TT defaults stage defaults"
-    assert "tt_tiles_per_core" in func.attrs, "Should have metadata inference stage schedule metadata"
+    assert "tt_schedule_policy" in func.attrs, "Should have TT defaults"
+    assert "tt_tiles_per_core" in func.attrs, "Should have metadata inference schedule metadata"
     assert "tt_ir_validated" in func.attrs, "Should have VerifyTTIR output"
 
     # Validation should pass for complete pipeline
@@ -290,8 +290,8 @@ if __name__ == "__main__":
     # Run tests
     test_verify_tt_ir_basic()
     test_verify_tt_ir_validation_passes()
-    test_verify_tt_ir_detects_missing_ws1()
-    test_verify_tt_ir_detects_missing_ws2()
+    test_verify_tt_ir_detects_missing_defaults()
+    test_verify_tt_ir_detects_missing_inference()
     test_verify_tt_ir_large_grid_warning()
     test_verify_tt_ir_skip_non_tt_functions()
     test_verify_tt_ir_integration_with_full_pipeline()

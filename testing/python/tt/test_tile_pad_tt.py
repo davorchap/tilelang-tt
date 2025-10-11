@@ -221,8 +221,8 @@ def test_tile_pad_tt_multiple_buffers():
     assert int(b_padded[0]) == 128 and int(b_padded[1]) == 128
 
 
-def test_tile_pad_tt_integration_with_ws1_ws2():
-    """Test TilePadTT integrates with full TT defaults stage→metadata inference stage→TilePadTT pipeline."""
+def test_tile_pad_tt_integration_with_defaults_and_metadata():
+    """Test TilePadTT integrates with full apply_tt_defaults→metadata inference→TilePadTT pipeline."""
     from tilelang.tt.passes import apply_tt_metadata_passes, tile_pad_tt
     from tilelang.tt.target import apply_tt_defaults
 
@@ -240,7 +240,7 @@ def test_tile_pad_tt_integration_with_ws1_ws2():
 
     mod = tvm.IRModule({"main": func})
 
-    # Apply TT defaults stage → metadata inference stage → TilePadTT
+    # Apply TT defaults → metadata inference → TilePadTT
     mod = apply_tt_defaults(mod)
     mod = apply_tt_metadata_passes(mod)
     mod = tile_pad_tt(mod)
@@ -248,8 +248,8 @@ def test_tile_pad_tt_integration_with_ws1_ws2():
     func = mod["main"]
 
     # Verify all metadata exists
-    assert "tt_schedule_policy" in func.attrs, "Should have TT defaults stage defaults"
-    assert "tt_buffer_A_needs_padding" in func.attrs, "Should have metadata inference stage padding detection"
+    assert "tt_schedule_policy" in func.attrs, "Should have TT defaults"
+    assert "tt_buffer_A_needs_padding" in func.attrs, "Should have metadata inference padding detection"
     assert "tt_padding_info" in func.attrs, "Should have TilePadTT output"
 
 
@@ -262,5 +262,5 @@ if __name__ == "__main__":
     test_tile_pad_tt_skip_aligned_buffers()
     test_tile_pad_tt_skip_non_tt_functions()
     test_tile_pad_tt_multiple_buffers()
-    test_tile_pad_tt_integration_with_ws1_ws2()
+    test_tile_pad_tt_integration_with_defaults_and_metadata()
     print("All TilePadTT tests passed!")

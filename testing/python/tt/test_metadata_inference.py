@@ -1,11 +1,18 @@
-"""Integration tests for Stage 2: Schedule and Sharding Inference Passes.
+"""Integration tests for Legacy Metadata Inference Passes (Compatibility Layer).
 
-This module tests the schedule and sharding inference passes that inject
-TT-specific metadata into IRModules. These tests verify that:
+LEGACY: These tests validate the legacy schedule and sharding inference passes
+(infer_default_tt_schedule, infer_default_tt_shard) that provide default metadata
+when no user annotations are present. These passes are marked as legacy compatibility
+in PASS_TABLE.md and will be phased out in favor of the layout-aware pipeline
+(InferTTLayout → PropagateTTLayout → LayoutAwareWorkPartitionTT).
 
-1. Schedule inference computes correct per-core tile ranges
-2. Sharding inference generates correct layout metadata
-3. Metadata format matches expectations for downstream persistent transform stage/artifact generation stage passes
+These tests verify that:
+
+1. Schedule inference computes correct per-core tile ranges (legacy defaults)
+2. Sharding inference generates correct layout metadata (legacy defaults)
+3. Metadata format matches expectations for downstream passes
+
+See docs/tenstorrent/PASS_TABLE.md for current vs legacy pass status.
 """
 
 import pytest
@@ -15,10 +22,10 @@ from tilelang.tt import apply_tt_defaults, infer_default_tt_schedule, infer_defa
 
 
 class TestScheduleInference:
-    """Test schedule inference pass (metadata inference stage)."""
+    """Test legacy schedule inference pass (default metadata when no annotations provided)."""
 
     def test_schedule_inference_8x8_grid(self):
-        """Test schedule inference on 8x8 grid (64 tiles, perfect fit for 64 cores)."""
+        """Test legacy schedule inference on 8x8 grid (64 tiles, perfect fit for 64 cores)."""
 
         @T.prim_func
         def gemm_8x8(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
@@ -125,10 +132,10 @@ class TestScheduleInference:
 
 
 class TestShardInference:
-    """Test sharding inference pass (metadata inference stage)."""
+    """Test legacy sharding inference pass (default DRAM layout when no annotations provided)."""
 
     def test_shard_inference_tile_aligned(self):
-        """Test sharding inference on tile-aligned buffers (256x256, multiples of 32)."""
+        """Test legacy sharding inference on tile-aligned buffers (256x256, multiples of 32)."""
 
         @T.prim_func
         def gemm_aligned(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
@@ -214,10 +221,10 @@ class TestShardInference:
 
 
 class TestMetadataInferenceStageIntegration:
-    """Test integration of TT defaults stage + metadata inference stage passes."""
+    """Test integration of TT defaults + legacy metadata inference passes."""
 
     def test_full_metadata_inference_pipeline(self):
-        """Test full TT defaults stage -> metadata inference stage pipeline on realistic GEMM."""
+        """Test full TT defaults -> legacy metadata inference pipeline on realistic GEMM."""
 
         @T.prim_func
         def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
