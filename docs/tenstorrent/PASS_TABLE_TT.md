@@ -1,12 +1,13 @@
 # TileLang Tenstorrent Pass Reference
 
-**Document Version:** 1.0
-**Date:** 2025-10-08
-**Status:** Complete
+**Document Version:** 1.1
+**Date:** 2025-10-11
+**Status:** Active (Consolidation Plan tracking)
 
 ## Overview
 
 This document captures the Tenstorrent-specific transformation pipeline, metadata inference, and code generation passes. Shared passes are documented in `PASS_TABLE_SHARED.md`, and GPU-only passes in `PASS_TABLE_GPU.md`.
+It now mirrors the 2025-10-11 consolidation roadmap in `TT_BACKEND_CONSOLIDATION_PLAN.md`, updating pass statuses to match the phased rollout.
 
 ## Phase 2B: Tenstorrent-Specific Optimization
 
@@ -20,11 +21,12 @@ Applied only for Tenstorrent target via `OptimizeForTargetTT()`.
 
 | Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
 |------|--------|----------|----------|-----------|---------|---------------|
-| **InferTTLayout** | ✅ Complete | Memory | PrimFunc (`tt.user_layout`) | PrimFunc + `tt.buffer.*` | Stamp buffer layout metadata (alignments + N-D shard projection) | [📄 Doc](./passes/infer_layout_tt.md) |
-| **PropagateTTLayout** | ✅ Complete | Memory | PrimFunc + `tt.buffer.*` | PrimFunc + `tt.cb.*` | Derive circular buffer metadata consumed by codegen | [📄 Doc](./passes/propagate_layout_tt.md) |
-| **LayoutAwareWorkPartitionTT** | ✅ Complete | Device | PrimFunc + buffer metadata | PrimFunc + partition attrs | Emit `tt.partition_mode`, runtime arg schema, core ranges | [📄 Doc](./passes/layout_aware_partition_tt.md) |
+| **InferTTLayout** | 🟡 Python impl; C++ port pending (Phase 2) | Memory | PrimFunc (`tt.user_layout`) | PrimFunc + `tt.buffer.*` | Stamp buffer layout metadata (alignments + N-D shard projection) | [📄 Doc](./passes/infer_layout_tt.md) |
+| **PropagateTTLayout** | 🟡 Python impl; C++ port pending (Phase 2) | Memory | PrimFunc + `tt.buffer.*` | PrimFunc + `tt.cb.*` | Derive circular buffer metadata consumed by codegen | [📄 Doc](./passes/propagate_layout_tt.md) |
+| **LayoutAwareWorkPartitionTT** | 🟡 Python driver; C++ port pending (Phase 2) | Device | PrimFunc + buffer metadata | PrimFunc + partition attrs | Emit `tt.partition_mode`, runtime arg schema, core ranges | [📄 Doc](./passes/layout_aware_partition_tt.md) |
 
 **Annotations Added:**
+_Current implementation remains in Python helpers; Phase 2 tracks the C++ port._
 ```json
 "tt.buffer.A": {
   "memory": "DRAM",
@@ -90,21 +92,21 @@ Legacy schedule/shard passes remain for compatibility:
 
 | Pass | Status | Category | Purpose |
 |------|--------|----------|---------|
-| **infer_default_tt_schedule** | 🟡 Legacy | Device | Seed default per-core ranges when no annotations are provided. |
-| **infer_default_tt_shard** | 🟡 Legacy | Memory | Provide DRAM layout descriptors until layout-aware pipeline lands. |
+| **infer_default_tt_schedule** | 🟡 Legacy (removal tracked in Phase 2) | Device | Seed default per-core ranges when no annotations are provided. |
+| **infer_default_tt_shard** | 🟡 Legacy (removal tracked in Phase 2) | Memory | Provide DRAM layout descriptors until layout-aware pipeline lands. |
 
 ### Transform Pipeline: TIR Transformations
 
 | Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
 |------|--------|----------|----------|-----------|---------|---------------|
-| **grid_to_persistent_tt** | 🟡 Diagnostics pending | Device | Persistent kernel metadata | Persistent loop + runtime metadata | Consumes layout-aware attributes (global + local shard); additional halo/L1 diagnostics tracked separately | [📄 Doc](./passes/grid_to_persistent_tt.md) |
-| **tt_tiles_to_core_map** | 🟡 Legacy | Device | Tile assignments | Core (x, y) coords | Compatibility path when layout-aware metadata is unavailable | [📄 Doc](./passes/tt_tiles_to_core_map.md) |
-| **memory_space_lower_tt** | ✅ Complete | Memory | DRAM buffers | L1 circular buffers | Lower DRAM → L1 CB (consumes `tt.cb.*`) | [📄 Doc](./passes/memory_space_lower_tt.md) |
+| **grid_to_persistent_tt** | 🟡 Consumes new runtime args; diagnostics refresh queued | Device | Persistent kernel metadata | Persistent loop + runtime metadata | Consumes layout-aware attributes (global + local shard); additional halo/L1 diagnostics tracked separately | [📄 Doc](./passes/grid_to_persistent_tt.md) |
+| **tt_tiles_to_core_map** | 🟡 Legacy (removal tracked in Phase 2) | Device | Tile assignments | Core (x, y) coords | Compatibility path when layout-aware metadata is unavailable | [📄 Doc](./passes/tt_tiles_to_core_map.md) |
+| **memory_space_lower_tt** | 🟡 Heuristic CB sizing; Phase 2 rework | Memory | DRAM buffers | L1 circular buffers | Lower DRAM → L1 CB (consumes `tt.cb.*`) | [📄 Doc](./passes/memory_space_lower_tt.md) |
 | **tile_pad_tt** | ✅ Complete | Memory | Arbitrary shapes | Tile-aligned shapes | Pad to 32×32 tiles | [📄 Doc](./passes/tile_pad_tt.md) |
-| **tensorize_tt** | 🟡 Partial | Device | Loops | Loops + TT intrinsic evaluate nodes | Detect matmul regions, rewrite to `tt.*` intrinsics, attach metadata | [📄 Doc](./passes/tensorize_tt.md) |
+| **tensorize_tt** | 🟡 Phase 1 focus: `T.gemm` path | Device | Loops | Loops + TT intrinsic evaluate nodes | Detect matmul regions, rewrite to `tt.*` intrinsics, attach metadata | [📄 Doc](./passes/tensorize_tt.md) |
 | **rasterization_tt** | ⚠️ Planned | Optimization | Tile iteration | Optimized tile order | Remap tile iteration order | [📄 Spec](#rasterization_tt-specification) |
 | **tt_multicast_reuse** | ⚠️ Planned | Optimization | NOC ops | NOC + multicast | Insert multicast for reuse | [📄 Spec](#tt_multicast_reuse-specification) |
-| **verify_tt_ir** | ✅ Complete | Verification | TT IR | Verified TT IR | Verify TT constraints | [📄 Doc](./passes/verify_tt_ir.md) |
+| **verify_tt_ir** | 🟡 Needs `T.gemm` schema update | Verification | TT IR | Verified TT IR | Verify TT constraints | [📄 Doc](./passes/verify_tt_ir.md) |
 
 **Example Transform (grid_to_persistent_tt):**
 
