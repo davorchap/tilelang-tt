@@ -65,7 +65,7 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 - Mock-mode CI parity via `maint/scripts/local_build_and_test_tt.sh`.
 
 ### 🚧 In Progress
-- Extending `tensorize_tt.cc` with loop matchers to retire heuristic detection in compute codegen.
+- Extending `lower_gemm_to_tt_intrinsics.cc` with loop matchers to retire heuristic detection in compute codegen.
 - Additional diagnostics for halo hints, L1 capacity checks, and documentation refreshes.
 
 ### ⏸️ Blocked
@@ -91,7 +91,7 @@ Transform Pipeline (TT-specific + shared passes)
     ├─ grid_to_persistent_tt (GPU grid → persistent loop)
     ├─ memory_space_lower_tt (DRAM → L1 circular buffers)
     ├─ tile_pad_tt (pad to 32×32 tiles)
-    ├─ tensorize_tt (pattern detection; matcher upgrades in progress)
+    ├─ lower_gemm_to_tt_intrinsics (pattern detection; matcher upgrades in progress)
     ├─ verify_tt_ir (constraint verification)
     └─ infer_default_tt_schedule / infer_default_tt_shard (legacy fallbacks)
     ↓

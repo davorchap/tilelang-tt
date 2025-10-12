@@ -512,15 +512,15 @@ for (uint32_t tile_idx = 0; tile_idx < num_output_tiles; ++tile_idx) {
 
 ### 🚧 Incomplete (Next Steps)
 
-**Pattern Detection:**
-- ❌ `tensorize_tt` pass only handles T.gemm() intrinsic calls
-- ❌ Manual matmul loops not detected
+- **Pattern Detection:**
+- ✅ `LowerGemmToTTIntrinsics` pass rewrites frontend `T.gemm()` regions into TT intrinsics
+- ❌ Manual matmul loops without GEMM markers remain unsupported
 - ❌ Element-wise operations not annotated
 - ⚠️ Codegen uses heuristics (variable name "kt" → K-loop) instead of annotations
 
-**Issue:** Generated K-loop has scaffolding but body still has raw array operations instead of Metalium intrinsics.
+**Issue:** Handwritten matmul loops (without `T.gemm`) still lower to raw array operations instead of TT intrinsics.
 
-**Solution:** Extend `tensorize_tt.cc` to detect manual loop patterns and annotate IR. See [TT_BACKEND_TASKS.md](./TT_BACKEND_TASKS.md) for implementation plan.
+**Solution:** Either express matmuls through `T.gemm` (preferred) or extend `lower_gemm_to_tt_intrinsics.cc` with a guarded fallback in a future milestone. See [TT_BACKEND_TASKS.md](./TT_BACKEND_TASKS.md) for the current plan.
 
 **SDK Validation:**
 - ⚠️ Pending SDK access for hardware testing
@@ -538,7 +538,7 @@ for (uint32_t tile_idx = 0; tile_idx < num_output_tiles; ++tile_idx) {
 | **Memory Hierarchy** | Global → Shared → Registers | DRAM → L1 CB → DST Registers |
 | **Synchronization** | `__syncthreads()` | Circular buffer flow control |
 | **Kernel Launch** | Host launches grid | Host configures cores, cores iterate |
-| **Pattern Detection** | Transform pass (`InferFragment`) | Transform pass (`tensorize_tt`) |
+| **Pattern Detection** | Transform pass (`InferFragment`) | Transform pass (`LowerGemmToTTIntrinsics`) |
 | **Codegen Split** | Host/Device (SplitHostDevice) | 3 kernels (Reader/Compute/Writer) |
 
 ---
@@ -648,7 +648,7 @@ tilelang-tt/
 │   │   ├── tt_tiles_to_core_map.cc     # Tile assignments → NOC coords
 │   │   ├── memory_space_lower_tt.cc    # DRAM → L1 CB
 │   │   ├── tile_pad_tt.cc              # Pad to 32×32
-│   │   ├── tensorize_tt.cc             # Pattern detection (INCOMPLETE)
+│   │   ├── lower_gemm_to_tt_intrinsics.cc # Pattern detection (INCOMPLETE)
 │   │   └── verify_tt_ir.cc             # TT constraint verification
 │   └── target/tt/
 │       ├── codegen_tt.cc                      # Main codegen entry
@@ -663,7 +663,7 @@ tilelang-tt/
     ├── test_tt_tiles_to_core_map.py     # NOC mapping (5 tests)
     ├── test_memory_space_lower_tt.py    # CB lowering (8 tests)
     ├── test_tile_pad_tt.py              # Tile padding (6 tests)
-    ├── test_tensorize_tt.py             # Tensorization (8 tests)
+    ├── test_lower_gemm_to_tt_intrinsics.py  # Tensorization (8 tests)
     ├── test_verify_tt_ir.py             # Verification (8 tests)
     └── test_codegen_tt.py               # Code generation (33 tests)
 ```

@@ -341,7 +341,7 @@ def OptimizeForTargetTT(mod: IRModule, target: Target) -> IRModule:
     mod = tile_pad_tt(mod)
 
     # ⭐ CRITICAL: Tensorization (pattern detection)
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
 
     # === Common Optimizations (Shared with CUDA) ===
     mod = tilelang.transform.FlattenBuffer()(mod)
@@ -370,26 +370,27 @@ def OptimizeForTargetTT(mod: IRModule, target: Target) -> IRModule:
 - **tt_tiles_to_core_map** *(legacy fallback)*: Provide core assignments when layout-aware metadata is absent.
 - **memory_space_lower_tt**: Lower DRAM allocations to L1 circular buffers.
 - **tile_pad_tt**: Pad buffers to 32×32 tile boundaries.
-- **tensorize_tt**: ⭐ Pattern detection + TT intrinsic injection (manual loop matcher complete; element-wise TBD).
+- **LowerGemmToTTIntrinsics**: ⭐ Map frontend `tl.gemm` intrinsics to TT intrinsic sequences (manual loop matcher removed; element-wise TBD).
 - **verify_tt_ir**: Verify TT constraints (grid size, CB counts, runtime args).
 
-### Phase 4: TensorizeTT Pass
+### Phase 4: LowerGemmToTTIntrinsics Pass
 
-**Location:** `src/transform/tt/tensorize_tt.cc`
+**Location:** `src/transform/tt/lower_gemm_to_tt_intrinsics.cc`
 
 **Current State:**
-- Detects matmul regions from both frontend pragmas and handwritten K-loop
-  patterns, recording buffer roles, loop variables, and reduction variables in
-  `tt_matmul_patterns`.
-- Resolves circular-buffer IDs from `tt_circular_buffers` metadata and stores
-  them with the pattern (`cb_in0`, `cb_in1`, `cb_out`), falling back to the
-  canonical `c0/c1/c16` mapping when metadata is absent.
-- Rewrites the matched regions directly into TT intrinsics
-  (`tt.tile_regs_acquire`, `tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`,
-  `tt.cb_pop_front`, `tt.pack_tile`, etc.). The legacy `tt.matmul_intrinsic`
-  wrapper is no longer emitted—the intrinsic sequence *is* the IR.
-- Still TODO: element-wise tensorization, tilize/untilize helpers, and richer
-  diagnostics when buffer names do not align with CB metadata.
+- Consumes frontend-issued `tl.gemm` intrinsics (mirroring the CUDA pipeline)
+  and drops the bespoke loop-pattern matcher.
+- Resolves circular-buffer IDs from `tt_circular_buffers` metadata and records
+  the basic bookkeeping (`cb_in0`, `cb_in1`, `cb_out`, signature string) in
+  `tt_matmul_patterns`, falling back to the canonical `c0/c1/c16` mapping when
+  metadata is absent.
+- Expands each `tl.gemm` evaluate node into the TT intrinsic sequence
+  (`tt.tile_regs_acquire`, `tt.mm_init`, `tt.cb_wait_front`, `tt.matmul_tiles`,
+  `tt.cb_pop_front`, `tt.tile_regs_commit`, `tt.cb_reserve_back`,
+  `tt.pack_tile`, `tt.cb_push_back`, `tt.tile_regs_release`).
+- Still TODO: propagate richer metadata (e.g., loop/reduction context), handle
+  element-wise tensorization, and tighten diagnostics when CB attribution
+  fails.
 
 ### Phase 5: Device Splitting (TT 3-Kernel Architecture)
 
@@ -414,7 +415,7 @@ def SplitTTKernels(mod: IRModule) -> Tuple[IRModule, IRModule]:
 
 **Current Implementation:**
 
-- `TensorizeTT` lowers matched matmul loops into explicit TT intrinsic calls before codegen, emitting `tt.tile_regs_acquire`, `tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`, `tt.cb_pop_front`, `tt.cb_reserve_back`, `tt.pack_tile`, and `tt.cb_push_back` sequences (`src/transform/tt/tensorize_tt.cc`).
+- `LowerGemmToTTIntrinsics` lowers frontend `tl.gemm` calls into explicit TT intrinsic sequences before codegen, emitting `tt.tile_regs_acquire`, `tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`, `tt.cb_pop_front`, `tt.cb_reserve_back`, `tt.pack_tile`, and `tt.cb_push_back` sequences (`src/transform/tt/lower_gemm_to_tt_intrinsics.cc`).
 - `TTComputeCodegenVisitor` walks the existing IR without heuristics. It prints the surrounding loop structure and the `Evaluate(tt.*)` nodes left behind by tensorization (`src/target/tt/codegen_tt_compute_visitor.cc`).
 
 ```cpp
@@ -442,20 +443,20 @@ void TTComputeCodegenVisitor::VisitStmt_(const AttrStmtNode* op) {
 ```
 
 - Evaluate nodes fall through to `TTCodegenVisitor::VisitStmt_(const EvaluateNode* op)`, which renders the intrinsic call after stripping the `tt.` prefix inside `EmitExpr`. The generated C++ therefore already contains `mm_init`, `matmul_tiles`, `cb_wait_front`, etc.
-- Remaining TODOs: `TensorizeTT` still guards against multiple matmuls in the same reduction loop, and element-wise tensorization plus tilize/untilize lowering remain unimplemented.
+- Remaining TODOs: `LowerGemmToTTIntrinsics` still guards against multiple matmuls in the same reduction loop, and element-wise tensorization plus tilize/untilize lowering remain unimplemented.
 
 ## Comparison Summary
 
 | Aspect | GPU (CUDA) | Tenstorrent (Current) |
 |--------|------------|-----------------------|
-| **Pattern Detection** | Transform pass (`InferFragment`) finds TensorCore regions | Transform pass (`TensorizeTT`) rewrites matmul loops into TT intrinsics |
+| **Pattern Detection** | Transform pass (`InferFragment`) finds TensorCore regions | Transform pass (`LowerGemmToTTIntrinsics`) rewrites `tl.gemm` calls into TT intrinsics |
 | **Annotation Method** | AttrStmt metadata on fragment buffers (`fragment_shape`, `fragment_layout`) | Evaluate nodes with `tt.*` intrinsics + `tt_matmul_patterns`/`tt_num_matmuls` metadata |
-| **Intrinsic Insertion** | Frontend lowering inserts `tvm_load_matrix_sync`/`tvm_mma_sync` | `TensorizeTT` emits `tt.tile_regs_*`, `tt.mm_init`, `tt.matmul_tiles`, wait/pop intrinsics |
+| **Intrinsic Insertion** | Frontend lowering inserts `tvm_load_matrix_sync`/`tvm_mma_sync` | `LowerGemmToTTIntrinsics` emits `tt.tile_regs_*`, `tt.mm_init`, `tt.matmul_tiles`, wait/pop intrinsics |
 | **Codegen Role** | Emit CUDA/PTX from annotated IR (no pattern detection) | Emit Metalium intrinsics directly from intrinsic-bearing IR (no heuristics) |
 | **IR Representation** | Intrinsic calls guarded by fragment annotations | Intrinsic calls (`Evaluate(tt.*)`) surrounded by TT runtime metadata |
 | **Device Splitting** | `SplitHostDevice` separates host/device functions | 3-visitor split happens during codegen (`TTReader/Compute/WriterCodegenVisitor`) |
 
 ## Recommended Architecture Changes
 
-- Extend `TensorizeTT` to support multiple matmuls per reduction loop, element-wise tensorization, and richer diagnostics when CB metadata is missing or ambiguous.
+- Extend `LowerGemmToTTIntrinsics` to support multiple matmuls per reduction loop, element-wise tensorization, and richer diagnostics when CB metadata is missing or ambiguous.
 - Add regression coverage ensuring the TT codegen visitors continue to treat `Evaluate(tt.*)` nodes as intrinsics as new operations are added.

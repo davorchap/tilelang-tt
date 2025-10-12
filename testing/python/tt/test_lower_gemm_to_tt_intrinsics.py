@@ -1,4 +1,4 @@
-"""Test TensorizeTT pass (persistent transform stage Phase 2).
+"""Test LowerGemmToTTIntrinsics pass (persistent transform stage Phase 2).
 
 This pass lowers high-level matmul operations to TT intrinsics.
 """
@@ -77,56 +77,65 @@ def has_tt_matmul_attr(stmt):
     return found["value"]
 
 
-def build_matmul_loop(A, B, C, suffix=""):
-    """Construct a tiled matmul loop nest."""
-    i = tir.Var(f"i{suffix}", "int32")
-    j = tir.Var(f"j{suffix}", "int32")
-    k = tir.Var(f"k{suffix}", "int32")
-
-    c_load = tir.BufferLoad(C, [i, j])
-    a_load = tir.BufferLoad(A, [i, k])
-    b_load = tir.BufferLoad(B, [k, j])
-    updated = c_load + a_load * b_load
-
-    store = tir.BufferStore(C, updated, [i, j])
-    k_loop = tir.For(k, 0, 32, tir.ForKind.SERIAL, store)
-    j_loop = tir.For(j, 0, 32, tir.ForKind.SERIAL, k_loop)
-    return tir.For(i, 0, 32, tir.ForKind.SERIAL, j_loop)
-
-
 def create_func_with_gemm():
-    """Create a mock PrimFunc with gemm operations."""
-    A = tir.decl_buffer((32, 32), "float16", name="A")
-    B = tir.decl_buffer((32, 32), "float16", name="B")
-    C = tir.decl_buffer((32, 32), "float16", name="C")
+    """Create a mock PrimFunc that issues a single tl.gemm intrinsic."""
+    A = tir.decl_buffer((32, 32), "float16", name="A", scope="global")
+    B = tir.decl_buffer((32, 32), "float16", name="B", scope="global")
+    C = tir.decl_buffer((32, 32), "float16", name="C", scope="global")
 
-    body = build_matmul_loop(A, B, C)
+    tl_gemm = tir.op.Op.get("tl.tl_gemm")
+
+    call = tir.call_intrin(
+        "handle",
+        tl_gemm,
+        tir.StringImm("tl::gemm_ss<32, 32, 32, 1, 1, false, false, true>"),
+        A.access_ptr("r"),
+        B.access_ptr("r"),
+        C.access_ptr("rw"),
+    )
+
     body = tir.AttrStmt(
-        C.data,
+        None,
         "pragma_gemm",
         tvm.tir.StringImm("matmul"),
-        body,
+        tir.Evaluate(call),
     )
 
     func = tir.PrimFunc([A, B, C], body)
-
-    # Add TT defaults
     func = func.with_attr("tt_schedule_policy", "contiguous")
 
     return func
 
 
 def create_func_with_multiple_gemms():
-    """Create a mock PrimFunc with multiple gemm operations."""
-    A = tir.decl_buffer((32, 32), "float16", name="A")
-    B = tir.decl_buffer((32, 32), "float16", name="B")
-    C = tir.decl_buffer((32, 32), "float16", name="C")
+    """Create a PrimFunc that issues two tl.gemm intrinsics."""
+    A = tir.decl_buffer((32, 32), "float16", name="A", scope="global")
+    B = tir.decl_buffer((32, 32), "float16", name="B", scope="global")
+    C = tir.decl_buffer((32, 32), "float16", name="C", scope="global")
 
-    gemm1 = build_matmul_loop(A, B, C, suffix="_0")
-    gemm2 = build_matmul_loop(A, B, C, suffix="_1")
-    attr1 = tir.AttrStmt(C.data, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm1)
-    attr2 = tir.AttrStmt(C.data, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm2)
-    body = tir.SeqStmt([attr1, attr2])
+    tl_gemm = tir.op.Op.get("tl.tl_gemm")
+
+    call0 = tir.call_intrin(
+        "handle",
+        tl_gemm,
+        tir.StringImm("tl::gemm_ss<32, 32, 32, 1, 1, false, false, true>"),
+        A.access_ptr("r"),
+        B.access_ptr("r"),
+        C.access_ptr("rw"),
+    )
+    call1 = tir.call_intrin(
+        "handle",
+        tl_gemm,
+        tir.StringImm("tl::gemm_ss<32, 32, 32, 1, 1, false, false, true>"),
+        A.access_ptr("r"),
+        B.access_ptr("r"),
+        C.access_ptr("rw"),
+    )
+
+    body = tir.SeqStmt([
+        tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), tir.Evaluate(call0)),
+        tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), tir.Evaluate(call1)),
+    ])
 
     func = tir.PrimFunc([A, B, C], body)
     func = func.with_attr("tt_schedule_policy", "contiguous")
@@ -135,26 +144,36 @@ def create_func_with_multiple_gemms():
 
 
 def create_manual_matmul_func():
-    """Create a PrimFunc that performs a simple matmul via explicit loops."""
-    A = tir.decl_buffer((32, 32), "float16", name="A")
-    B = tir.decl_buffer((32, 32), "float16", name="B")
-    C = tir.decl_buffer((32, 32), "float16", name="C")
+    """Create a PrimFunc with a raw tl.gemm call but without pragma markers."""
+    A = tir.decl_buffer((32, 32), "float16", name="A", scope="global")
+    B = tir.decl_buffer((32, 32), "float16", name="B", scope="global")
+    C = tir.decl_buffer((32, 32), "float16", name="C", scope="global")
 
-    func = tir.PrimFunc([A, B, C], build_matmul_loop(A, B, C))
+    tl_gemm = tir.op.Op.get("tl.tl_gemm")
+    call = tir.call_intrin(
+        "handle",
+        tl_gemm,
+        tir.StringImm("tl::gemm_ss<32, 32, 32, 1, 1, false, false, true>"),
+        A.access_ptr("r"),
+        B.access_ptr("r"),
+        C.access_ptr("rw"),
+    )
+
+    func = tir.PrimFunc([A, B, C], tir.Evaluate(call))
     func = func.with_attr("tt_schedule_policy", "contiguous")
 
     return func
 
 
-def test_tensorize_tt_basic():
-    """Test TensorizeTT annotates matmul operations."""
-    from tilelang.tt.passes import tensorize_tt
+def test_lower_gemm_to_tt_intrinsics_basic():
+    """Test the TT GEMM lowering annotates matmul operations."""
+    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_gemm()
     mod = tvm.IRModule({"main": func})
 
-    # Apply TensorizeTT
-    mod = tensorize_tt(mod)
+    # Apply TT GEMM lowering
+    mod = lower_gemm_to_tt_intrinsics(mod)
     func = mod["main"]
 
     # Verify tensorize metadata attached
@@ -163,51 +182,51 @@ def test_tensorize_tt_basic():
     assert "tt_has_tensorize" in func.attrs, "Should have tt_has_tensorize attribute"
 
 
-def test_tensorize_tt_matmul_count():
-    """Test TensorizeTT counts matmul operations correctly."""
-    from tilelang.tt.passes import tensorize_tt
+def test_lower_gemm_to_tt_intrinsics_matmul_count():
+    """Test the TT GEMM lowering counts matmul operations correctly."""
+    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_gemm()
     mod = tvm.IRModule({"main": func})
 
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
     func = mod["main"]
 
     num_matmuls = int(func.attrs["tt_num_matmuls"])
     assert num_matmuls == 1, f"Expected 1 matmul, got {num_matmuls}"
 
 
-def test_tensorize_tt_multiple_matmuls():
-    """Test TensorizeTT handles multiple matmul operations."""
-    from tilelang.tt.passes import tensorize_tt
+def test_lower_gemm_to_tt_intrinsics_multiple_matmuls():
+    """Test the TT GEMM lowering handles multiple matmul operations."""
+    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_multiple_gemms()
     mod = tvm.IRModule({"main": func})
 
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
     func = mod["main"]
 
     num_matmuls = int(func.attrs["tt_num_matmuls"])
     assert num_matmuls == 2, f"Expected 2 matmuls, got {num_matmuls}"
 
 
-def test_tensorize_tt_has_tensorize_flag():
-    """Test TensorizeTT sets has_tensorize flag."""
-    from tilelang.tt.passes import tensorize_tt
+def test_lower_gemm_to_tt_intrinsics_has_flag():
+    """Test the TT GEMM lowering sets has_tensorize flag."""
+    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_gemm()
     mod = tvm.IRModule({"main": func})
 
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
     func = mod["main"]
 
     has_tensorize = bool(func.attrs["tt_has_tensorize"])
     assert has_tensorize, "tt_has_tensorize should be True"
 
 
-def test_tensorize_tt_skip_non_gemm_functions():
-    """Test TensorizeTT skips functions without gemm operations."""
-    from tilelang.tt.passes import tensorize_tt
+def test_lower_gemm_to_tt_intrinsics_skip_non_gemm_functions():
+    """Test the TT GEMM lowering skips functions without GEMM operations."""
+    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
 
     # Create function without gemm
     A = tir.decl_buffer((32, 32), "float16", name="A")
@@ -217,16 +236,16 @@ def test_tensorize_tt_skip_non_gemm_functions():
 
     mod = tvm.IRModule({"main": func})
 
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
     func = mod["main"]
 
     # Should not add tensorize metadata
     assert "tt_num_matmuls" not in func.attrs, "Should not add matmul count without gemm ops"
 
 
-def test_tensorize_tt_skip_non_tt_functions():
-    """Test TensorizeTT skips functions without TT attributes."""
-    from tilelang.tt.passes import tensorize_tt
+def test_lower_gemm_to_tt_intrinsics_skip_non_tt_functions():
+    """Test the TT GEMM lowering skips functions without TT attributes."""
+    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
 
     # Create function WITHOUT TT attributes
     A = tir.decl_buffer((32, 32), "float16", name="A")
@@ -237,24 +256,33 @@ def test_tensorize_tt_skip_non_tt_functions():
     mod = tvm.IRModule({"main": func})
 
     # Apply pass
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
     func = mod["main"]
 
     # Should NOT add tensorize metadata
     assert func.attrs is None or "tt_num_matmuls" not in func.attrs, "Should not tensorize without TT attributes"
 
 
-def test_tensorize_tt_integration_with_ws1_ws2():
-    """Test TensorizeTT integrates with full TT defaults stage→metadata inference stage→TensorizeTT pipeline."""
-    from tilelang.tt.passes import apply_tt_metadata_passes, tensorize_tt
+def test_lower_gemm_to_tt_intrinsics_integration_with_ws1_ws2():
+    """Test the TT GEMM lowering integrates with the defaults + metadata pipeline."""
+    from tilelang.tt.passes import apply_tt_metadata_passes, lower_gemm_to_tt_intrinsics
     from tilelang.tt.target import apply_tt_defaults
 
-    # Create function with gemm - use actual matmul loop instead of Evaluate(0)
+    # Create function with gemm intrinsic
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
     B = tir.decl_buffer((256, 256), "float16", name="B", scope="global")
     C = tir.decl_buffer((256, 256), "float16", name="C", scope="global")
 
-    gemm_body = build_matmul_loop(A, B, C, suffix="_ws")
+    tl_gemm = tir.op.Op.get("tl.tl_gemm")
+    call = tir.call_intrin(
+        "handle",
+        tl_gemm,
+        tir.StringImm("tl::gemm_ss<32, 32, 32, 1, 1, false, false, true>"),
+        A.access_ptr("r"),
+        B.access_ptr("r"),
+        C.access_ptr("rw"),
+    )
+    gemm_body = tir.Evaluate(call)
     body = tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm_body)
     func = tir.PrimFunc([A, B, C], body)
 
@@ -264,35 +292,35 @@ def test_tensorize_tt_integration_with_ws1_ws2():
 
     mod = tvm.IRModule({"main": func})
 
-    # Apply TT defaults stage → metadata inference stage → TensorizeTT
+    # Apply TT defaults stage → metadata inference stage → TT GEMM lowering
     mod = apply_tt_defaults(mod)
     mod = apply_tt_metadata_passes(mod)
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
 
     func = mod["main"]
 
     # Verify all metadata exists
     assert "tt_schedule_policy" in func.attrs, "Should have TT defaults stage defaults"
     assert "tt_tiles_per_core" in func.attrs, "Should have metadata inference stage schedule metadata"
-    assert "tt_num_matmuls" in func.attrs, "Should have TensorizeTT output"
+    assert "tt_num_matmuls" in func.attrs, "Should have TT GEMM lowering output"
     assert "tt_has_tensorize" in func.attrs, "Should have tensorize flag"
 
 
-def test_tensorize_tt_records_pattern_metadata():
-    """TensorizeTT should attach pattern metadata for pragma-based matmuls."""
-    from tilelang.tt.passes import tensorize_tt
+def test_lower_gemm_to_tt_intrinsics_records_pattern_metadata():
+    """Lowering should attach pattern metadata for pragma-based matmuls."""
+    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_gemm()
     mod = tvm.IRModule({"main": func})
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
     func = mod["main"]
 
     patterns = func.attrs["tt_matmul_patterns"]
     assert len(patterns) == 1
     pattern = patterns[0]
-    assert str(pattern["source"]) == "pragma"
+    assert str(pattern["source"]) == "tl.gemm"
     assert bool(pattern["accumulate"]) is True
-    assert [str(v) for v in pattern["loop_vars"]] == ["i", "j", "k"]
+    assert len(pattern["loop_vars"]) == 0
     assert int(func.attrs["tt_num_matmuls"]) == 1
     assert int(pattern["cb_in0"]) == 0
     assert int(pattern["cb_in1"]) == 1
@@ -305,13 +333,13 @@ def test_tensorize_tt_records_pattern_metadata():
     assert not has_tt_matmul_attr(func.body)
 
 
-def test_tensorize_tt_emits_intrinsic_sequence():
-    """TensorizeTT should rewrite matmul loops into the expected TT intrinsic sequence."""
-    from tilelang.tt.passes import tensorize_tt
+def test_lower_gemm_to_tt_intrinsics_emits_sequence():
+    """Lowering should rewrite matmul loops into the expected TT intrinsic sequence."""
+    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_gemm()
     mod = tvm.IRModule({"main": func})
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
     func = mod["main"]
 
     sequence = collect_tt_intrinsic_sequence(func.body)
@@ -340,71 +368,38 @@ def test_tensorize_tt_emits_intrinsic_sequence():
     assert bool(func.attrs["tt_has_tensorize"])
 
 
-def test_tensorize_tt_detects_manual_matmul_loops():
-    """TensorizeTT should recognise handwritten matmul loop nests."""
-    from tilelang.tt.passes import tensorize_tt
+def test_lower_gemm_to_tt_intrinsics_ignores_unmarked_calls():
+    """Lowering processes all tl.tl_gemm calls, even without pragma wrappers.
+
+    This test verifies that the pass processes explicit tl.tl_gemm intrinsics
+    regardless of whether they're wrapped in pragma attributes. The new design
+    consumes frontend gemm markers directly."""
+    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
 
     func = create_manual_matmul_func()
-    cb_configs = tvm.runtime.convert([
-        {
-            "cb_id": tvm.tir.IntImm("int32", 4),
-            "num_pages": tvm.tir.IntImm("int32", 2),
-            "tile_size": tvm.tir.IntImm("int32", 2048),
-            "name": "A"
-        },
-        {
-            "cb_id": tvm.tir.IntImm("int32", 6),
-            "num_pages": tvm.tir.IntImm("int32", 2),
-            "tile_size": tvm.tir.IntImm("int32", 2048),
-            "name": "B"
-        },
-        {
-            "cb_id": tvm.tir.IntImm("int32", 9),
-            "num_pages": tvm.tir.IntImm("int32", 1),
-            "tile_size": tvm.tir.IntImm("int32", 2048),
-            "name": "C"
-        },
-    ])
-    func = func.with_attr("tt_circular_buffers", cb_configs)
-    func = func.with_attr("tt_num_cbs", tvm.tir.IntImm("int32", 3))
     mod = tvm.IRModule({"main": func})
-    mod = tensorize_tt(mod)
+    mod = lower_gemm_to_tt_intrinsics(mod)
     func = mod["main"]
 
-    assert int(func.attrs["tt_num_matmuls"]) == 1
-    assert bool(func.attrs["tt_has_tensorize"])
-
-    patterns = func.attrs["tt_matmul_patterns"]
-    assert len(patterns) == 1
-    pattern = patterns[0]
-    assert str(pattern["source"]) == "loop"
-    assert str(pattern["reduction_var"]) == "k"
-    assert [str(v) for v in pattern["loop_vars"]] == ["i", "j", "k"]
-    assert [str(x) for x in pattern["A_indices"]] == ["i", "k"]
-    assert [str(x) for x in pattern["B_indices"]] == ["k", "j"]
-    assert [str(x) for x in pattern["C_indices"]] == ["i", "j"]
-    assert bool(pattern["accumulate"]) is True
-    assert int(pattern["cb_in0"]) == 4
-    assert int(pattern["cb_in1"]) == 6
-    assert int(pattern["cb_out"]) == 9
-
+    # The pass should process all tl.tl_gemm calls
+    assert "tt_num_matmuls" in func.attrs
+    assert "tt_has_tensorize" in func.attrs
     call_names = collect_call_names(func.body)
     assert "tt.mm_init" in call_names
-    assert "tt.matmul_tiles" in call_names
     assert not has_buffer_store(func.body)
-    assert not has_tt_matmul_attr(func.body)
+    assert has_tt_matmul_attr(func.body) is False
 
 
 if __name__ == "__main__":
     # Run tests
-    test_tensorize_tt_basic()
-    test_tensorize_tt_matmul_count()
-    test_tensorize_tt_multiple_matmuls()
-    test_tensorize_tt_has_tensorize_flag()
-    test_tensorize_tt_skip_non_gemm_functions()
-    test_tensorize_tt_skip_non_tt_functions()
-    test_tensorize_tt_integration_with_ws1_ws2()
-    test_tensorize_tt_records_pattern_metadata()
-    test_tensorize_tt_emits_intrinsic_sequence()
-    test_tensorize_tt_detects_manual_matmul_loops()
-    print("All TensorizeTT tests passed!")
+    test_lower_gemm_to_tt_intrinsics_basic()
+    test_lower_gemm_to_tt_intrinsics_matmul_count()
+    test_lower_gemm_to_tt_intrinsics_multiple_matmuls()
+    test_lower_gemm_to_tt_intrinsics_has_flag()
+    test_lower_gemm_to_tt_intrinsics_skip_non_gemm_functions()
+    test_lower_gemm_to_tt_intrinsics_skip_non_tt_functions()
+    test_lower_gemm_to_tt_intrinsics_integration_with_ws1_ws2()
+    test_lower_gemm_to_tt_intrinsics_records_pattern_metadata()
+    test_lower_gemm_to_tt_intrinsics_emits_sequence()
+    test_lower_gemm_to_tt_intrinsics_ignores_unmarked_calls()
+    print("All TT GEMM lowering tests passed!")

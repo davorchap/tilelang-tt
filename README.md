@@ -242,7 +242,7 @@ We no longer track the backend via phased milestones. Instead, the authoritative
 |-------|--------|-------|
 | Layout-aware metadata core | ✅ Complete | `InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT` stamp canonical runtime metadata consumed by codegen. |
 | Shard-aware persistent lowering & host metadata | ✅ Complete | Runtime arg guardrails, shard coordinate handling, and the metadata-first host artifact (`main.cpp`) are live. |
-| Tensorization upgrades | 🟡 In progress | `tensorize_tt.cc` still relies on visitor heuristics; loop matchers and docs are being tracked in the task list. |
+| Tensorization upgrades | 🟡 In progress | `lower_gemm_to_tt_intrinsics.cc` still relies on visitor heuristics; loop matchers and docs are being tracked in the task list. |
 | Integration/regression tests | 🟡 In progress | Guardrail and shard scenarios are covered; halo/L1 diagnostics and documentation matrix remain open. |
 | Legacy pass deprecation | 🟡 Planned | Default schedule/shard helpers stay for compatibility until the layout-aware stack bakes. |
 | Real SDK validation | ⏸️ Blocked | Requires access to Tenstorrent hardware; see [METALIUM_SDK_VALIDATION_PLAN.md](docs/tenstorrent/METALIUM_SDK_VALIDATION_PLAN.md). |
@@ -302,7 +302,7 @@ tilelang-tt/
 
 We’re looking for collaborators in these areas:
 
-- **Pass implementation:** `GridToPersistentTT`, `MemorySpaceLowerTT`, `TensorizeTT`.  
+- **Pass implementation:** `GridToPersistentTT`, `MemorySpaceLowerTT`, `LowerGemmToTTIntrinsics`.  
 - **Kernel stencils:** robust **reader / compute / writer** templates for GEMM & SDPA.  
 - **Sharding heuristics:** sensible defaults for **CoreRangeSet** selection per device.  
 - **Testing:** correctness (NumPy/PyTorch refs), perf baselines, CI scaffold (dry‑run + optional HIL).  
