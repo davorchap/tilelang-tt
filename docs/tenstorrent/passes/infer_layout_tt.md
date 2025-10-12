@@ -2,7 +2,7 @@
 
 **Status**: 🟡 Partial (defaults + N-D projection)  
 **Priority**: P0  
-**File**: Python helper in `tilelang/tt/passes.py`
+**File**: Python helper in `tilelang/tenstorrent/passes.py`
 
 ---
 
@@ -73,14 +73,14 @@ Notes:
 
 ## Tests
 
-See `testing/python/tt/test_layout_aware_metadata.py` for coverage of the default
+See `testing/python/tenstorrent/test_layout_aware_metadata.py` for coverage of the default
 and sharded cases, plus negative tests for L1 misalignment.
 
 ---
 
 ## Dependencies
 
-- `annotate_tt_layout` helper (exported via `tilelang.tt`).
+- `annotate_tt_layout` helper (exported via `tilelang.tenstorrent`).
 - Tile shape constants and dtype → byte-size helper reused across TT passes.
 
 ---

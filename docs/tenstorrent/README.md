@@ -58,7 +58,7 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 ## Current Status (2025-10-10)
 
 ### ✅ Completed
-- Target registration and Python orchestration (`tilelang/tt`).
+- Target registration and Python orchestration (`tilelang/tenstorrent`).
 - Layout-aware metadata pipeline (`InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT`) generating canonical runtime-argument schemas.
 - Grid-to-persistent transformation with shard-aware guardrails and per-core runtime metadata tables in host artifacts.
 - IR-driven reader/compute/writer visitors aligned with the new runtime contract.
@@ -163,13 +163,13 @@ cmake --build build -j$(nproc)
 
 ```bash
 # All TT backend tests
-pytest testing/python/tt/ -v
+pytest testing/python/tenstorrent/ -v
 
 # Specific test categories
-pytest testing/python/tt/test_target_registration.py -v    # Target registration
-pytest testing/python/tt/test_passes.py -v                 # Metadata inference
-pytest testing/python/tt/test_grid_to_persistent_tt.py -v  # Persistent loop
-pytest testing/python/tt/test_codegen_tt.py -v             # Code generation
+pytest testing/python/tenstorrent/test_target_registration.py -v    # Target registration
+pytest testing/python/tenstorrent/test_passes.py -v                 # Metadata inference
+pytest testing/python/tenstorrent/test_grid_to_persistent_tt.py -v  # Persistent loop
+pytest testing/python/tenstorrent/test_codegen_tt.py -v             # Code generation
 ```
 
 ---

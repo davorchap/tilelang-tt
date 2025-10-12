@@ -301,7 +301,7 @@ source .venv/bin/activate
 export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
 
 # Run Tenstorrent tests
-pytest testing/python/tt/ -v
+pytest testing/python/tenstorrent/ -v
 
 # All 95 tests should pass (mock APIs used in tests)
 ```

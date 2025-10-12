@@ -4,7 +4,7 @@ Guidelines for Claude Code when collaborating on this repository.
 
 ## Repository Snapshot
 - Fork `davorchap/tilelang-tt` hosts the Tenstorrent backend effort: layout-aware metadata passes, shard-aware persistent lowering, and IR-driven reader/compute/writer/host generators.
-- Python orchestration lives in `tilelang/tt`, compiler passes in `src/transform/tt/`, and codegen visitors in `src/target/tt/`. Tests reside under `testing/python/tt/`.
+- Python orchestration lives in `tilelang/tenstorrent`, compiler passes in `src/transform/tenstorrent/`, and codegen visitors in `src/target/tenstorrent/`. Tests reside under `testing/python/tenstorrent/`.
 - As of 2025-10-10 the host artifact emits a metadata summary (`main.cpp`) aligned with runtime argument schemas; guardrails ensure shard completeness across visitors.
 
 ## Build & Test Quickstart
@@ -12,7 +12,7 @@ Guidelines for Claude Code when collaborating on this repository.
 2. Install Tenstorrent dependencies: `pip install -r requirements-tenstorrent.txt` (uses CPU-only PyTorch, saves ~5GB).
 3. Run the mock-mode CI replica: `bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4`.
 4. For SDK-backed runs, export `TT_METAL_HOME` and add `--with-metalium`.
-5. Standalone tests: `LD_LIBRARY_PATH=build/tvm:$LD_LIBRARY_PATH pytest testing/python/tt/ -v`.
+5. Standalone tests: `LD_LIBRARY_PATH=build/tvm:$LD_LIBRARY_PATH pytest testing/python/tenstorrent/ -v`.
 6. Enforce formatting and lint baselines with `bash format.sh` before staging commits.
 
 **Note:** Use `requirements-tenstorrent.txt` for TT backend development. It includes CPU-only PyTorch and excludes CUDA dependencies, preventing disk space issues.
@@ -20,7 +20,7 @@ Guidelines for Claude Code when collaborating on this repository.
 ## Workflow Expectations
 - Branch from `main` and open PRs against `davorchap/tilelang-tt`; upstream `tile-ai/tilelang` stays read-only for TT backend development.
 - Keep commits focused, imperative, and documented—reference any touched docs or scripts when workflows change.
-- PR descriptions must summarise behavioural changes, list validation commands (e.g., `pytest testing/python/tt/ -v`), and link doc updates such as `docs/tenstorrent/CI.md`.
+- PR descriptions must summarise behavioural changes, list validation commands (e.g., `pytest testing/python/tenstorrent/ -v`), and link doc updates such as `docs/tenstorrent/CI.md`.
 - Coordinate interface changes (runtime metadata, pass ordering) with matching test and documentation updates in the same PR.
 - Use the GitHub CLI (`gh`) to draft and submit pull requests when changes are ready.
 

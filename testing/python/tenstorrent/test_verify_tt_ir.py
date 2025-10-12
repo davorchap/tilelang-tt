@@ -143,7 +143,7 @@ def create_func_with_large_grid():
 
 def test_verify_tt_ir_basic():
     """Test VerifyTTIR validates complete metadata."""
-    from tilelang.tt.passes import verify_tt_ir
+    from tilelang.tenstorrent.passes import verify_tt_ir
 
     func = create_func_with_complete_metadata()
     mod = tvm.IRModule({"main": func})
@@ -172,7 +172,7 @@ def test_verify_tt_ir_validation_passes():
 
 def test_verify_tt_ir_detects_missing_defaults():
     """Test VerifyTTIR detects missing TT defaults metadata."""
-    from tilelang.tt.passes import verify_tt_ir
+    from tilelang.tenstorrent.passes import verify_tt_ir
 
     func = create_func_missing_defaults_metadata()
     mod = tvm.IRModule({"main": func})
@@ -189,7 +189,7 @@ def test_verify_tt_ir_detects_missing_defaults():
 
 def test_verify_tt_ir_detects_missing_inference():
     """Test VerifyTTIR detects missing metadata inference metadata."""
-    from tilelang.tt.passes import verify_tt_ir
+    from tilelang.tenstorrent.passes import verify_tt_ir
 
     func = create_func_missing_inference_metadata()
     mod = tvm.IRModule({"main": func})
@@ -205,7 +205,7 @@ def test_verify_tt_ir_detects_missing_inference():
 
 def test_verify_tt_ir_large_grid_warning():
     """Test VerifyTTIR warns about large grid dimensions."""
-    from tilelang.tt.passes import verify_tt_ir
+    from tilelang.tenstorrent.passes import verify_tt_ir
 
     func = create_func_with_large_grid()
     mod = tvm.IRModule({"main": func})
@@ -221,7 +221,7 @@ def test_verify_tt_ir_large_grid_warning():
 
 def test_verify_tt_ir_skip_non_tt_functions():
     """Test VerifyTTIR skips functions without TT attributes."""
-    from tilelang.tt.passes import verify_tt_ir
+    from tilelang.tenstorrent.passes import verify_tt_ir
 
     # Create function WITHOUT TT attributes
     A = tir.decl_buffer((256, 256), "float16", name="A")
@@ -241,8 +241,8 @@ def test_verify_tt_ir_skip_non_tt_functions():
 
 def test_verify_tt_ir_integration_with_full_pipeline():
     """Test VerifyTTIR integrates with full apply_tt_defaults→metadata inference→transform pipeline."""
-    from tilelang.tt.passes import apply_tt_metadata_passes, apply_tt_transform_passes
-    from tilelang.tt.target import apply_tt_defaults
+    from tilelang.tenstorrent.passes import apply_tt_metadata_passes, apply_tt_transform_passes
+    from tilelang.tenstorrent.target import apply_tt_defaults
 
     # Create function
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
@@ -277,7 +277,7 @@ def test_verify_tt_ir_integration_with_full_pipeline():
 
 def test_verify_tt_ir_core_range_validation():
     """Test VerifyTTIR validates core range format."""
-    from tilelang.tt.passes import verify_tt_ir
+    from tilelang.tenstorrent.passes import verify_tt_ir
 
     func = create_func_with_complete_metadata()
 
@@ -299,7 +299,7 @@ def test_verify_tt_ir_core_range_validation():
 
 def test_verify_tt_ir_circular_buffer_count_mismatch():
     """Test VerifyTTIR detects CB count mismatch."""
-    from tilelang.tt.passes import verify_tt_ir
+    from tilelang.tenstorrent.passes import verify_tt_ir
 
     func = create_func_with_complete_metadata()
 

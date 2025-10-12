@@ -171,14 +171,14 @@ jobs:
           export TT_METAL_HOME=$TT_METAL_HOME
 
           echo "=== Running Tenstorrent Tests with Real Metalium ==="
-          pytest testing/python/tt/ -v --tb=short
+          pytest testing/python/tenstorrent/ -v --tb=short
 
       - name: Verify generated code uses real Metalium APIs
         run: |
           export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
 
           python3 -c '
-          import tilelang.tt as tt
+          import tilelang.tenstorrent as tt
           import tvm
           from tvm import tir
 

@@ -18,7 +18,7 @@ See docs/tenstorrent/PASS_TABLE_TT.md for current vs legacy pass status.
 import pytest
 from tilelang import tvm
 import tilelang.language as T
-from tilelang.tt import apply_tt_defaults, infer_default_tt_schedule, infer_default_tt_shard, apply_tt_metadata_passes
+from tilelang.tenstorrent import apply_tt_defaults, infer_default_tt_schedule, infer_default_tt_shard, apply_tt_metadata_passes
 
 
 class TestScheduleInference:

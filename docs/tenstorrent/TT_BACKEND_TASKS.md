@@ -8,7 +8,7 @@
 
 ## Overview
 
-This document captures the end-to-end task tracker for consolidating the TileLang Tenstorrent (TT) backend. The focus is on finalizing the layout-aware metadata pipeline, eliminating legacy heuristics, and stabilizing the `@tilelang.jit(target="tenstorrent")` entry point. The work mirrors the backend flow that runs from Python orchestration helpers (`tilelang/tt`) through TT-specific transforms (`src/transform/tt/`) into IR-driven visitors under `src/target/tt/`, with host codegen now emitting a metadata summary aligned with runtime argument schemas.
+This document captures the end-to-end task tracker for consolidating the TileLang Tenstorrent (TT) backend. The focus is on finalizing the layout-aware metadata pipeline, eliminating legacy heuristics, and stabilizing the `@tilelang.jit(target="tenstorrent")` entry point. The work mirrors the backend flow that runs from Python orchestration helpers (`tilelang/tenstorrent`) through TT-specific transforms (`src/transform/tenstorrent/`) into IR-driven visitors under `src/target/tenstorrent/`, with host codegen now emitting a metadata summary aligned with runtime argument schemas.
 
 ### Out of Scope
 - Handling tensor dimensions that are not wholly tile-aligned (32×32) — tracked separately once the consolidated path ships.
@@ -18,7 +18,7 @@ This document captures the end-to-end task tracker for consolidating the TileLan
 ### Architecture Snapshot
 - **Layout-aware metadata pipeline**: `InferTTLayout`, `PropagateTTLayout`, and `LayoutAwareWorkPartitionTT` provide canonical `tt.buffer.*`, `tt.cb.*`, and `tt.runtime_args` metadata that downstream passes consume without heuristics.
 - **Shard-aware persistent lowering**: `grid_to_persistent_tt` converts tiled kernels into persistent loops using the canonical runtime schema; host codegen emits a metadata summary in `main.cpp` that mirrors runtime argument payloads.
-- **C++ implementation target**: Phase 2 ports the remaining Python helpers into `src/transform/tt/`, aligning runtime guardrails across layout inference, persistent lowering, and memory space lowering.
+- **C++ implementation target**: Phase 2 ports the remaining Python helpers into `src/transform/tenstorrent/`, aligning runtime guardrails across layout inference, persistent lowering, and memory space lowering.
 - **Mock-mode validation**: Mock CI remains the primary validation path; real SDK (`--with-metalium`) flows are unchanged but now depend on the consolidated metadata emitted by the host/runtime stack.
 
 ---
@@ -76,7 +76,7 @@ The work is organized into three sequential phases with clear responsibilities. 
 
 | Task ID | Description |
 |---------|-------------|
-| `refactor-metadata-passes-to-cpp` | **Refactor Metadata Passes to C++**: Port `infer_tt_layout`, `propagate_tt_layout`, and `layout_aware_work_partition_tt` into `src/transform/tt/`. |
+| `refactor-metadata-passes-to-cpp` | **Refactor Metadata Passes to C++**: Port `infer_tt_layout`, `propagate_tt_layout`, and `layout_aware_work_partition_tt` into `src/transform/tenstorrent/`. |
 | `refactor-memory-space-lower-tt` | **Rework `MemorySpaceLowerTT`**: Consume canonical `tt.cb.*` attributes for deterministic CB configuration. |
 | `refactor-grid-to-persistent-tt` | **Update `GridToPersistentTT`**: Use canonical `tt.runtime_arg_names`/`tt.runtime_args` and drop legacy runtime synthesis. |
 | `cleanup-deprecate-legacy-passes` | **Deprecate and Remove Legacy Passes**: Retire `infer_default_tt_schedule`, `infer_default_tt_shard`, `tt_tiles_to_core_map` after validation. |

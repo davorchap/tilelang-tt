@@ -55,7 +55,7 @@ TT-Metalium C++ Code
 
 ### Phase 2: Apply TT Defaults
 
-**Entry Point:** `tilelang/tt/target.py` → `apply_tt_defaults()`
+**Entry Point:** `tilelang/tenstorrent/target.py` → `apply_tt_defaults()`
 
 **Annotations Added:**
 ```python
@@ -117,7 +117,7 @@ This metadata becomes the authoritative source for later stages, allowing legacy
 
 ### Phase 3: TT-Specific Optimization
 
-**Entry Point:** `tilelang/engine/tt/lower.py` → `OptimizeForTargetTT()`
+**Entry Point:** `tilelang/engine/tenstorrent/lower.py` → `OptimizeForTargetTT()`
 
 **TT-Specific Transform Passes (updated set):**
 
@@ -261,7 +261,7 @@ Legacy passes `infer_default_tt_schedule` and `tt_tiles_to_core_map` remain avai
 
 ### Phase 4: Code Generation (IR-Driven)
 
-**Entry Point:** `src/target/tt/codegen_tt.cc` → `CodegenTT::Build()`
+**Entry Point:** `src/target/tenstorrent/codegen_tt.cc` → `CodegenTT::Build()`
 
 **3-Kernel Architecture:**
 
@@ -656,7 +656,7 @@ tilelang-tt/
 │       ├── codegen_tt_compute_visitor.cc      # Compute kernel
 │       ├── codegen_tt_reader_visitor.cc       # Reader kernel
 │       └── codegen_tt_writer_visitor.cc       # Writer kernel
-└── testing/python/tt/
+└── testing/python/tenstorrent/
     ├── test_target_registration.py      # Target registration (8 tests)
     ├── test_passes.py                   # Metadata inference (7 tests)
     ├── test_grid_to_persistent_tt.py    # Persistent loop (12 tests)
@@ -760,12 +760,12 @@ See [METALIUM_SETUP_GUIDE.md](./METALIUM_SETUP_GUIDE.md) for SDK setup.
 
 ```bash
 # All TT backend tests
-pytest testing/python/tt/ -v
+pytest testing/python/tenstorrent/ -v
 
 # Specific categories
-pytest testing/python/tt/test_passes.py -v           # Metadata inference
-pytest testing/python/tt/test_grid_to_persistent_tt.py -v  # Persistent loop
-pytest testing/python/tt/test_codegen_tt.py -v       # Code generation
+pytest testing/python/tenstorrent/test_passes.py -v           # Metadata inference
+pytest testing/python/tenstorrent/test_grid_to_persistent_tt.py -v  # Persistent loop
+pytest testing/python/tenstorrent/test_codegen_tt.py -v       # Code generation
 ```
 
 ---

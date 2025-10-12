@@ -183,7 +183,7 @@ def infer_default_tt_schedule(mod: tvm.IRModule) -> tvm.IRModule:
 
     Example:
         >>> import tilelang.language as T
-        >>> from tilelang.tt import apply_tt_defaults, infer_default_tt_schedule
+        >>> from tilelang.tenstorrent import apply_tt_defaults, infer_default_tt_schedule
         >>>
         >>> @T.prim_func
         >>> def gemm(A, B, C):
@@ -224,7 +224,7 @@ def infer_default_tt_shard(mod: tvm.IRModule) -> tvm.IRModule:
 
     Example:
         >>> import tilelang.language as T
-        >>> from tilelang.tt import apply_tt_defaults, infer_default_tt_shard
+        >>> from tilelang.tenstorrent import apply_tt_defaults, infer_default_tt_shard
         >>>
         >>> @T.prim_func
         >>> def gemm(A: T.Buffer[(256, 256), "float16"],
@@ -255,7 +255,7 @@ def apply_tt_metadata_passes(mod: tvm.IRModule) -> tvm.IRModule:
         A new IRModule with both schedule and sharding metadata
 
     Example:
-        >>> from tilelang.tt import apply_tt_defaults, apply_tt_metadata_passes
+        >>> from tilelang.tenstorrent import apply_tt_defaults, apply_tt_metadata_passes
         >>>
         >>> mod = create_tilelang_kernel()
         >>> mod = apply_tt_defaults(mod)  # TT defaults stage
@@ -287,7 +287,7 @@ def grid_to_persistent_tt(mod: tvm.IRModule) -> tvm.IRModule:
         A new IRModule with persistent loop structure
 
     Example:
-        >>> from tilelang.tt import apply_tt_metadata_passes, grid_to_persistent_tt
+        >>> from tilelang.tenstorrent import apply_tt_metadata_passes, grid_to_persistent_tt
         >>>
         >>> mod = create_tilelang_kernel()
         >>> mod = apply_tt_defaults(mod)  # TT defaults stage
@@ -317,7 +317,7 @@ def tt_tiles_to_core_map(mod: tvm.IRModule) -> tvm.IRModule:
         A new IRModule with physical core topology metadata
 
     Example:
-        >>> from tilelang.tt import apply_tt_metadata_passes, tt_tiles_to_core_map
+        >>> from tilelang.tenstorrent import apply_tt_metadata_passes, tt_tiles_to_core_map
         >>>
         >>> mod = create_tilelang_kernel()
         >>> mod = apply_tt_defaults(mod)  # TT defaults stage
@@ -750,7 +750,7 @@ def verify_tt_ir(mod: tvm.IRModule) -> tvm.IRModule:
         A new IRModule with validation result metadata attached
 
     Example:
-        >>> from tilelang.tt import apply_tt_transform_passes, verify_tt_ir
+        >>> from tilelang.tenstorrent import apply_tt_transform_passes, verify_tt_ir
         >>>
         >>> mod = create_tilelang_kernel()
         >>> mod = apply_tt_defaults(mod)  # TT defaults stage
@@ -774,7 +774,7 @@ def apply_tt_transform_passes(mod: tvm.IRModule) -> tvm.IRModule:
         A new IRModule with transformed TIR ready for codegen
 
     Example:
-        >>> from tilelang.tt import apply_tt_defaults, apply_tt_metadata_passes, apply_tt_transform_passes
+        >>> from tilelang.tenstorrent import apply_tt_defaults, apply_tt_metadata_passes, apply_tt_transform_passes
         >>>
         >>> mod = create_tilelang_kernel()
         >>> mod = apply_tt_defaults(mod)  # TT defaults stage

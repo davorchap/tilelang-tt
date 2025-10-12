@@ -2,7 +2,7 @@
 
 **Status**: ✅ Complete
 **Priority**: MEDIUM
-**File**: `src/transform/tt/verify_tt_ir.cc`
+**File**: `src/transform/tenstorrent/verify_tt_ir.cc`
 
 ---
 
@@ -90,7 +90,7 @@ class VerifyTTIR : public IRVisitor {
 
 ## Tests
 
-**File**: `testing/python/tt/test_verify_tt_ir.py`
+**File**: `testing/python/tenstorrent/test_verify_tt_ir.py`
 **Status**: ✅ 8 tests passing
 
 Tests cover:
@@ -115,9 +115,9 @@ Tests cover:
 
 ## Related Files
 
-- `src/transform/tt/verify_tt_ir.cc` - Implementation
-- `tilelang/tt/passes.py` - Python binding
-- `testing/python/tt/test_verify_tt_ir.py` - Tests
+- `src/transform/tenstorrent/verify_tt_ir.cc` - Implementation
+- `tilelang/tenstorrent/passes.py` - Python binding
+- `testing/python/tenstorrent/test_verify_tt_ir.py` - Tests
 
 ---
 

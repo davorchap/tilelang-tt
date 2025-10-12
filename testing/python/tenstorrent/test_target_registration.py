@@ -9,8 +9,8 @@ except ModuleNotFoundError as exc:
     pytest.skip(f"TVM not available: {exc}", allow_module_level=True)
 
 _target_mod = importlib.import_module("tilelang.utils.target")
-_tt_lower = importlib.import_module("tilelang.engine.tt.lower")
-_tt_target = importlib.import_module("tilelang.tt.target")
+_tt_lower = importlib.import_module("tilelang.engine.tenstorrent.lower")
+_tt_target = importlib.import_module("tilelang.tenstorrent.target")
 CompiledArtifact = importlib.import_module("tilelang.engine.param").CompiledArtifact
 
 

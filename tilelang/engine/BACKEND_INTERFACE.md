@@ -332,7 +332,7 @@ mod = tir.transform.VerifyMemory()(mod)
 
 ### Tenstorrent Backend (Reference)
 
-**Location:** `tilelang/engine/tt/lower.py`
+**Location:** `tilelang/engine/tenstorrent/lower.py`
 
 **Pipeline:**
 1. `apply_tt_defaults(mod)` - TT defaults
@@ -342,8 +342,8 @@ mod = tir.transform.VerifyMemory()(mod)
 5. Return CompiledArtifact
 
 **Key Files:**
-- `tilelang/engine/tt/lower.py::OptimizeForTargetTT()` - TT optimizations
-- `tilelang/engine/tt/lower.py::SplitTTKernels()` - Device annotation
+- `tilelang/engine/tenstorrent/lower.py::OptimizeForTargetTT()` - TT optimizations
+- `tilelang/engine/tenstorrent/lower.py::SplitTTKernels()` - Device annotation
 
 ---
 
@@ -604,7 +604,7 @@ Test end-to-end pipeline:
 
 Ensure existing backends still work:
 ```bash
-pytest testing/python/tt/ -v  # TT backend
+pytest testing/python/tenstorrent/ -v  # TT backend
 pytest testing/python/cuda/ -v  # CUDA backend (if exists)
 ```
 
@@ -624,7 +624,7 @@ The TileLang unified lowering architecture enables:
 
 **Reference Backends:**
 - **CUDA**: `tilelang/engine/phase.py::OptimizeForTarget()`
-- **Tenstorrent**: `tilelang/engine/tt/lower.py`
+- **Tenstorrent**: `tilelang/engine/tenstorrent/lower.py`
 
 **Questions?** Check the reference implementations or existing tests for examples.
 

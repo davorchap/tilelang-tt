@@ -13,7 +13,7 @@ from typing import Any, Dict, List
 import tvm
 from tvm import tir
 
-import tilelang.tt as tt
+import tilelang.tenstorrent as tt
 
 
 def _convert_dict_for_ffi(d: Dict[str, Any]) -> Dict[str, Any]:

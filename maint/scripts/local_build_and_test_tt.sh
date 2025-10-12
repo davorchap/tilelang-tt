@@ -297,7 +297,7 @@ if [ "$SKIP_TESTS" = false ]; then
 
     # Run target registration tests
     echo -e "${YELLOW}Running Tenstorrent target registration tests...${NC}"
-    cd testing/python/tt
+    cd testing/python/tenstorrent
     if pytest test_target_registration.py -v --tb=short; then
         echo -e "${GREEN}Target registration tests passed${NC}"
     else
@@ -308,7 +308,7 @@ if [ "$SKIP_TESTS" = false ]; then
     # Run all Tenstorrent tests
     echo -e "${YELLOW}Running all Tenstorrent Python tests...${NC}"
     cd testing/python
-    if pytest tt/ -v --tb=short; then
+    if pytest tenstorrent/ -v --tb=short; then
         echo -e "${GREEN}All tests passed${NC}"
     else
         echo -e "${YELLOW}Some tests failed (this may be expected if backend is incomplete)${NC}"

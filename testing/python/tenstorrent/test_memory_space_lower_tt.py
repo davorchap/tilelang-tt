@@ -33,7 +33,7 @@ def create_func_with_tile_buffers():
 
 def test_memory_space_lower_tt_basic():
     """Test MemorySpaceLowerTT assigns circular buffer IDs."""
-    from tilelang.tt.passes import memory_space_lower_tt
+    from tilelang.tenstorrent.passes import memory_space_lower_tt
 
     func = create_func_with_tile_buffers()
     mod = tvm.IRModule({"main": func})
@@ -57,7 +57,7 @@ def test_memory_space_lower_tt_basic():
 
 def test_memory_space_lower_tt_cb_ids():
     """Test MemorySpaceLowerTT assigns unique sequential CB IDs."""
-    from tilelang.tt.passes import memory_space_lower_tt
+    from tilelang.tenstorrent.passes import memory_space_lower_tt
 
     func = create_func_with_tile_buffers()
     mod = tvm.IRModule({"main": func})
@@ -74,7 +74,7 @@ def test_memory_space_lower_tt_cb_ids():
 
 def test_memory_space_lower_tt_num_pages():
     """Test MemorySpaceLowerTT assigns correct num_pages (double-buffer for inputs, single for accumulator)."""
-    from tilelang.tt.passes import memory_space_lower_tt
+    from tilelang.tenstorrent.passes import memory_space_lower_tt
 
     func = create_func_with_tile_buffers()
     mod = tvm.IRModule({"main": func})
@@ -100,7 +100,7 @@ def test_memory_space_lower_tt_num_pages():
 
 def test_memory_space_lower_tt_tile_size():
     """Test MemorySpaceLowerTT calculates tile size correctly."""
-    from tilelang.tt.passes import memory_space_lower_tt
+    from tilelang.tenstorrent.passes import memory_space_lower_tt
 
     func = create_func_with_tile_buffers()
     mod = tvm.IRModule({"main": func})
@@ -120,7 +120,7 @@ def test_memory_space_lower_tt_tile_size():
 
 def test_memory_space_lower_tt_skip_non_tt_functions():
     """Test MemorySpaceLowerTT skips functions without TT attributes."""
-    from tilelang.tt.passes import memory_space_lower_tt
+    from tilelang.tenstorrent.passes import memory_space_lower_tt
 
     # Create function WITHOUT TT attributes
     A = tir.decl_buffer((256, 256), "float16", name="A")
@@ -141,7 +141,7 @@ def test_memory_space_lower_tt_skip_non_tt_functions():
 
 def test_memory_space_lower_tt_skip_non_tile_buffers():
     """Test MemorySpaceLowerTT only processes tile-sized buffers."""
-    from tilelang.tt.passes import memory_space_lower_tt
+    from tilelang.tenstorrent.passes import memory_space_lower_tt
 
     # Function parameters
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
@@ -173,8 +173,8 @@ def test_memory_space_lower_tt_skip_non_tile_buffers():
 
 def test_memory_space_lower_tt_integration_with_defaults_and_metadata():
     """Test MemorySpaceLowerTT integrates with full apply_tt_defaults→metadata inference→transform pipeline."""
-    from tilelang.tt.passes import apply_tt_metadata_passes, memory_space_lower_tt
-    from tilelang.tt.target import apply_tt_defaults
+    from tilelang.tenstorrent.passes import apply_tt_metadata_passes, memory_space_lower_tt
+    from tilelang.tenstorrent.target import apply_tt_defaults
 
     # Create function
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
@@ -211,7 +211,7 @@ def test_memory_space_lower_tt_integration_with_defaults_and_metadata():
 
 def test_memory_space_lower_tt_different_tile_sizes():
     """Test MemorySpaceLowerTT handles different tile sizes correctly."""
-    from tilelang.tt.passes import memory_space_lower_tt
+    from tilelang.tenstorrent.passes import memory_space_lower_tt
 
     # Function parameters
     A = tir.decl_buffer((256, 256), "float32", name="A", scope="global")

@@ -6,7 +6,7 @@ Tests for TT kernel codegen and artifact generation.
 
 import tvm
 from tvm import tir
-import tilelang.tt as tt
+import tilelang.tenstorrent as tt
 
 
 def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):

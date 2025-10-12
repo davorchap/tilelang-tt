@@ -2,7 +2,7 @@
 
 **Status**: ✅ Complete (integration update pending)  
 **Priority**: CRITICAL
-**File**: `src/transform/tt/memory_space_lower_tt.cc`
+**File**: `src/transform/tenstorrent/memory_space_lower_tt.cc`
 
 ---
 
@@ -72,7 +72,7 @@ CircularBufferConfig cb_out0_config(...);  // For C
 
 ## Tests
 
-**File**: `testing/python/tt/test_memory_space_lower_tt.py`
+**File**: `testing/python/tenstorrent/test_memory_space_lower_tt.py`
 **Status**: ✅ 8 tests passing
 
 Tests cover:
@@ -100,9 +100,9 @@ Tests cover:
 
 ## Related Files
 
-- `src/transform/tt/memory_space_lower_tt.cc` - Implementation
-- `tilelang/tt/passes.py` - Python binding
-- `testing/python/tt/test_memory_space_lower_tt.py` - Tests
+- `src/transform/tenstorrent/memory_space_lower_tt.cc` - Implementation
+- `tilelang/tenstorrent/passes.py` - Python binding
+- `testing/python/tenstorrent/test_memory_space_lower_tt.py` - Tests
 
 ---
 

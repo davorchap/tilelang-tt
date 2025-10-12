@@ -2,7 +2,7 @@
 
 **Status**: 🟡 Partial (global mode)  
 **Priority**: CRITICAL  
-**File**: `src/transform/tt/grid_to_persistent_tt.cc`
+**File**: `src/transform/tenstorrent/grid_to_persistent_tt.cc`
 
 ---
 
@@ -79,7 +79,7 @@ The pass is responsible for ordering these fields and recording the argument nam
 
 ## Tests
 
-**File**: `testing/python/tt/test_grid_to_persistent_tt.py`
+**File**: `testing/python/tenstorrent/test_grid_to_persistent_tt.py`
 **Status**: ✅ 12 tests passing
 
 Tests cover:
@@ -105,9 +105,9 @@ Tests cover:
 
 ## Related Files
 
-- `src/transform/tt/grid_to_persistent_tt.cc` - Implementation
-- `tilelang/tt/passes.py` - Python binding
-- `testing/python/tt/test_grid_to_persistent_tt.py` - Tests
+- `src/transform/tenstorrent/grid_to_persistent_tt.cc` - Implementation
+- `tilelang/tenstorrent/passes.py` - Python binding
+- `testing/python/tenstorrent/test_grid_to_persistent_tt.py` - Tests
 
 ---
 
