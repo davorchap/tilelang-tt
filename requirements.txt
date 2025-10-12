@@ -8,4 +8,9 @@ cloudpickle
 # if you want to enable fp4
 ml_dtypes
 psutil
+# PyTorch - installs CUDA version by default (~6GB)
+# For Tenstorrent backend, CPU-only PyTorch is sufficient and saves ~5GB:
+#   pip uninstall -y torch triton
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+# See testing/python/tt/test_pytorch_cpu_compatibility.py for verification
 torch

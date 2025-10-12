@@ -159,6 +159,11 @@ pip install --upgrade pip
 echo -e "${YELLOW}Installing Python dependencies...${NC}"
 pip install -r requirements-test.txt
 
+# Install CPU-only PyTorch (recommended for TT backend development)
+echo -e "${YELLOW}Installing CPU-only PyTorch (saves ~5GB space)...${NC}"
+pip uninstall -y torch triton 2>/dev/null || true
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+
 echo -e "${GREEN}Python dependencies installed successfully${NC}"
 echo ""
 
