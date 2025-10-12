@@ -19,7 +19,8 @@
 
 /*!
  * \file lower_gemm_to_tt_intrinsics.cc
- * \brief Lower frontend tl.gemm intrinsics to TT tile intrinsics (Persistent Transform stage)
+ * \brief Lower frontend tl.gemm intrinsics to TT tile intrinsics (Persistent
+ * Transform stage)
  *
  * This pass consumes the TileLang frontend `tl.gemm` intrinsic (emitted by
  * `T.gemm`) and expands each call into the Tenstorrent tile-intrinsic
@@ -44,7 +45,7 @@
 #include <utility>
 #include <vector>
 
-#include "../op/builtin.h"
+#include "../../op/builtin.h"
 
 namespace tvm {
 namespace tl {
@@ -69,7 +70,7 @@ std::string ExtractBufferName(const PrimExpr &expr) {
   }
   if (const auto *call = expr.as<CallNode>()) {
     if (call->op.same_as(builtin::tvm_access_ptr()) ||
-        call->op.same_as(builtin::tvm_address_of())) {
+        call->op.same_as(builtin::address_of())) {
       if (!call->args.empty()) {
         for (const PrimExpr &arg : call->args) {
           std::string name = ExtractBufferName(arg);
@@ -163,8 +164,11 @@ public:
     metadata.Set("cb_in0", Integer(cb_in0_id));
     metadata.Set("cb_in1", Integer(cb_in1_id));
     metadata.Set("cb_out", Integer(cb_out_id));
-    metadata.Set("tl_gemm_signature",
-                 call->args.empty() ? String("") : call->args[0]);
+    if (call->args.empty()) {
+      metadata.Set("tl_gemm_signature", String(""));
+    } else {
+      metadata.Set("tl_gemm_signature", call->args[0]);
+    }
 
     patterns_.push_back(metadata);
 
