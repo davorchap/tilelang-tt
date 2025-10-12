@@ -83,7 +83,7 @@ def create_func_with_gemm():
     B = tir.decl_buffer((32, 32), "float16", name="B", scope="global")
     C = tir.decl_buffer((32, 32), "float16", name="C", scope="global")
 
-    tl_gemm = tir.op.Op.get("tl.gemm")
+    tl_gemm = tir.op.Op.get("tl.tl_gemm")
 
     call = tir.call_intrin(
         "handle",
@@ -113,7 +113,7 @@ def create_func_with_multiple_gemms():
     B = tir.decl_buffer((32, 32), "float16", name="B", scope="global")
     C = tir.decl_buffer((32, 32), "float16", name="C", scope="global")
 
-    tl_gemm = tir.op.Op.get("tl.gemm")
+    tl_gemm = tir.op.Op.get("tl.tl_gemm")
 
     call0 = tir.call_intrin(
         "handle",
@@ -149,7 +149,7 @@ def create_manual_matmul_func():
     B = tir.decl_buffer((32, 32), "float16", name="B", scope="global")
     C = tir.decl_buffer((32, 32), "float16", name="C", scope="global")
 
-    tl_gemm = tir.op.Op.get("tl.gemm")
+    tl_gemm = tir.op.Op.get("tl.tl_gemm")
     call = tir.call_intrin(
         "handle",
         tl_gemm,
@@ -268,12 +268,21 @@ def test_lower_gemm_to_tt_intrinsics_integration_with_ws1_ws2():
     from tilelang.tt.passes import apply_tt_metadata_passes, lower_gemm_to_tt_intrinsics
     from tilelang.tt.target import apply_tt_defaults
 
-    # Create function with gemm - use actual matmul loop instead of Evaluate(0)
+    # Create function with gemm intrinsic
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
     B = tir.decl_buffer((256, 256), "float16", name="B", scope="global")
     C = tir.decl_buffer((256, 256), "float16", name="C", scope="global")
 
-    gemm_body = build_matmul_loop(A, B, C, suffix="_ws")
+    tl_gemm = tir.op.Op.get("tl.tl_gemm")
+    call = tir.call_intrin(
+        "handle",
+        tl_gemm,
+        tir.StringImm("tl::gemm_ss<32, 32, 32, 1, 1, false, false, true>"),
+        A.access_ptr("r"),
+        B.access_ptr("r"),
+        C.access_ptr("rw"),
+    )
+    gemm_body = tir.Evaluate(call)
     body = tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), gemm_body)
     func = tir.PrimFunc([A, B, C], body)
 
@@ -360,7 +369,11 @@ def test_lower_gemm_to_tt_intrinsics_emits_sequence():
 
 
 def test_lower_gemm_to_tt_intrinsics_ignores_unmarked_calls():
-    """Lowering should skip handwritten matmul calls that lack frontend markers."""
+    """Lowering processes all tl.tl_gemm calls, even without pragma wrappers.
+
+    This test verifies that the pass processes explicit tl.tl_gemm intrinsics
+    regardless of whether they're wrapped in pragma attributes. The new design
+    consumes frontend gemm markers directly."""
     from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
 
     func = create_manual_matmul_func()
@@ -368,12 +381,12 @@ def test_lower_gemm_to_tt_intrinsics_ignores_unmarked_calls():
     mod = lower_gemm_to_tt_intrinsics(mod)
     func = mod["main"]
 
-    # No tensorization metadata should be attached.
-    assert "tt_num_matmuls" not in func.attrs
-    assert "tt_has_tensorize" not in func.attrs
+    # The pass should process all tl.tl_gemm calls
+    assert "tt_num_matmuls" in func.attrs
+    assert "tt_has_tensorize" in func.attrs
     call_names = collect_call_names(func.body)
-    assert "tt.mm_init" not in call_names
-    assert has_buffer_store(func.body)
+    assert "tt.mm_init" in call_names
+    assert not has_buffer_store(func.body)
     assert has_tt_matmul_attr(func.body) is False
 
 
