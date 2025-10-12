@@ -31,9 +31,9 @@ def matmul(M, N, K, block_M, block_N, block_K, dtype="float16"):
 
     @T.prim_func
     def gemm(
-        A: T.Buffer((M, K), dtype),
-        B: T.Buffer((K, N), dtype),
-        C: T.Buffer((M, N), dtype),
+            A: T.Buffer((M, K), dtype),
+            B: T.Buffer((K, N), dtype),
+            C: T.Buffer((M, N), dtype),
     ):
         with T.Kernel(T.ceildiv(N, block_N), T.ceildiv(M, block_M)) as (bx, by):
             A_tile = T.alloc_fragment((block_M, block_K), dtype)
@@ -64,7 +64,7 @@ def main():
     M, N, K = 1024, 1024, 1024
     block_M, block_N, block_K = 128, 128, 32
 
-    print(f"GEMM Configuration:")
+    print("GEMM Configuration:")
     print(f"- Matrix A: {M}×{K}")
     print(f"- Matrix B: {K}×{N}")
     print(f"- Matrix C: {M}×{N}")
