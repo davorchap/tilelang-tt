@@ -27,8 +27,7 @@ def test_pytorch_cpu_only_installation():
     assert not torch.cuda.is_available(), (
         "Expected CPU-only PyTorch installation. "
         "TT backend doesn't require CUDA. "
-        "Consider using: pip install torch --index-url https://download.pytorch.org/whl/cpu"
-    )
+        "Consider using: pip install torch --index-url https://download.pytorch.org/whl/cpu")
 
     # Verify we can create CPU tensors
     x = torch.randn(10)
@@ -89,7 +88,7 @@ def test_pytorch_dlpack_conversion():
 def test_pytorch_gradient_computation():
     """Test autograd functionality on CPU."""
     x = torch.randn(3, 3, requires_grad=True)
-    y = (x ** 2).sum()
+    y = (x**2).sum()
 
     # Compute gradients
     y.backward()
@@ -164,17 +163,6 @@ def test_tilelang_dlpack_integration():
     # Import is lazy to avoid issues if TVM is not built
     try:
         from tilelang.contrib.dlpack import to_pytorch_func
-        import tvm
-        from tvm import tir
-
-        # Create a simple TVM function
-        n = 1024
-        A = tir.Var("A", "handle")
-        B = tir.Var("B", "handle")
-
-        # Simple function that doubles input
-        stmt = tir.Evaluate(0)
-        func = tir.PrimFunc([A, B], stmt)
 
         # This just tests that the conversion utility exists and is callable
         # Full end-to-end testing would require a complete TVM build
@@ -196,7 +184,6 @@ def test_pytorch_version_info():
     # Verify we have a reasonable PyTorch version
     version_parts = torch.__version__.split("+")[0].split(".")
     major = int(version_parts[0])
-    minor = int(version_parts[1])
 
     # Require PyTorch >= 2.0 (matches TileLang requirements)
     assert major >= 2, f"PyTorch version {torch.__version__} is too old. Require >= 2.0"
