@@ -77,6 +77,13 @@ All Python packages are installed in an isolated virtual environment (`.venv/`) 
 - **Documentation:** `docutils`
 - **Network:** `tornado`
 
+> **Note on PyTorch:** The Tenstorrent backend works with CPU-only PyTorch (no CUDA required). You can save ~5GB of disk space by using:
+> ```bash
+> pip uninstall -y torch triton
+> pip install torch --index-url https://download.pytorch.org/whl/cpu
+> ```
+> CPU-only PyTorch provides all functionality needed for TT backend development (tensor operations, NumPy interop, DLPack conversion). See `testing/python/tt/test_pytorch_cpu_compatibility.py` for verification tests.
+
 #### TVM and TileLang (editable installs)
 
 - **TVM:** Installed from `3rdparty/tvm/python` (editable mode)
