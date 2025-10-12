@@ -156,13 +156,9 @@ echo -e "${YELLOW}Upgrading pip...${NC}"
 pip install --upgrade pip
 
 # Install dependencies
-echo -e "${YELLOW}Installing Python dependencies...${NC}"
-pip install -r requirements-test.txt
-
-# Install CPU-only PyTorch (recommended for TT backend development)
-echo -e "${YELLOW}Installing CPU-only PyTorch (saves ~5GB space)...${NC}"
-pip uninstall -y torch triton 2>/dev/null || true
-pip install torch --index-url https://download.pytorch.org/whl/cpu
+echo -e "${YELLOW}Installing Python dependencies for Tenstorrent backend...${NC}"
+echo -e "${YELLOW}Using requirements-tenstorrent.txt (CPU-only PyTorch, saves ~5GB)...${NC}"
+pip install -r requirements-tenstorrent.txt
 
 echo -e "${GREEN}Python dependencies installed successfully${NC}"
 echo ""

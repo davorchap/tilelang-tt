@@ -9,11 +9,13 @@ Guidelines for Claude Code when collaborating on this repository.
 
 ## Build & Test Quickstart
 1. Create an isolated environment: `python -m venv .venv && source .venv/bin/activate`.
-2. Install development dependencies: `pip install -e ".[dev]"`.
+2. Install Tenstorrent dependencies: `pip install -r requirements-tenstorrent.txt` (uses CPU-only PyTorch, saves ~5GB).
 3. Run the mock-mode CI replica: `bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4`.
 4. For SDK-backed runs, export `TT_METAL_HOME` and add `--with-metalium`.
 5. Standalone tests: `LD_LIBRARY_PATH=build/tvm:$LD_LIBRARY_PATH pytest testing/python/tt/ -v`.
 6. Enforce formatting and lint baselines with `bash format.sh` before staging commits.
+
+**Note:** Use `requirements-tenstorrent.txt` for TT backend development. It includes CPU-only PyTorch and excludes CUDA dependencies, preventing disk space issues.
 
 ## Workflow Expectations
 - Branch from `main` and open PRs against `davorchap/tilelang-tt`; upstream `tile-ai/tilelang` stays read-only for TT backend development.
