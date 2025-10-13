@@ -84,10 +84,25 @@ jobs:
 
           cd $TT_METAL_HOME
 
-          # Install tt-metal dependencies (libc++, llvm-17, etc.)
-          echo "Installing tt-metal dependencies..."
-          export DEBIAN_FRONTEND=noninteractive
-          sudo -E ./install_dependencies.sh
+          # Install tt-metal build dependencies
+          # Note: install_dependencies.sh requires python3.8-venv which isn't available
+          # on Ubuntu 22.04 (ships with Python 3.10). We manually install the C++ and
+          # system dependencies tt-metal needs, skipping Python packages since we already
+          # have Python 3.10 from GitHub Actions setup.
+          echo "Installing tt-metal build dependencies..."
+          sudo apt-get update
+          sudo apt-get install -y \
+            git \
+            git-lfs \
+            build-essential \
+            cmake \
+            ninja-build \
+            clang-17 \
+            libc++-17-dev \
+            libc++abi-17-dev \
+            libhwloc-dev \
+            libcapstone-dev \
+            graphviz
 
           # Build tt-metal
           echo "Building tt-metal... (this may take 15-20 minutes)"
