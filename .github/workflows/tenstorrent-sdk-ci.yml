@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 env:
-  TT_METAL_VERSION: "v0.53.0"  # Pin SDK version for reproducibility
+  TT_METAL_VERSION: "v0.63.0"  # Latest stable release (updated 2025-10-13)
   TT_METAL_HOME: /home/runner/tt-metal
   PYTHON_VERSION: '3.10'
   PIP_DISABLE_PIP_VERSION_CHECK: '1'
