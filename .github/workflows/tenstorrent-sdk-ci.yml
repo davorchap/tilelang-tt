@@ -92,7 +92,11 @@ jobs:
 
           # Build tt-metal
           echo "Building tt-metal... (this may take 15-20 minutes)"
-          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          # Use GCC-12 (required by tt-metal v0.63.0+, installed by install_dependencies.sh)
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=gcc-12 \
+            -DCMAKE_CXX_COMPILER=g++-12
           cmake --build build -j$(nproc)
 
           echo "TT-Metalium SDK installed successfully"
