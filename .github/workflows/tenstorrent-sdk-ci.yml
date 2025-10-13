@@ -83,7 +83,7 @@ jobs:
           echo "TT_METAL_HOME: $TT_METAL_HOME"
 
           # Verify ttnn can be imported
-          python3 -c "import ttnn; print(f'✅ ttnn version: {ttnn.__version__}')"
+          python3 -c "import ttnn; print('✅ ttnn imported successfully')"
 
           # List SDK directory structure
           echo ""
