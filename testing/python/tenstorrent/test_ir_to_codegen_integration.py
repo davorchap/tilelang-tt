@@ -14,7 +14,7 @@ import tvm
 
 import tilelang.tenstorrent as tt
 
-from testing.python.tt.test_host_program_pipeline import _make_tt_module
+from testing.python.tenstorrent.test_host_program_pipeline import _make_tt_module
 
 
 def test_compute_kernel_extracts_shard_coords_when_local():
