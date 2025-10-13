@@ -35,32 +35,44 @@ if(NOT Metalium_FIND_QUIETLY)
 endif()
 
 # Find include directories
+# For pip-installed ttnn: check both source tree (TT_METAL_HOME) and include subdirectories
 find_path(Metalium_INCLUDE_DIR
     NAMES tt_metal/host_api.hpp
-    PATHS ${TT_METAL_HOME}
-    PATH_SUFFIXES "" "tt_metal"
+    PATHS
+        ${TT_METAL_HOME}
+        ${TT_METAL_HOME}/include
+        ${TT_METAL_HOME}/..
+    PATH_SUFFIXES "" "tt_metal" "include"
     NO_DEFAULT_PATH
 )
 
 # Find additional include paths
+# Support both built-from-source and pip-installed structures
 set(Metalium_INCLUDE_DIRS
     ${TT_METAL_HOME}
     ${TT_METAL_HOME}/tt_metal
     ${TT_METAL_HOME}/tt_metal/impl
+    ${TT_METAL_HOME}/include
+    ${TT_METAL_HOME}/../include
 )
 
 # Find libraries
+# For pip-installed ttnn: libraries are in build/lib subdirectory
 find_library(Metalium_LIBRARY_TT_METAL
     NAMES tt_metal
-    PATHS ${TT_METAL_HOME}
-    PATH_SUFFIXES build/lib lib
+    PATHS
+        ${TT_METAL_HOME}
+        ${TT_METAL_HOME}/..
+    PATH_SUFFIXES build/lib lib build/lib64 lib64
     NO_DEFAULT_PATH
 )
 
 find_library(Metalium_LIBRARY_DEVICE
     NAMES device
-    PATHS ${TT_METAL_HOME}
-    PATH_SUFFIXES build/lib lib
+    PATHS
+        ${TT_METAL_HOME}
+        ${TT_METAL_HOME}/..
+    PATH_SUFFIXES build/lib lib build/lib64 lib64
     NO_DEFAULT_PATH
 )
 
