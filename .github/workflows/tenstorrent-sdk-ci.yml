@@ -24,7 +24,7 @@ env:
 
 jobs:
   build-with-sdk:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # Match tt-metal's supported platform
     steps:
       - name: Checkout TileLang
         uses: actions/checkout@v5
@@ -84,16 +84,10 @@ jobs:
 
           cd $TT_METAL_HOME
 
-          # Install tt-metal build dependencies
-          # (install_dependencies.sh requires python3.8 which isn't available on Ubuntu 24.04,
-          #  so we manually install the required C++ libraries)
-          echo "Installing tt-metal build dependencies..."
-          sudo apt-get update
-          sudo apt-get install -y \
-            libc++-17-dev \
-            libc++abi-17-dev \
-            libhwloc-dev \
-            libcapstone-dev
+          # Install tt-metal dependencies (libc++, llvm-17, etc.)
+          echo "Installing tt-metal dependencies..."
+          export DEBIAN_FRONTEND=noninteractive
+          sudo -E ./install_dependencies.sh
 
           # Build tt-metal
           echo "Building tt-metal... (this may take 15-20 minutes)"
