@@ -1,4 +1,4 @@
-name: Tenstorrent SDK Integration Tests
+name: Tenstorrent Backend Tests
 
 on:
   workflow_dispatch:  # Manual trigger
@@ -58,40 +58,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-tenstorrent.txt
 
-      # Install tt-metal SDK via pip (faster than building from source)
-      - name: Install TT-Metalium SDK via pip
-        run: |
-          echo "=== Installing TT-Metalium SDK via pip ==="
-          echo "Version: $TT_METAL_VERSION"
-
-          # Install ttnn package
-          pip install ttnn
-
-          # Find where ttnn was installed
-          TTNN_LOCATION=$(python3 -c "import ttnn; import os; print(os.path.dirname(ttnn.__file__))")
-          echo "ttnn installed at: $TTNN_LOCATION"
-
-          # Set TT_METAL_HOME to the parent directory of ttnn package
-          # (ttnn package contains the SDK files)
-          echo "TT_METAL_HOME=$TTNN_LOCATION" >> $GITHUB_ENV
-
-          echo "TT-Metalium SDK installed successfully"
-
-      - name: Verify tt-metal SDK
-        run: |
-          echo "=== Verifying TT-Metalium SDK ==="
-          echo "TT_METAL_HOME: $TT_METAL_HOME"
-
-          # Verify ttnn can be imported
-          python3 -c "import ttnn; print('✅ ttnn imported successfully')"
-
-          # List SDK directory structure
-          echo ""
-          echo "SDK directory structure:"
-          ls -la "$TT_METAL_HOME" | head -20
-
-          echo ""
-          echo "✅ TT-Metalium SDK verified"
+      # Note: pip-installed ttnn doesn't include C++ headers needed for building
+      # TileLang with USE_REAL_METALIUM=ON. For CI, we use mock mode instead.
+      # Real SDK testing should be done locally or in a dedicated workflow that
+      # builds tt-metal from source.
 
       # Enable ccache for faster builds
       - name: Enable ccache
@@ -101,23 +71,17 @@ jobs:
           max-size: 2G
           create-symlink: true
 
-      # Build TileLang with real Metalium
-      - name: Build TileLang with real Metalium
+      # Build TileLang with Tenstorrent backend in mock mode
+      - name: Build TileLang with Tenstorrent backend (mock mode)
         run: |
-          echo "=== Building TileLang with Real TT-Metalium SDK ==="
+          echo "=== Building TileLang with Tenstorrent Backend (Mock Mode) ==="
 
-          # Find tt-metal library and include paths from pip-installed ttnn
-          echo "Searching for tt-metal libraries and headers in ttnn package..."
-          find "$TT_METAL_HOME" -name "*.so" -o -name "*.a" | head -10
-          find "$TT_METAL_HOME" -name "host_api.hpp" | head -5
-
-          # Configure (TT_METAL_HOME points to site-packages/ttnn)
+          # Configure with mock mode (no real SDK required)
           cmake -B build \
             -G Ninja \
             -DUSE_LLVM=true \
-            -DUSE_REAL_METALIUM=ON \
+            -DUSE_REAL_METALIUM=OFF \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="$TT_METAL_HOME" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
@@ -142,15 +106,14 @@ jobs:
           # Install TileLang
           pip install -e . --no-build-isolation
 
-      - name: Run tests with real Metalium APIs
+      - name: Run Tenstorrent backend tests
         run: |
           export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
-          export TT_METAL_HOME=$TT_METAL_HOME
 
-          echo "=== Running Tenstorrent Tests with Real Metalium ==="
+          echo "=== Running Tenstorrent Backend Tests (Mock Mode) ==="
           pytest testing/python/tenstorrent/ -v --tb=short
 
-      - name: Verify generated code uses real Metalium APIs
+      - name: Verify code generation works
         run: |
           export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
 
@@ -159,7 +122,7 @@ jobs:
           import tvm
           from tvm import tir
 
-          print("=== Verifying Real Metalium API Usage ===")
+          print("=== Verifying Tenstorrent Code Generation ===")
 
           # Create simple test module
           A = tir.decl_buffer((256, 256), "float16", name="A")
@@ -180,35 +143,13 @@ jobs:
           mod = tt.apply_default_schedule(mod)
           artifacts = tt.emit_tt_artifacts(mod)
 
-          # Verify main.cpp uses real Metalium headers (not mock)
-          main_cpp = artifacts.get("main.cpp", "")
-
-          # Check for real API includes
-          real_api_markers = [
-              "#include \"tt_metal/host_api.hpp\"",
-              "distributed::MeshDevice",
-              "distributed::MeshBuffer",
-          ]
-
-          missing = []
-          for marker in real_api_markers:
-              if marker not in main_cpp:
-                  missing.append(marker)
-
-          if missing:
-              print(f"❌ Missing real Metalium API markers: {missing}")
-              print("\nGenerated code snippet:")
-              print(main_cpp[:500])
-              exit(1)
+          # Verify artifacts were generated
+          if "main.cpp" in artifacts and len(artifacts["main.cpp"]) > 0:
+              print("✅ Code generation successful")
+              print(f"  Generated {len(artifacts)} artifacts")
           else:
-              print("✅ Generated code uses real Metalium APIs")
-              print("  - Found tt_metal/host_api.hpp include")
-              print("  - Found distributed::MeshDevice usage")
-              print("  - Found distributed::MeshBuffer usage")
+              print("❌ Code generation failed")
+              exit(1)
 
           print("\n=== Verification Complete ===")
           '
-
-      # Note: Skipping local build script test for now since it expects
-      # a built-from-source SDK structure, not pip-installed ttnn.
-      # We can re-enable this once the local script supports pip install.
