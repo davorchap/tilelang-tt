@@ -176,7 +176,7 @@ if [ "$SKIP_BUILD" = false ]; then
             echo ""
             echo -e "${YELLOW}To install TT-Metalium SDK (see https://github.com/tenstorrent/tt-metal/blob/main/INSTALLING.md):${NC}"
             echo -e "  git clone https://github.com/tenstorrent/tt-metal.git --recurse-submodules ~/tt-metal"
-            echo -e "  cd ~/tt-metal && ./build_metal.sh"
+            echo -e "  cd ~/tt-metal && ./install_dependencies.sh && ./build_metal.sh"
             echo -e "  export TT_METAL_HOME=~/tt-metal"
             echo ""
             exit 1
