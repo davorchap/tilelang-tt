@@ -64,10 +64,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/tt-metal
-          key: tt-metal-${{ env.TT_METAL_VERSION }}-${{ runner.os }}-v1
-          restore-keys: |
-            tt-metal-${{ env.TT_METAL_VERSION }}-${{ runner.os }}-
-            tt-metal-${{ env.TT_METAL_VERSION }}-
+          key: tt-metal-${{ env.TT_METAL_VERSION }}-${{ runner.os }}-build-script-v1
 
       # Install tt-metal SDK (only if cache miss)
       - name: Install tt-metal SDK
@@ -100,6 +97,11 @@ jobs:
         run: |
           echo "=== Verifying TT-Metalium SDK ==="
           echo "TT_METAL_HOME: $TT_METAL_HOME"
+          echo "Listing TT_METAL_HOME contents:"
+          ls -la "$TT_METAL_HOME" || echo "Directory doesn't exist!"
+          echo ""
+          echo "Checking for tt_metal subdirectory:"
+          ls -la "$TT_METAL_HOME/tt_metal" 2>&1 | head -20 || echo "tt_metal subdirectory doesn't exist!"
 
           # Check headers
           if [ -f "$TT_METAL_HOME/tt_metal/host_api.hpp" ]; then
