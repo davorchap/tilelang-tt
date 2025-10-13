@@ -78,8 +78,8 @@ jobs:
           echo "Install path: $TT_METAL_HOME"
           echo ""
 
-          # Clone tt-metal
-          git clone --depth 1 --branch $TT_METAL_VERSION \
+          # Clone tt-metal with submodules (matches official installation guide)
+          git clone --branch $TT_METAL_VERSION --recurse-submodules \
             https://github.com/tenstorrent/tt-metal.git $TT_METAL_HOME
 
           cd $TT_METAL_HOME

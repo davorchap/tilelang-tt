@@ -174,9 +174,9 @@ if [ "$SKIP_BUILD" = false ]; then
             echo -e "${YELLOW}Please export TT_METAL_HOME=/path/to/tt-metal${NC}"
             echo -e "${YELLOW}Example: export TT_METAL_HOME=~/tt-metal${NC}"
             echo ""
-            echo -e "${YELLOW}To install TT-Metalium SDK:${NC}"
-            echo -e "  git clone https://github.com/tenstorrent/tt-metal.git ~/tt-metal"
-            echo -e "  cd ~/tt-metal && cmake -B build && cmake --build build"
+            echo -e "${YELLOW}To install TT-Metalium SDK (see https://github.com/tenstorrent/tt-metal/blob/main/INSTALLING.md):${NC}"
+            echo -e "  git clone https://github.com/tenstorrent/tt-metal.git --recurse-submodules ~/tt-metal"
+            echo -e "  cd ~/tt-metal && ./build_metal.sh"
             echo -e "  export TT_METAL_HOME=~/tt-metal"
             echo ""
             exit 1
@@ -194,7 +194,7 @@ if [ "$SKIP_BUILD" = false ]; then
         if [ ! -f "$TT_METAL_HOME/build/lib/libtt_metal.so" ]; then
             echo -e "${RED}Error: TT-Metalium libraries not built${NC}"
             echo -e "${YELLOW}Please build tt-metal first:${NC}"
-            echo -e "  cd $TT_METAL_HOME && cmake -B build && cmake --build build"
+            echo -e "  cd $TT_METAL_HOME && ./build_metal.sh"
             exit 1
         fi
 
