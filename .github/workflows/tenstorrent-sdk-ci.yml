@@ -84,6 +84,11 @@ jobs:
 
           cd $TT_METAL_HOME
 
+          # Install tt-metal dependencies (libc++, llvm-17, etc.)
+          echo "Installing tt-metal dependencies..."
+          export DEBIAN_FRONTEND=noninteractive
+          sudo -E ./install_dependencies.sh
+
           # Build tt-metal
           echo "Building tt-metal... (this may take 15-20 minutes)"
           cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
