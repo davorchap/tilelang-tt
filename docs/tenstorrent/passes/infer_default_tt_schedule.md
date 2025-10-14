@@ -63,7 +63,7 @@ Legacy attributes (`tt.schedule`) are maintained for backward compatibility; new
 
 ## Tests
 
-**File**: `testing/python/tenstorrent/test_passes.py`
+**File**: `testing/python/tenstorrent/test_metadata_inference.py`
 **Status**: ✅ 7 tests passing
 
 Tests cover:
@@ -89,8 +89,8 @@ Tests cover:
 ## Related Files
 
 - `src/transform/tenstorrent/infer_tt_schedule.cc` - Implementation
-- `tilelang/tenstorrent/passes.py` - Python binding
-- `testing/python/tenstorrent/test_passes.py` - Tests
+- `tilelang/tenstorrent/passes/infer_default_tt_schedule.py` - Python binding
+- `testing/python/tenstorrent/test_metadata_inference.py` - Tests
 
 ---
 

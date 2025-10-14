@@ -101,7 +101,7 @@ Tests cover:
 ## Related Files
 
 - `src/transform/tenstorrent/memory_space_lower_tt.cc` - Implementation
-- `tilelang/tenstorrent/passes.py` - Python binding
+- `tilelang/tenstorrent/passes/memory_space_lower_tt.py` - Python binding
 - `testing/python/tenstorrent/test_memory_space_lower_tt.py` - Tests
 
 ---

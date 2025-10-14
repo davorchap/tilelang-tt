@@ -636,10 +636,24 @@ tilelang-tt/
 │   │   ├── __init__.py
 │   │   ├── adapter.py          # Engine adapter (entry point)
 │   │   └── lower.py            # TT lowering pipeline
-│   └── tt/
+│   └── tenstorrent/
 │       ├── __init__.py
+│       ├── annotations.py      # annotate_tt_layout / annotate_tt_schedule
 │       ├── target.py           # apply_tt_defaults()
-│       └── passes.py           # Python bindings for TT passes
+│       └── passes/
+│           ├── __init__.py
+│           ├── _common.py
+│           ├── infer_default_tt_schedule.py
+│           ├── infer_default_tt_shard.py
+│           ├── infer_tt_layout.py
+│           ├── layout_aware_work_partition_tt.py
+│           ├── propagate_tt_layout.py
+│           ├── grid_to_persistent_tt.py
+│           ├── tt_tiles_to_core_map.py
+│           ├── memory_space_lower_tt.py
+│           ├── tile_pad_tt.py
+│           ├── lower_gemm_to_tt_intrinsics.py
+│           └── verify_tt_ir.py
 ├── src/
 │   ├── transform/tt/
 │   │   ├── infer_tt_schedule.cc        # Compute tile assignments
@@ -657,15 +671,17 @@ tilelang-tt/
 │       ├── codegen_tt_reader_visitor.cc       # Reader kernel
 │       └── codegen_tt_writer_visitor.cc       # Writer kernel
 └── testing/python/tenstorrent/
-    ├── test_target_registration.py      # Target registration (8 tests)
-    ├── test_passes.py                   # Metadata inference (7 tests)
-    ├── test_grid_to_persistent_tt.py    # Persistent loop (12 tests)
-    ├── test_tt_tiles_to_core_map.py     # NOC mapping (5 tests)
-    ├── test_memory_space_lower_tt.py    # CB lowering (8 tests)
-    ├── test_tile_pad_tt.py              # Tile padding (6 tests)
-    ├── test_lower_gemm_to_tt_intrinsics.py  # Tensorization (8 tests)
-    ├── test_verify_tt_ir.py             # Verification (8 tests)
-    └── test_codegen_tt.py               # Code generation (33 tests)
+    ├── test_target_registration.py      # Target registration
+    ├── test_metadata_inference.py       # Legacy metadata inference (7 tests)
+    ├── test_layout_aware_metadata.py    # Layout-aware metadata (9 tests)
+    ├── test_persistent_lowering.py      # Persistent pipeline integration
+    ├── test_tt_tiles_to_core_map.py     # NOC mapping
+    ├── test_memory_space_lower_tt.py    # Circular-buffer lowering
+    ├── test_tile_pad_tt.py              # Tile padding
+    ├── test_lower_gemm_to_tt_intrinsics.py  # Tensorization
+    ├── test_verify_tt_ir.py             # Verification
+    ├── test_codegen_pipeline.py         # Codegen integration
+    └── test_ir_to_codegen_integration.py# IR ↔ codegen smoke tests
 ```
 
 ---
@@ -763,9 +779,9 @@ See [METALIUM_SETUP_GUIDE.md](./METALIUM_SETUP_GUIDE.md) for SDK setup.
 pytest testing/python/tenstorrent/ -v
 
 # Specific categories
-pytest testing/python/tenstorrent/test_passes.py -v           # Metadata inference
-pytest testing/python/tenstorrent/test_grid_to_persistent_tt.py -v  # Persistent loop
-pytest testing/python/tenstorrent/test_codegen_tt.py -v       # Code generation
+pytest testing/python/tenstorrent/test_metadata_inference.py -v     # Metadata inference
+pytest testing/python/tenstorrent/test_persistent_lowering.py -v    # Persistent loop
+pytest testing/python/tenstorrent/test_codegen_pipeline.py -v       # Code generation
 ```
 
 ---

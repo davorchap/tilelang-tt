@@ -75,7 +75,7 @@ A = T.Buffer((256, 256), "float16")  # DRAM buffer
 ## Related Files
 
 - `src/transform/tenstorrent/infer_tt_shard.cc` - Implementation
-- `tilelang/tenstorrent/passes.py` - Python binding
+- `tilelang/tenstorrent/passes/infer_default_tt_shard.py` - Python binding
 
 ---
 
