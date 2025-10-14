@@ -360,7 +360,7 @@ std::string GetMeshDeviceCreate() {
 1. **Mock Mode Preservation**:
    - All 95 existing tests must pass
    - No changes to default behavior
-   - Backward compatibility maintained
+   - Existing test behavior maintained
 
 ---
 

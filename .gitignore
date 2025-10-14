@@ -97,3 +97,8 @@ tilelang/jit/adapter/cython/.cycache
 # claude - ignore local settings but allow default template
 **/.claude/*
 !**/.claude/settings.json
+
+# TensorIR generated files
+tt.plan.json
+*.plan.json
+tt_gemm_artifacts/

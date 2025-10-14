@@ -32,9 +32,8 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[NEW_LOWERING_ARCHITECTURE.md](NEW_LOWERING_ARCHITECTURE.md)** 🆕 | New metadata-driven Grid → Persistent lowering | All developers |
-| **[RUNTIME_PLAN.md](RUNTIME_PLAN.md)** 🆕 | Runtime plan specification (tt.plan.json) | Backend developers |
-| **[passes/NEW_PIPELINE.md](passes/NEW_PIPELINE.md)** 🆕 | New pass pipeline documentation | Transform developers |
+| **[LOWERING_ARCHITECTURE.md](LOWERING_ARCHITECTURE.md)** | Metadata-driven Grid → Persistent lowering | All developers |
+| **[RUNTIME_PLAN.md](RUNTIME_PLAN.md)** | Runtime plan specification (tt.plan.json) | Backend developers |
 | **[TT_ARCHITECTURE.md](TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture | All developers |
 | **[IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md)** | GPU vs TT lowering pipeline comparison | Compiler engineers |
 | **[PASS_TABLE_SHARED.md](PASS_TABLE_SHARED.md)** | Shared lowering/optimization passes | Transform developers |
@@ -66,8 +65,8 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 - Grid-to-persistent transformation with shard-aware guardrails and per-core runtime metadata tables in host artifacts.
 - IR-driven reader/compute/writer visitors aligned with the new runtime contract.
 - Mock-mode CI parity via `maint/scripts/local_build_and_test_tt.sh`.
-- **NEW**: Refactored metadata-driven lowering pipeline with cleaner abstractions and centralized attribute definitions.
-- **NEW**: Migration to pure Python pass implementation complete (2025-10-14) - removed all legacy C++ passes.
+- Metadata-driven lowering pipeline with centralized attribute definitions.
+- Pure Python pass implementation.
 
 ### 🚧 In Progress
 - Additional diagnostics for halo hints, L1 capacity checks, and documentation refreshes.
@@ -84,14 +83,9 @@ TileLang DSL (Python)
     ↓
 TVM IRModule
     ↓
-Apply TT Defaults → Stamp legacy schedule/shard metadata (compatibility path)
+Apply TT Defaults
     ↓
-Layout-Aware Metadata
-    ├─ InferTTLayout (buffer + shard schema)
-    ├─ PropagateTTLayout (CB metadata)
-    └─ LayoutAwareWorkPartitionTT (core ranges, partition mode, runtime args)
-    ↓
-Transform Pipeline (New Python Implementation)
+Transform Pipeline (Python Implementation)
     ├─ InferTTLayout (extract grid, infer layouts)
     ├─ PropagateTTLayout (normalize and distribute)
     ├─ TTTilesToCoreMap (work partition generation)

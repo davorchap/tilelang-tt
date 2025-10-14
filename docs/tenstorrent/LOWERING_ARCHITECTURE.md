@@ -1,10 +1,10 @@
-# New TT Lowering Architecture: Grid → Persistent
+# TT Lowering Architecture: Grid → Persistent
 
-This document describes the new metadata-driven lowering architecture for the Tenstorrent backend, which replaces the previous ad-hoc approach with a cleaner, more maintainable pipeline.
+This document describes the metadata-driven lowering architecture for the Tenstorrent backend.
 
 ## Overview
 
-The new architecture introduces:
+The architecture provides:
 1. **Mid-level IR representation** with `T.launch_core` abstractions
 2. **Centralized metadata** via attributes on PrimFuncs
 3. **Clear pass pipeline** with well-defined responsibilities
@@ -129,27 +129,6 @@ mod = tvm.IRModule({"main": f})
 mod = run_pipeline(mod, plan_path="my_plan.json")
 ```
 
-## Migration Guide
-
-### For Existing Code
-
-The new architecture maintains backward compatibility through the legacy pass names. However, we recommend migrating to the new metadata-driven approach:
-
-**Old approach:**
-```python
-# Scattered metadata across multiple passes
-func = apply_tt_defaults(func)
-func = infer_tt_layout(func)
-# ... many individual passes
-```
-
-**New approach:**
-```python
-# Centralized metadata + single pipeline
-func = with_core_grid(func, 4, 4)
-func = with_layout_desc(func, layouts)
-mod = run_pipeline(tvm.IRModule({"main": func}))
-```
 
 ## Benefits
 
