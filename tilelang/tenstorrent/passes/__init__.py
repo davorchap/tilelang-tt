@@ -38,7 +38,8 @@ def apply_layout_aware_metadata_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Run the layout-aware metadata inference pipeline."""
     mod = _log_pass_output(infer_tt_layout(mod), pass_name="InferTTLayout")
     mod = _log_pass_output(propagate_tt_layout(mod), pass_name="PropagateTTLayout")
-    mod = _log_pass_output(layout_aware_work_partition_tt(mod), pass_name="LayoutAwareWorkPartitionTT")
+    mod = _log_pass_output(
+        layout_aware_work_partition_tt(mod), pass_name="LayoutAwareWorkPartitionTT")
     return mod
 
 

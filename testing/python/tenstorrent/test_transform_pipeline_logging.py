@@ -15,7 +15,7 @@ def _make_test_module() -> tvm.IRModule:
     @T.prim_func
     def kernel(A: T.Buffer((128, 128), "float16")):
         with T.Kernel(4, 4) as (bx, by):
-            T.evaluate(A[bx * 32 + by * 32])
+            T.evaluate(A[bx * 32, by * 32])
 
     return tvm.IRModule.from_expr(kernel.with_attr("global_symbol", "main"))
 
@@ -30,8 +30,8 @@ def test_pipeline_prints_tir_for_each_pass(capsys) -> None:
     metadata_output = capsys.readouterr().out
 
     for expected in (
-        "--- [Tenstorrent] After InferDefaultTTSchedule ---",
-        "--- [Tenstorrent] After InferDefaultTTShard ---",
+            "--- [Tenstorrent] After InferDefaultTTSchedule ---",
+            "--- [Tenstorrent] After InferDefaultTTShard ---",
     ):
         assert expected in metadata_output
 
@@ -41,12 +41,12 @@ def test_pipeline_prints_tir_for_each_pass(capsys) -> None:
     transform_output = capsys.readouterr().out
 
     for expected in (
-        "--- [Tenstorrent] After GridToPersistentTT ---",
-        "--- [Tenstorrent] After TTTilesToCoreMap ---",
-        "--- [Tenstorrent] After MemorySpaceLowerTT ---",
-        "--- [Tenstorrent] After TilePadTT ---",
-        "--- [Tenstorrent] After LowerGemmToTTIntrinsics ---",
-        "--- [Tenstorrent] After VerifyTTIR ---",
+            "--- [Tenstorrent] After GridToPersistentTT ---",
+            "--- [Tenstorrent] After TTTilesToCoreMap ---",
+            "--- [Tenstorrent] After MemorySpaceLowerTT ---",
+            "--- [Tenstorrent] After TilePadTT ---",
+            "--- [Tenstorrent] After LowerGemmToTTIntrinsics ---",
+            "--- [Tenstorrent] After VerifyTTIR ---",
     ):
         assert expected in transform_output
 
