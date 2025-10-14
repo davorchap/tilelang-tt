@@ -147,14 +147,24 @@ jobs:
           echo "Copying headers from /tmp/tt-metal-headers/tt_metal to ~/tt-metal-sdk/"
           cp -r /tmp/tt-metal-headers/tt_metal ~/tt-metal-sdk/
 
-          # Verify headers were copied
-          if [ ! -f ~/tt-metal-sdk/tt_metal/host_api.hpp ]; then
-            echo "❌ Failed to copy headers"
+          # Verify headers were copied (v0.63.0+ uses api/tt-metalium/ subdirectory)
+          if [ ! -d ~/tt-metal-sdk/tt_metal ]; then
+            echo "❌ Failed to copy tt_metal directory"
             ls -la /tmp/tt-metal-headers/ | head -20
             ls -la ~/tt-metal-sdk/ | head -20
             exit 1
           fi
-          echo "✅ Headers copied successfully"
+
+          # Check for host_api.hpp in the new location (v0.63.0+)
+          if [ -f ~/tt-metal-sdk/tt_metal/api/tt-metalium/host_api.hpp ]; then
+            echo "✅ Headers copied successfully (found at api/tt-metalium/host_api.hpp)"
+          elif [ -f ~/tt-metal-sdk/tt_metal/host_api.hpp ]; then
+            echo "✅ Headers copied successfully (found at host_api.hpp)"
+          else
+            echo "⚠️  tt_metal directory copied but host_api.hpp not found in expected locations"
+            echo "Searching for host_api.hpp:"
+            find ~/tt-metal-sdk/tt_metal -name "host_api.hpp" -type f | head -5
+          fi
 
           # Symlink libraries from pip-installed ttnn
           echo "Symlinking libraries from $TTNN_LOCATION/build/lib/"
@@ -178,11 +188,15 @@ jobs:
           echo "=== Verifying TT-Metalium SDK ==="
           echo "TT_METAL_HOME: $TT_METAL_HOME"
 
-          # Check headers
-          if [ -f "$TT_METAL_HOME/tt_metal/host_api.hpp" ]; then
-            echo "✅ Headers found"
+          # Check headers (v0.63.0+ uses api/tt-metalium/ subdirectory)
+          if [ -f "$TT_METAL_HOME/tt_metal/api/tt-metalium/host_api.hpp" ]; then
+            echo "✅ Headers found at api/tt-metalium/host_api.hpp"
+          elif [ -f "$TT_METAL_HOME/tt_metal/host_api.hpp" ]; then
+            echo "✅ Headers found at host_api.hpp"
           else
             echo "❌ Headers missing"
+            echo "Searching for host_api.hpp:"
+            find "$TT_METAL_HOME" -name "host_api.hpp" -type f 2>/dev/null || echo "Not found"
             exit 1
           fi
 

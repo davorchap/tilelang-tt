@@ -36,8 +36,9 @@ endif()
 
 # Find include directories
 # For pip-installed ttnn: check both source tree (TT_METAL_HOME) and include subdirectories
+# v0.63.0+ uses api/tt-metalium/ subdirectory for headers
 find_path(Metalium_INCLUDE_DIR
-    NAMES tt_metal/host_api.hpp
+    NAMES tt_metal/api/tt-metalium/host_api.hpp tt_metal/host_api.hpp
     PATHS
         ${TT_METAL_HOME}
         ${TT_METAL_HOME}/include
@@ -48,9 +49,11 @@ find_path(Metalium_INCLUDE_DIR
 
 # Find additional include paths
 # Support both built-from-source and pip-installed structures
+# v0.63.0+ also needs api/tt-metalium include path
 set(Metalium_INCLUDE_DIRS
     ${TT_METAL_HOME}
     ${TT_METAL_HOME}/tt_metal
+    ${TT_METAL_HOME}/tt_metal/api/tt-metalium
     ${TT_METAL_HOME}/tt_metal/impl
     ${TT_METAL_HOME}/include
     ${TT_METAL_HOME}/../include
