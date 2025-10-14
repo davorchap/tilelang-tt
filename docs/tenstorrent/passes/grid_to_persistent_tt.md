@@ -77,6 +77,63 @@ The pass is responsible for ordering these fields and recording the argument nam
 
 ---
 
+## IR Structure Changes: Root Block Normalization
+
+When `GridToPersistentTT` removes GPU threading constructs, TVM normalizes the block structure, making the root block explicit with `T.reads()` / `T.writes()` annotations.
+
+**Before (Implicit Root Block)**:
+```python
+# with T.block("root"):  # ← Commented = implicit/hidden
+bx = T.launch_thread("blockIdx.x", 4)
+by = T.launch_thread("blockIdx.y", 4)
+tx = T.launch_thread("threadIdx.x", 128)
+ty = T.launch_thread("threadIdx.y", 1)
+tz = T.launch_thread("threadIdx.z", 1)
+with T.block("tilelang_root"):
+    T.reads(A[bx * 32, by * 32])
+    T.writes()
+    T.evaluate(A[bx * 32, by * 32])
+```
+
+**After (Explicit Root Block)**:
+```python
+for tt_tile_iter in range(tt_tile_count):
+    tt_tile_id: T.int32 = tt_start_tile + tt_tile_iter
+    with T.block("root"):  # ← Now explicit
+        T.reads()
+        T.writes()
+        with T.block("tilelang_root"):
+            T.reads(A[tt_tile_id % 4 * 32, tt_tile_id // 4 % 4 * 32])
+            T.writes()
+            T.evaluate(A[tt_tile_id % 4 * 32, tt_tile_id // 4 % 4 * 32])
+```
+
+**Why This Happens**:
+
+1. **Implicit → Explicit**: The `# with T.block("root")` comment means the root block exists but is **implicit** (hidden from display). When `GridToPersistentTT` removes the thread launch constructs and restructures the IR, TVM makes the root block **explicit**.
+
+2. **Thread constructs were wrapping the body**: The `launch_thread` calls created `AttrStmt` nodes that wrapped the inner blocks. When we remove them (lines 135-137 and 142-144 in grid_to_persistent_tt.cc), we're left with the raw block structure.
+
+3. **Block annotations are required**: TVM requires all blocks to have `T.reads()` and `T.writes()` annotations for:
+   - Dependency analysis
+   - Scheduling validation
+   - Buffer access tracking
+
+4. **Empty annotations on root block**: The root block has empty `T.reads()` / `T.writes()` because:
+   - It's just a **container/scope** for the persistent loop
+   - The actual memory access happens in the inner `"tilelang_root"` block
+   - Root blocks typically don't perform operations themselves
+
+This is **correct and expected behavior** - it's how TVM normalizes block structure after IR transformations. The root block becomes explicit to properly represent the nesting structure once the thread launch constructs are removed.
+
+**GPU Threading Construct Removal**:
+
+As of the latest update, `GridToPersistentTT` removes **both** `blockIdx.*` and `threadIdx.*` constructs:
+- `blockIdx.x/y/z` are **replaced** with tile ID recovery expressions (e.g., `tt_tile_id % 4`)
+- `threadIdx.x/y/z` are **removed entirely** (TT uses persistent cores, not ephemeral threads)
+
+---
+
 ## Tests
 
 **File**: `testing/python/tenstorrent/test_grid_to_persistent_tt.py`
