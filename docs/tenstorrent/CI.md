@@ -21,7 +21,7 @@ This document describes the CI setup for the Tenstorrent backend in TileLang.
 The Tenstorrent backend uses a **two-tier CI approach** to balance speed and validation:
 
 - **Tier 1 (Mock Mode):** Fast, lightweight CI that runs on every PR (2-3 minutes)
-- **Tier 2 (Real SDK):** Optional SDK validation CI that runs on-demand (15-20 minutes first run, 3-5 minutes cached)
+- **Tier 2 (Real SDK):** Full SDK validation CI that now runs on every PR (~15 minutes first run, 3-5 minutes cached)
 
 **Primary workflow:** `.github/workflows/tenstorrent-ci.yml`
 **Secondary workflow:** `.github/workflows/tenstorrent-sdk-ci.yml` (when SDK available)
@@ -138,17 +138,16 @@ The Tenstorrent backend uses a **two-tier CI approach** to balance speed and val
 
 ---
 
-### Tier 2: Real SDK CI (Optional - Validation)
+### Tier 2: Real SDK CI (SDK Validation)
 
 **Purpose:** Validate against real TT-Metalium SDK APIs
 
 **Characteristics:**
-- ⚠️ Manual trigger (`workflow_dispatch`) or weekly schedule
+- ✅ Runs on every PR (in addition to manual `workflow_dispatch` and weekly cron)
 - ⚠️ Requires SDK installation in CI
 - ✅ SDK cached for fast subsequent runs
 - ✅ Tests hardware-specific code paths
-- ⚠️ Build time: ~15-20 minutes (first time), ~3-5 minutes (cached)
-- ✅ **This runs only when validating against real SDK**
+- ⏱️ Build time: ~10-15 minutes (first time), ~3-5 minutes (cached)
 
 **Workflow:** `.github/workflows/tenstorrent-sdk-ci.yml`
 
@@ -420,7 +419,7 @@ See [`METALIUM_SETUP_GUIDE.md`](METALIUM_SETUP_GUIDE.md) for detailed SDK instal
 - ⚠️ **SDK installed in CI** - But cached for reuse
 - ⚠️ **Slower first run** - But subsequent runs fast
 - ✅ **Validates real APIs** - Catches SDK compatibility issues
-- ✅ **Optional** - Doesn't slow down main CI
+- ✅ **Always-on coverage** - Runs alongside mock CI on every PR
 
 ---
 
