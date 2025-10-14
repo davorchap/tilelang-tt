@@ -19,7 +19,8 @@
 
 /*!
  * \file grid_to_persistent_tt.cc
- * \brief Transform grid-style kernel to persistent per-core loop (Persistent Transform stage)
+ * \brief Transform grid-style kernel to persistent per-core loop (Persistent
+ * Transform stage)
  *
  * This pass converts GPU-style grid kernels to Tenstorrent's persistent
  * execution model. Each core runs a persistent loop iterating over its
@@ -36,8 +37,8 @@
 
 #include <algorithm>
 #include <string>
-#include <tvm/runtime/logging.h>
 #include <tuple>
+#include <tvm/runtime/logging.h>
 #include <utility>
 #include <vector>
 
@@ -53,20 +54,18 @@ using namespace tir;
  * that compute them from tile_id and grid dimensions.
  */
 class BlockIndexReplacer : public StmtExprMutator {
- public:
+public:
   BlockIndexReplacer(Var tile_id_var, int grid_x, int grid_y, int grid_z)
-      : tile_id_var_(tile_id_var),
-        grid_x_(std::max(grid_x, 1)),
-        grid_y_(std::max(grid_y, 1)),
-        grid_z_(std::max(grid_z, 1)) {}
+      : tile_id_var_(tile_id_var), grid_x_(std::max(grid_x, 1)),
+        grid_y_(std::max(grid_y, 1)), grid_z_(std::max(grid_z, 1)) {}
 
-  PrimExpr VisitExpr_(const VarNode* op) final {
+  PrimExpr VisitExpr_(const VarNode *op) final {
     auto it = block_idx_vars_.find(op);
     if (it == block_idx_vars_.end()) {
       return GetRef<PrimExpr>(op);
     }
 
-    const std::string& thread_tag = it->second;
+    const std::string &thread_tag = it->second;
     PrimExpr tile_expr = tile_id_var_;
     DataType dtype = tile_id_var_->dtype;
 
@@ -96,16 +95,16 @@ class BlockIndexReplacer : public StmtExprMutator {
     return GetRef<PrimExpr>(op);
   }
 
-  void RegisterBlockIdxVar(const Var& var, const std::string& thread_tag) {
+  void RegisterBlockIdxVar(const Var &var, const std::string &thread_tag) {
     block_idx_vars_[var.get()] = thread_tag;
   }
 
- private:
+private:
   Var tile_id_var_;
   int grid_x_;
   int grid_y_;
   int grid_z_;
-  std::unordered_map<const VarNode*, std::string> block_idx_vars_;
+  std::unordered_map<const VarNode *, std::string> block_idx_vars_;
 };
 
 /*!
@@ -114,16 +113,14 @@ class BlockIndexReplacer : public StmtExprMutator {
  * Wraps kernel body with persistent loop and replaces block indices.
  */
 class GridToPersistentMutator : public StmtMutator {
- public:
-  GridToPersistentMutator(const Var& start_param, const Var& count_param, int grid_x, int grid_y,
-                          int grid_z)
-      : start_param_(start_param),
-        count_param_(count_param),
-        grid_x_(std::max(grid_x, 1)),
-        grid_y_(std::max(grid_y, 1)),
+public:
+  GridToPersistentMutator(const Var &start_param, const Var &count_param,
+                          int grid_x, int grid_y, int grid_z)
+      : start_param_(start_param), count_param_(count_param),
+        grid_x_(std::max(grid_x, 1)), grid_y_(std::max(grid_y, 1)),
         grid_z_(std::max(grid_z, 1)) {}
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
+  Stmt VisitStmt_(const AttrStmtNode *op) final {
     if (op->attr_key == tir::attr::thread_extent) {
       IterVar iv = Downcast<IterVar>(op->node);
       std::string thread_tag = iv->thread_tag;
@@ -133,6 +130,14 @@ class GridToPersistentMutator : public StmtMutator {
         // Register this variable for replacement
         block_idx_vars_.push_back({iv->var, thread_tag});
 
+        // Remove the attr statement, just process body
+        return VisitStmt(op->body);
+      }
+
+      // Also remove threadIdx constructs (GPU threading model not used in TT
+      // backend)
+      if (thread_tag == "threadIdx.x" || thread_tag == "threadIdx.y" ||
+          thread_tag == "threadIdx.z") {
         // Remove the attr statement, just process body
         return VisitStmt(op->body);
       }
@@ -151,22 +156,23 @@ class GridToPersistentMutator : public StmtMutator {
     // Replace block indices in the body
     BlockIndexReplacer replacer(tile_id, grid_x_, grid_y_, grid_z_);
 
-    for (const auto& [var, tag] : block_idx_vars_) {
+    for (const auto &[var, tag] : block_idx_vars_) {
       replacer.RegisterBlockIdxVar(var, tag);
     }
     processed_body = replacer(processed_body);
 
     // Compute tile_id = start_id + i
-    Stmt tile_id_compute = LetStmt(tile_id, start_param_ + loop_var, processed_body);
+    Stmt tile_id_compute =
+        LetStmt(tile_id, start_param_ + loop_var, processed_body);
 
     // Wrap with persistent loop: for (i = 0; i < count; ++i)
-    Stmt persistent_loop = For(loop_var, make_const(DataType::Int(32), 0), count_param_,
-                               ForKind::kSerial, tile_id_compute);
+    Stmt persistent_loop = For(loop_var, make_const(DataType::Int(32), 0),
+                               count_param_, ForKind::kSerial, tile_id_compute);
 
     return persistent_loop;
   }
 
- private:
+private:
   Var start_param_;
   Var count_param_;
   int grid_x_;
@@ -178,8 +184,8 @@ class GridToPersistentMutator : public StmtMutator {
 /*!
  * \brief Transform grid-style kernel to persistent per-core loop
  *
- * This pass reads Metadata Inference stage schedule metadata and wraps the kernel body
- * with a persistent loop that iterates over assigned tiles.
+ * This pass reads Metadata Inference stage schedule metadata and wraps the
+ * kernel body with a persistent loop that iterates over assigned tiles.
  *
  * \param f The PrimFunc to process
  * \return Enhanced PrimFunc with persistent loop structure
@@ -190,7 +196,8 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
   auto grid_y_attr = f->attrs.GetAttr<Integer>("tt_grid_y");
   auto grid_z_attr = f->attrs.GetAttr<Integer>("tt_grid_z");
 
-  if (!grid_x_attr.defined() || !grid_y_attr.defined() || !grid_z_attr.defined()) {
+  if (!grid_x_attr.defined() || !grid_y_attr.defined() ||
+      !grid_z_attr.defined()) {
     // No TT metadata, skip transformation
     return f;
   }
@@ -217,22 +224,25 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
   int shard_grid_y = 1;
   int shard_grid_x = 1;
 
-  if (auto grid_tiles_attr = f->attrs.GetAttr<Array<Integer>>("tt.grid_tiles")) {
-    const auto& arr = grid_tiles_attr.value();
+  if (auto grid_tiles_attr =
+          f->attrs.GetAttr<Array<Integer>>("tt.grid_tiles")) {
+    const auto &arr = grid_tiles_attr.value();
     if (arr.size() >= 2) {
       grid_tiles_m = static_cast<int>(arr[0].IntValue());
       grid_tiles_n = static_cast<int>(arr[1].IntValue());
     }
   }
-  if (auto local_tiles_attr = f->attrs.GetAttr<Array<Integer>>("tt.local_shape_tiles")) {
-    const auto& arr = local_tiles_attr.value();
+  if (auto local_tiles_attr =
+          f->attrs.GetAttr<Array<Integer>>("tt.local_shape_tiles")) {
+    const auto &arr = local_tiles_attr.value();
     if (arr.size() >= 2) {
       local_tiles_m = static_cast<int>(arr[0].IntValue());
       local_tiles_n = static_cast<int>(arr[1].IntValue());
     }
   }
-  if (auto shard_grid_attr = f->attrs.GetAttr<Array<Integer>>("tt.shard_grid")) {
-    const auto& arr = shard_grid_attr.value();
+  if (auto shard_grid_attr =
+          f->attrs.GetAttr<Array<Integer>>("tt.shard_grid")) {
+    const auto &arr = shard_grid_attr.value();
     if (arr.size() >= 2) {
       shard_grid_y = static_cast<int>(arr[0].IntValue());
       shard_grid_x = static_cast<int>(arr[1].IntValue());
@@ -242,15 +252,16 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
   Array<String> runtime_arg_names;
   if (auto names = f->attrs.GetAttr<Array<String>>("tt.runtime_arg_names")) {
     runtime_arg_names = names.value();
-  } else if (auto names = f->attrs.GetAttr<Array<String>>("tt_runtime_arg_names")) {
+  } else if (auto names =
+                 f->attrs.GetAttr<Array<String>>("tt_runtime_arg_names")) {
     runtime_arg_names = names.value();
   }
   if (runtime_arg_names.empty()) {
     if (partition_mode == "local_shard") {
-      runtime_arg_names = {
-          String("start_id"), String("count"), String("Mt"), String("Kt"), String("Nt"),
-          String("Sm"),      String("Sn"),   String("Gy"), String("Gx"), String("sy"),
-          String("sx")};
+      runtime_arg_names = {String("start_id"), String("count"), String("Mt"),
+                           String("Kt"),       String("Nt"),    String("Sm"),
+                           String("Sn"),       String("Gy"),    String("Gx"),
+                           String("sy"),       String("sx")};
     } else {
       runtime_arg_names = {String("start_id"), String("count"), String("Mt"),
                            String("Kt"), String("Nt")};
@@ -271,13 +282,14 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
   Var shard_x_param("tt_shard_coord_x", DataType::Int(32));
 
   // Step 2: Apply the transformation
-  GridToPersistentMutator mutator(start_param, count_param, grid_x, grid_y, grid_z);
+  GridToPersistentMutator mutator(start_param, count_param, grid_x, grid_y,
+                                  grid_z);
   Stmt persistent_loop = mutator.Transform(f->body);
 
   if (partition_mode == "local_shard") {
-    const ForNode* for_node = persistent_loop.as<ForNode>();
+    const ForNode *for_node = persistent_loop.as<ForNode>();
     ICHECK(for_node) << "Expected persistent loop";
-    const LetStmtNode* let_node = for_node->body.as<LetStmtNode>();
+    const LetStmtNode *let_node = for_node->body.as<LetStmtNode>();
     ICHECK(let_node) << "Expected tile_id let statement";
 
     PrimExpr tid_local = start_param + for_node->loop_var;
@@ -292,9 +304,9 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
     PrimExpr global_tile = global_m * nt_const + global_n;
 
     Stmt new_let = LetStmt(let_node->var, global_tile, let_node->body);
-    persistent_loop = For(for_node->loop_var, for_node->min, for_node->extent,
-                          for_node->kind, new_let, for_node->thread_binding,
-                          for_node->annotations);
+    persistent_loop =
+        For(for_node->loop_var, for_node->min, for_node->extent, for_node->kind,
+            new_let, for_node->thread_binding, for_node->annotations);
   }
 
   // Step 3: Create new function with transformed body and params
@@ -380,7 +392,7 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
   runtime_args.Set("iteration_symbols", dim_symbols);
 
   Array<String> param_order;
-  for (const auto& name : runtime_arg_names) {
+  for (const auto &name : runtime_arg_names) {
     param_order.push_back(name);
   }
   runtime_args.Set("param_order", param_order);
@@ -388,7 +400,8 @@ PrimFunc GridToPersistentTTImpl(PrimFunc f) {
 
   new_func = WithAttr(new_func, "tt_runtime_args", runtime_args);
   new_func = WithAttr(new_func, "tt_persistent_loop", Bool(true));
-  new_func = WithAttr(new_func, "tt_persistent_iteration_ndims", Integer(iter_ndims));
+  new_func =
+      WithAttr(new_func, "tt_persistent_iteration_ndims", Integer(iter_ndims));
   new_func = WithAttr(new_func, "tt.partition_mode", String(partition_mode));
   new_func = WithAttr(new_func, "tt.grid_tiles", grid_tiles_array);
   new_func = WithAttr(new_func, "tt.local_shape_tiles", local_tiles_array);
@@ -407,7 +420,7 @@ using namespace tir::transform;
  * \return The TIR pass
  */
 Pass GridToPersistentTT() {
-  auto pass_func = [=](PrimFunc f, const IRModule& m, const PassContext& ctx) {
+  auto pass_func = [=](PrimFunc f, const IRModule &m, const PassContext &ctx) {
     return GridToPersistentTTImpl(std::move(f));
   };
   return CreatePrimFuncPass(pass_func, 0, "tl.GridToPersistentTT", {});
@@ -419,5 +432,5 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef().def("tl.transform.GridToPersistentTT", GridToPersistentTT);
 });
 
-}  // namespace tl
-}  // namespace tvm
+} // namespace tl
+} // namespace tvm
