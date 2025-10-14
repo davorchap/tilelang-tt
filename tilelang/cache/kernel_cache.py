@@ -280,20 +280,22 @@ class KernelCache:
         except Exception as e:
             self.logger.error(f"Error saving wrapped kernel source code to disk: {e}")
 
-        # Save the kernel library
+        # Save the kernel library (skip for TT backend which has no compiled library)
         try:
-            # Save CUBIN or SO file
-            kernel_lib_path = KERNEL_CUBIN_PATH if self.execution_backend == "nvrtc" else KERNEL_LIB_PATH
-            kernel_lib_path = os.path.join(cache_path, kernel_lib_path)
             src_lib_path = kernel.adapter.libpath
-            if verbose:
-                self.logger.debug(f"Saving kernel library to file: {kernel_lib_path}")
-            KernelCache._safe_write_file(
-                kernel_lib_path, "wb",
-                lambda file: file.write(KernelCache._load_binary(src_lib_path)))
+            # Skip saving library if libpath is None (e.g., for Tenstorrent backend)
+            if src_lib_path is not None:
+                # Save CUBIN or SO file
+                kernel_lib_path = KERNEL_CUBIN_PATH if self.execution_backend == "nvrtc" else KERNEL_LIB_PATH
+                kernel_lib_path = os.path.join(cache_path, kernel_lib_path)
+                if verbose:
+                    self.logger.debug(f"Saving kernel library to file: {kernel_lib_path}")
+                KernelCache._safe_write_file(
+                    kernel_lib_path, "wb",
+                    lambda file: file.write(KernelCache._load_binary(src_lib_path)))
 
             # Save an extra Python file for NVRTC
-            if self.execution_backend == "nvrtc":
+            if self.execution_backend == "nvrtc" and src_lib_path is not None:
                 kernel_py_path = os.path.join(cache_path, KERNEL_PY_PATH)
                 src_lib_path = src_lib_path.replace(".cubin", ".py")
                 if verbose:
@@ -346,8 +348,27 @@ class KernelCache:
         kernel_lib_path = os.path.join(
             cache_path, KERNEL_CUBIN_PATH if self.execution_backend == "nvrtc" else KERNEL_LIB_PATH)
         params_path = os.path.join(cache_path, PARAMS_PATH)
-        if not all([os.path.exists(file) for file in (kernel_lib_path, params_path)]):
-            return None
+
+        # For TT backend, we don't have a library file, just check for params
+        # Check if this is likely a TT kernel by looking for artifacts in wrapped kernel
+        is_tt_kernel = False
+        if os.path.exists(wrapped_kernel_path):
+            try:
+                with open(wrapped_kernel_path, "r") as f:
+                    content = f.read()
+                    # TT kernels contain JSON with reader.cpp, compute.cpp, etc.
+                    is_tt_kernel = "reader.cpp" in content and "compute.cpp" in content
+            except:
+                pass
+
+        if is_tt_kernel:
+            # For TT, only check for params file
+            if not os.path.exists(params_path):
+                return None
+        else:
+            # For other backends, check for both library and params
+            if not all([os.path.exists(file) for file in (kernel_lib_path, params_path)]):
+                return None
 
         kernel_global_source: Optional[str] = None
         kernel_params: Optional[List[KernelParam]] = None
