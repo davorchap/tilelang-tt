@@ -4,9 +4,7 @@ on:
   workflow_dispatch:  # Manual trigger
   schedule:
     - cron: '0 0 * * 0'  # Weekly on Sunday at midnight UTC
-  pull_request:
-    paths:
-      - '.github/workflows/tenstorrent-sdk-ci.yml'
+  pull_request:  # Run on every PR now that the SDK build is fast enough
 
 # Auto-cancel superseded runs
 concurrency:
