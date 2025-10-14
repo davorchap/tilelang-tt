@@ -47,9 +47,9 @@ Applied only for Tenstorrent target via `OptimizeForTargetTT()`.
 
 | Pass | Status | Category | Input IR | Output IR | Purpose | Documentation |
 |------|--------|----------|----------|-----------|---------|---------------|
-| **InferTTLayout** | 🟡 Python impl; C++ port pending (Phase 2) | Memory | PrimFunc (`tt.user_layout`) | PrimFunc + `tt.buffer.*` | Stamp buffer layout metadata (alignments + N-D shard projection) | [📄 Doc](./passes/infer_layout_tt.md) |
-| **PropagateTTLayout** | 🟡 Python impl; C++ port pending (Phase 2) | Memory | PrimFunc + `tt.buffer.*` | PrimFunc + `tt.cb.*` | Derive circular buffer metadata consumed by codegen | [📄 Doc](./passes/propagate_layout_tt.md) |
-| **LayoutAwareWorkPartitionTT** | 🟡 Python driver; C++ port pending (Phase 2) | Device | PrimFunc + buffer metadata | PrimFunc + partition attrs | Emit `tt.partition_mode`, runtime arg schema, core ranges | [📄 Doc](./passes/layout_aware_partition_tt.md) |
+| **InferTTLayout** | 🟡 Python impl; C++ port pending (Phase 2) | Memory | PrimFunc (`tt.user_layout`) | PrimFunc + `tt.buffer.*` | Stamp buffer layout metadata (alignments + N-D shard projection) | [📄 Doc](./passes/infer_tt_layout.md) |
+| **PropagateTTLayout** | 🟡 Python impl; C++ port pending (Phase 2) | Memory | PrimFunc + `tt.buffer.*` | PrimFunc + `tt.cb.*` | Derive circular buffer metadata consumed by codegen | [📄 Doc](./passes/propagate_tt_layout.md) |
+| **LayoutAwareWorkPartitionTT** | 🟡 Python driver; C++ port pending (Phase 2) | Device | PrimFunc + buffer metadata | PrimFunc + partition attrs | Emit `tt.partition_mode`, runtime arg schema, core ranges | [📄 Doc](./passes/layout_aware_work_partition_tt.md) |
 
 **Annotations Added:**
 _Current implementation remains in Python helpers; Phase 2 tracks the C++ port._
@@ -280,7 +280,7 @@ See [Tenstorrent Backend Tasks](./TT_BACKEND_TASKS.md) for the full implementati
 ## Quick Reference
 
 **TT-Specific Passes:** 7 active (plus 3 legacy compatibility passes)
-- Layout-aware metadata: `infer_layout_tt`, `propagate_layout_tt`, `layout_aware_partition_tt`
+- Layout-aware metadata: `infer_tt_layout`, `propagate_tt_layout`, `layout_aware_work_partition_tt`
 - Transform pipeline: `grid_to_persistent_tt`, `memory_space_lower_tt`, `tile_pad_tt`, `LowerGemmToTTIntrinsics`
 - Verification: `verify_tt_ir`
 

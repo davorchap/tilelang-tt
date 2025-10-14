@@ -106,7 +106,7 @@ Tests cover:
 ## Related Files
 
 - `src/transform/tenstorrent/grid_to_persistent_tt.cc` - Implementation
-- `tilelang/tenstorrent/passes.py` - Python binding
+- `tilelang/tenstorrent/passes/grid_to_persistent_tt.py` - Python binding
 - `testing/python/tenstorrent/test_grid_to_persistent_tt.py` - Tests
 
 ---

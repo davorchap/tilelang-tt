@@ -17,7 +17,7 @@ Tile Language (**tile-lang**) is a concise domain-specific language designed to 
 **Status (2025-10-10):** Layout-aware metadata, shard-aware persistent lowering, and runtime contract guardrails are active. The host artifact now emits a metadata summary (`main.cpp`) that mirrors the runtime argument schema consumed by the IR-driven visitors.
 
 **Highlights**
-- ✅ Layout-aware metadata passes (`tilelang/tenstorrent/passes.py`, `src/transform/tenstorrent/`) stamp `tt.partition_mode`, canonical runtime argument names, and per-buffer layout descriptors.
+- ✅ Layout-aware metadata passes (`tilelang/tenstorrent/passes/`, `src/transform/tenstorrent/`) stamp `tt.partition_mode`, canonical runtime argument names, and per-buffer layout descriptors.
 - ✅ Shard-aware grid-to-persistent lowering and visitors load shard coordinates on demand, with guardrails preventing incomplete payloads.
 - ✅ Host codegen emits TensorAccessor descriptors and per-core runtime tables, keeping mock CI and local builds aligned.
 - ✅ Tiered CI (`docs/tenstorrent/CI.md`) mirrors local workflows through `maint/scripts/local_build_and_test_tt.sh`.

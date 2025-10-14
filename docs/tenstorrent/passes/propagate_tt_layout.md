@@ -2,7 +2,7 @@
 
 **Status**: 🟡 Partial (defaults only)  
 **Priority**: P0  
-**File**: Python helper in `tilelang/tenstorrent/passes.py`
+**File**: Python helper in `tilelang/tenstorrent/passes/propagate_tt_layout.py`
 
 ---
 

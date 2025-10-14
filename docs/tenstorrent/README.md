@@ -167,9 +167,9 @@ pytest testing/python/tenstorrent/ -v
 
 # Specific test categories
 pytest testing/python/tenstorrent/test_target_registration.py -v    # Target registration
-pytest testing/python/tenstorrent/test_passes.py -v                 # Metadata inference
-pytest testing/python/tenstorrent/test_grid_to_persistent_tt.py -v  # Persistent loop
-pytest testing/python/tenstorrent/test_codegen_tt.py -v             # Code generation
+pytest testing/python/tenstorrent/test_metadata_inference.py -v     # Metadata inference
+pytest testing/python/tenstorrent/test_persistent_lowering.py -v    # Persistent loop
+pytest testing/python/tenstorrent/test_codegen_pipeline.py -v       # Code generation
 ```
 
 ---

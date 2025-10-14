@@ -116,7 +116,7 @@ Tests cover:
 ## Related Files
 
 - `src/transform/tenstorrent/verify_tt_ir.cc` - Implementation
-- `tilelang/tenstorrent/passes.py` - Python binding
+- `tilelang/tenstorrent/passes/verify_tt_ir.py` - Python binding
 - `testing/python/tenstorrent/test_verify_tt_ir.py` - Tests
 
 ---

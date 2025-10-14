@@ -2,7 +2,7 @@
 
 **Status**: 🟡 Partial (defaults + N-D projection)  
 **Priority**: P0  
-**File**: Python helper in `tilelang/tenstorrent/passes.py`
+**File**: Python helper in `tilelang/tenstorrent/passes/infer_tt_layout.py`
 
 ---
 

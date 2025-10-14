@@ -27,9 +27,9 @@ This document captures the end-to-end task tracker for consolidating the TileLan
 
 | Component | Status | Documentation |
 |-----------|--------|---------------|
-| **InferTTLayout** | 🟡 Python impl; C++ port pending (Phase 2) | [📄 passes/infer_layout_tt.md](./passes/infer_layout_tt.md) |
-| **PropagateTTLayout** | 🟡 Python impl; C++ port pending (Phase 2) | [📄 passes/propagate_layout_tt.md](./passes/propagate_layout_tt.md) |
-| **LayoutAwareWorkPartitionTT** | 🟡 Python driver; C++ port pending (Phase 2) | [📄 passes/layout_aware_partition_tt.md](./passes/layout_aware_partition_tt.md) |
+| **InferTTLayout** | 🟡 Python impl; C++ port pending (Phase 2) | [📄 passes/infer_tt_layout.md](./passes/infer_tt_layout.md) |
+| **PropagateTTLayout** | 🟡 Python impl; C++ port pending (Phase 2) | [📄 passes/propagate_tt_layout.md](./passes/propagate_tt_layout.md) |
+| **LayoutAwareWorkPartitionTT** | 🟡 Python driver; C++ port pending (Phase 2) | [📄 passes/layout_aware_work_partition_tt.md](./passes/layout_aware_work_partition_tt.md) |
 | **grid_to_persistent_tt** | 🟡 Consumes new runtime args; diagnostics refresh queued | [📄 passes/grid_to_persistent_tt.md](./passes/grid_to_persistent_tt.md) |
 
 > For a holistic view of the metadata + transform pipeline, refer to [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md). This table stays terse so that future edits maintain a single source of truth.
@@ -133,9 +133,9 @@ The work is organized into three sequential phases with clear responsibilities. 
 For specifications, implementation notes, and tests for individual passes, see:
 
 - **Metadata Inference**:
-  - [infer_layout_tt.md](./passes/infer_layout_tt.md) – Buffer schema, N-D sharding.
-  - [propagate_layout_tt.md](./passes/propagate_layout_tt.md) – CB metadata propagation.
-  - [layout_aware_partition_tt.md](./passes/layout_aware_partition_tt.md) – Core ranges & runtime args.
+  - [infer_tt_layout.md](./passes/infer_tt_layout.md) – Buffer schema, N-D sharding.
+  - [propagate_tt_layout.md](./passes/propagate_tt_layout.md) – CB metadata propagation.
+  - [layout_aware_work_partition_tt.md](./passes/layout_aware_work_partition_tt.md) – Core ranges & runtime args.
   - [infer_default_tt_schedule.md](./passes/infer_default_tt_schedule.md) – Legacy defaults.
   - [infer_default_tt_shard.md](./passes/infer_default_tt_shard.md) – Legacy shard metadata.
 

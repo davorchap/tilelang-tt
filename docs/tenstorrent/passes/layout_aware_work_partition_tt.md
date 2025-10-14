@@ -2,7 +2,7 @@
 
 **Status**: 🟡 Partial (global mode only)  
 **Priority**: P0  
-**File**: Python helper in `tilelang/tenstorrent/passes.py`
+**File**: Python helper in `tilelang/tenstorrent/passes/layout_aware_work_partition_tt.py`
 
 ---
 
