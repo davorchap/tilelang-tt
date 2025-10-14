@@ -2,6 +2,7 @@
 LowerTTTileIntrinsics: maps high-level tile intrinsics to TT-specific device calls.
 This pass transforms tile-level operations into Tenstorrent hardware intrinsics.
 """
+
 from __future__ import annotations
 import logging
 
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 class LowerTTTileIntrinsics:
     """
     Pass to lower high-level tile intrinsics to TT-specific implementations.
-    
+
     This includes:
     - T.gemm -> TT matrix engine ops
     - tile_load/store -> TT DMA operations
@@ -29,7 +30,7 @@ class LowerTTTileIntrinsics:
     def __init__(self, target_device: str = "grayskull") -> None:
         """
         Initialize the pass.
-        
+
         Args:
             target_device: Target TT device ("grayskull", "wormhole", "blackhole")
         """
@@ -54,7 +55,7 @@ class LowerTTTileIntrinsics:
                 "l1_banks": 16,
                 "compute_with_storage": 12,
                 "storage_only": 4,
-            }
+            },
         }
 
     def __call__(self, mod: IRModule) -> IRModule:
@@ -63,7 +64,9 @@ class LowerTTTileIntrinsics:
             return mod
 
         # Get device config
-        config = self.device_config.get(self.target_device, self.device_config["grayskull"])
+        config = self.device_config.get(
+            self.target_device, self.device_config["grayskull"]
+        )
 
         # Process each function
         new_funcs = {}
@@ -93,7 +96,10 @@ class LowerTTTileIntrinsics:
                         for s in node.seq:
                             visit(s)
                     elif isinstance(node, tir.AttrStmt):
-                        if node.attr_key == "pragma_gemm" and node.value.value == "matmul":
+                        if (
+                            node.attr_key == "pragma_gemm"
+                            and node.value.value == "matmul"
+                        ):
                             # Found a pragma gemm, count it
                             num_matmuls += 1
                             has_tensorize = True
@@ -112,7 +118,10 @@ class LowerTTTileIntrinsics:
                             visit(node.body)
                     elif isinstance(node, tir.Evaluate):
                         if isinstance(node.value, tir.Call):
-                            if hasattr(node.value.op, 'name') and 'tl_gemm' in node.value.op.name:
+                            if (
+                                hasattr(node.value.op, "name")
+                                and "tl_gemm" in node.value.op.name
+                            ):
                                 # Direct tl.tl_gemm call without pragma wrapper
                                 num_matmuls += 1
                                 has_tensorize = True
@@ -147,12 +156,20 @@ class LowerTTTileIntrinsics:
                 # Here we would normally transform the IR to emit TT intrinsics
                 # For now, keep the original body but add metadata
                 transformed_body = self._transform_matmuls(func.body)
-                func = tir.PrimFunc(func.params, transformed_body, func.ret_type, func.buffer_map, func.attrs)
+                func = tir.PrimFunc(
+                    func.params,
+                    transformed_body,
+                    func.ret_type,
+                    func.buffer_map,
+                    func.attrs,
+                )
 
                 # Add metadata
                 func = func.with_attr("tt_num_matmuls", num_matmuls)
                 func = func.with_attr("tt_has_tensorize", has_tensorize)
-                func = func.with_attr("tt_matmul_patterns", tvm.runtime.convert(matmul_patterns))
+                func = func.with_attr(
+                    "tt_matmul_patterns", tvm.runtime.convert(matmul_patterns)
+                )
 
             # Mark as processed by adding attributes
             func = func.with_attr("tt.tile_intrinsics_lowered", True)
@@ -160,7 +177,8 @@ class LowerTTTileIntrinsics:
             func = func.with_attr("tt.device_config", tvm.runtime.convert(config))
 
             logger.info(
-                f"Marked function {gvar} for TT tile intrinsic lowering ({self.target_device})")
+                f"Marked function {gvar} for TT tile intrinsic lowering ({self.target_device})"
+            )
 
             new_funcs[gvar] = func
 
@@ -168,6 +186,7 @@ class LowerTTTileIntrinsics:
 
     def _transform_matmuls(self, stmt):
         """Transform matmul operations to TT intrinsics."""
+
         # Create IR mutator to transform matmuls
         class MatmulTransformer:
             def __init__(self, parent):
@@ -184,25 +203,51 @@ class LowerTTTileIntrinsics:
                         # Replace with TT intrinsic sequence
                         return self._create_tt_matmul_sequence(stmt.body)
                     else:
-                        return tir.AttrStmt(stmt.node, stmt.attr_key, stmt.value, self.transform(stmt.body))
+                        return tir.AttrStmt(
+                            stmt.node,
+                            stmt.attr_key,
+                            stmt.value,
+                            self.transform(stmt.body),
+                        )
                 elif isinstance(stmt, tir.Evaluate):
                     if isinstance(stmt.value, tir.Call):
-                        if hasattr(stmt.value.op, 'name') and 'tl_gemm' in stmt.value.op.name:
+                        if (
+                            hasattr(stmt.value.op, "name")
+                            and "tl_gemm" in stmt.value.op.name
+                        ):
                             # Replace direct tl.tl_gemm with TT sequence
                             return self._create_tt_matmul_sequence(stmt)
                     return stmt
                 elif isinstance(stmt, tir.For):
-                    return tir.For(stmt.loop_var, stmt.min, stmt.extent, stmt.kind, self.transform(stmt.body))
+                    return tir.For(
+                        stmt.loop_var,
+                        stmt.min,
+                        stmt.extent,
+                        stmt.kind,
+                        self.transform(stmt.body),
+                    )
                 elif isinstance(stmt, tir.IfThenElse):
                     then_case = self.transform(stmt.then_case)
-                    else_case = self.transform(stmt.else_case) if stmt.else_case else None
+                    else_case = (
+                        self.transform(stmt.else_case) if stmt.else_case else None
+                    )
                     return tir.IfThenElse(stmt.condition, then_case, else_case)
                 elif isinstance(stmt, tir.Block):
-                    return tir.Block(stmt.iter_vars, stmt.reads, stmt.writes, stmt.name_hint,
-                                     self.transform(stmt.body), stmt.init, stmt.alloc_buffers,
-                                     stmt.match_buffers, stmt.annotations)
+                    return tir.Block(
+                        stmt.iter_vars,
+                        stmt.reads,
+                        stmt.writes,
+                        stmt.name_hint,
+                        self.transform(stmt.body),
+                        stmt.init,
+                        stmt.alloc_buffers,
+                        stmt.match_buffers,
+                        stmt.annotations,
+                    )
                 elif isinstance(stmt, tir.BlockRealize):
-                    return tir.BlockRealize(stmt.iter_values, stmt.predicate, self.transform(stmt.block))
+                    return tir.BlockRealize(
+                        stmt.iter_values, stmt.predicate, self.transform(stmt.block)
+                    )
                 elif isinstance(stmt, tir.LetStmt):
                     return tir.LetStmt(stmt.var, stmt.value, self.transform(stmt.body))
                 else:
@@ -210,6 +255,7 @@ class LowerTTTileIntrinsics:
 
             def _create_tt_matmul_sequence(self, gemm_stmt):
                 """Create TT intrinsic sequence for a matmul."""
+
                 # Get TT intrinsic ops
                 def get_op(name):
                     return tir.op.Op.get(name)
@@ -218,93 +264,144 @@ class LowerTTTileIntrinsics:
                 intrinsics = []
 
                 # 1. Acquire tile registers
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.tile_regs_acquire"))
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin("handle", get_op("tt.tile_regs_acquire"))
+                    )
+                )
 
                 # 2. Initialize matrix multiply
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.mm_init"),
-                                   tir.IntImm("int32", 0),  # in0_cb_id
-                                   tir.IntImm("int32", 1),  # in1_cb_id
-                                   tir.IntImm("int32", 0),  # transpose_in0
-                                   tir.IntImm("int32", 0))  # transpose_in1
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin(
+                            "handle",
+                            get_op("tt.mm_init"),
+                            tir.IntImm("int32", 0),  # in0_cb_id
+                            tir.IntImm("int32", 1),  # in1_cb_id
+                            tir.IntImm("int32", 0),  # transpose_in0
+                            tir.IntImm("int32", 0),
+                        )  # transpose_in1
+                    )
+                )
 
                 # 3. Wait for input data in CB0
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.cb_wait_front"),
-                                   tir.IntImm("int32", 0),  # cb_id
-                                   tir.IntImm("int32", 1))  # num_tiles
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin(
+                            "handle",
+                            get_op("tt.cb_wait_front"),
+                            tir.IntImm("int32", 0),  # cb_id
+                            tir.IntImm("int32", 1),
+                        )  # num_tiles
+                    )
+                )
 
                 # 4. Wait for input data in CB1
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.cb_wait_front"),
-                                   tir.IntImm("int32", 1),  # cb_id
-                                   tir.IntImm("int32", 1))  # num_tiles
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin(
+                            "handle",
+                            get_op("tt.cb_wait_front"),
+                            tir.IntImm("int32", 1),  # cb_id
+                            tir.IntImm("int32", 1),
+                        )  # num_tiles
+                    )
+                )
 
                 # 5. Perform matrix multiply
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.matmul_tiles"),
-                                   tir.IntImm("int32", 0),  # in0_cb_id
-                                   tir.IntImm("int32", 1),  # in1_cb_id
-                                   tir.IntImm("int32", 0),  # in0_tile_idx
-                                   tir.IntImm("int32", 0),  # in1_tile_idx
-                                   tir.IntImm("int32", 0),  # dst_tile_idx
-                                   tir.IntImm("int32", 1))  # transpose
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin(
+                            "handle",
+                            get_op("tt.matmul_tiles"),
+                            tir.IntImm("int32", 0),  # in0_cb_id
+                            tir.IntImm("int32", 1),  # in1_cb_id
+                            tir.IntImm("int32", 0),  # in0_tile_idx
+                            tir.IntImm("int32", 0),  # in1_tile_idx
+                            tir.IntImm("int32", 0),  # dst_tile_idx
+                            tir.IntImm("int32", 1),
+                        )  # transpose
+                    )
+                )
 
                 # 6. Pop input from CB0
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.cb_pop_front"),
-                                   tir.IntImm("int32", 0),  # cb_id
-                                   tir.IntImm("int32", 1))  # num_tiles
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin(
+                            "handle",
+                            get_op("tt.cb_pop_front"),
+                            tir.IntImm("int32", 0),  # cb_id
+                            tir.IntImm("int32", 1),
+                        )  # num_tiles
+                    )
+                )
 
                 # 7. Pop input from CB1
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.cb_pop_front"),
-                                   tir.IntImm("int32", 1),  # cb_id
-                                   tir.IntImm("int32", 1))  # num_tiles
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin(
+                            "handle",
+                            get_op("tt.cb_pop_front"),
+                            tir.IntImm("int32", 1),  # cb_id
+                            tir.IntImm("int32", 1),
+                        )  # num_tiles
+                    )
+                )
 
                 # 8. Commit tile registers
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.tile_regs_commit"))
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin("handle", get_op("tt.tile_regs_commit"))
+                    )
+                )
 
                 # 9. Wait for tile registers
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.tile_regs_wait"))
-                ))
+                intrinsics.append(
+                    tir.Evaluate(tir.call_intrin("handle", get_op("tt.tile_regs_wait")))
+                )
 
                 # 10. Reserve space in output CB
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.cb_reserve_back"),
-                                   tir.IntImm("int32", 16),  # cb_id
-                                   tir.IntImm("int32", 1))   # num_tiles
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin(
+                            "handle",
+                            get_op("tt.cb_reserve_back"),
+                            tir.IntImm("int32", 16),  # cb_id
+                            tir.IntImm("int32", 1),
+                        )  # num_tiles
+                    )
+                )
 
                 # 11. Pack tile to output CB
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.pack_tile"),
-                                   tir.IntImm("int32", 0),   # dst_tile_idx
-                                   tir.IntImm("int32", 16))  # cb_id
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin(
+                            "handle",
+                            get_op("tt.pack_tile"),
+                            tir.IntImm("int32", 0),  # dst_tile_idx
+                            tir.IntImm("int32", 16),
+                        )  # cb_id
+                    )
+                )
 
                 # 12. Push to output CB
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.cb_push_back"),
-                                   tir.IntImm("int32", 16),  # cb_id
-                                   tir.IntImm("int32", 1))   # num_tiles
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin(
+                            "handle",
+                            get_op("tt.cb_push_back"),
+                            tir.IntImm("int32", 16),  # cb_id
+                            tir.IntImm("int32", 1),
+                        )  # num_tiles
+                    )
+                )
 
                 # 13. Release tile registers
-                intrinsics.append(tir.Evaluate(
-                    tir.call_intrin("handle", get_op("tt.tile_regs_release"))
-                ))
+                intrinsics.append(
+                    tir.Evaluate(
+                        tir.call_intrin("handle", get_op("tt.tile_regs_release"))
+                    )
+                )
 
                 return tir.SeqStmt(intrinsics)
 

@@ -128,10 +128,16 @@ def create_func_with_multiple_gemms():
         C.access_ptr("rw"),
     )
 
-    body = tir.SeqStmt([
-        tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), tir.Evaluate(call0)),
-        tir.AttrStmt(None, "pragma_gemm", tvm.tir.StringImm("matmul"), tir.Evaluate(call1)),
-    ])
+    body = tir.SeqStmt(
+        [
+            tir.AttrStmt(
+                None, "pragma_gemm", tvm.tir.StringImm("matmul"), tir.Evaluate(call0)
+            ),
+            tir.AttrStmt(
+                None, "pragma_gemm", tvm.tir.StringImm("matmul"), tir.Evaluate(call1)
+            ),
+        ]
+    )
 
     func = tir.PrimFunc([A, B, C], body)
     func = func.with_attr("tt_schedule_policy", "contiguous")
@@ -236,7 +242,9 @@ def test_lower_gemm_to_tt_intrinsics_skip_non_gemm_functions():
     func = mod["main"]
 
     # Should not add tensorize metadata
-    assert "tt_num_matmuls" not in func.attrs, "Should not add matmul count without gemm ops"
+    assert (
+        "tt_num_matmuls" not in func.attrs
+    ), "Should not add matmul count without gemm ops"
 
 
 def test_lower_gemm_to_tt_intrinsics_skip_non_tt_functions():
@@ -256,13 +264,19 @@ def test_lower_gemm_to_tt_intrinsics_skip_non_tt_functions():
     func = mod["main"]
 
     # Should NOT add tensorize metadata
-    assert func.attrs is None or "tt_num_matmuls" not in func.attrs, "Should not tensorize without TT attributes"
+    assert (
+        func.attrs is None or "tt_num_matmuls" not in func.attrs
+    ), "Should not tensorize without TT attributes"
 
 
 def test_lower_gemm_to_tt_intrinsics_integration_with_ws1_ws2():
     """Test the TT GEMM lowering integrates with the defaults + metadata pipeline."""
     from tilelang.tenstorrent.passes import LowerTTTileIntrinsics
-    from tilelang.tenstorrent.passes import InferTTLayout, PropagateTTLayout, TTTilesToCoreMap
+    from tilelang.tenstorrent.passes import (
+        InferTTLayout,
+        PropagateTTLayout,
+        TTTilesToCoreMap,
+    )
     from tilelang.tenstorrent.target import apply_tt_defaults
 
     # Create function with gemm intrinsic
@@ -301,7 +315,9 @@ def test_lower_gemm_to_tt_intrinsics_integration_with_ws1_ws2():
 
     # Verify all metadata exists
     assert "tt_schedule_policy" in func.attrs, "Should have TT defaults stage defaults"
-    assert "tt.work_partition" in func.attrs, "Should have metadata inference stage schedule metadata"
+    assert (
+        "tt.work_partition" in func.attrs
+    ), "Should have metadata inference stage schedule metadata"
     assert "tt_num_matmuls" in func.attrs, "Should have TT GEMM lowering output"
     assert "tt_has_tensorize" in func.attrs, "Should have tensorize flag"
 

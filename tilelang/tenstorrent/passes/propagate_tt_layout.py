@@ -2,6 +2,7 @@
 PropagateTTLayout: copies/normalizes tt.layout_desc across blocks/buffers.
 This pass ensures layout consistency throughout the IR.
 """
+
 from __future__ import annotations
 import logging
 from typing import Dict, Any
@@ -49,14 +50,18 @@ class PropagateTTLayout:
                 self._validate_buffer_refs(func, normalized_layouts)
 
                 # Update function with normalized layouts
-                func = func.with_attr(TT_LAYOUT_DESC, tvm.runtime.convert(normalized_layouts))
+                func = func.with_attr(
+                    TT_LAYOUT_DESC, tvm.runtime.convert(normalized_layouts)
+                )
                 logger.info(f"Propagated layouts for function {gvar}")
 
             new_funcs[gvar] = func
 
         return tvm.IRModule(new_funcs)
 
-    def _normalize_layouts(self, layouts: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    def _normalize_layouts(
+        self, layouts: Dict[str, Dict[str, Any]]
+    ) -> Dict[str, Dict[str, Any]]:
         """Normalize layout descriptors to ensure consistency."""
         normalized = {}
 
@@ -92,8 +97,9 @@ class PropagateTTLayout:
 
         return normalized
 
-    def _validate_buffer_refs(self, func: "tir.PrimFunc", layouts: Dict[str, Dict[str,
-                                                                                  Any]]) -> None:
+    def _validate_buffer_refs(
+        self, func: "tir.PrimFunc", layouts: Dict[str, Dict[str, Any]]
+    ) -> None:
         """Validate that all referenced buffers in layouts exist in the function."""
         buffer_names = set()
 
@@ -106,4 +112,6 @@ class PropagateTTLayout:
         # Check for layouts referencing non-existent buffers
         for buffer_name in layouts:
             if buffer_name not in buffer_names:
-                logger.warning(f"Layout descriptor for non-existent buffer: {buffer_name}")
+                logger.warning(
+                    f"Layout descriptor for non-existent buffer: {buffer_name}"
+                )

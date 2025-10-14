@@ -67,8 +67,8 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
 
     # Extract device type from target if possible
     target_device = "grayskull"  # Default
-    if hasattr(target, 'attrs') and 'device' in target.attrs:
-        target_device = target.attrs['device']
+    if hasattr(target, "attrs") and "device" in target.attrs:
+        target_device = target.attrs["device"]
 
     # Run the new metadata-driven pipeline
     mod = run_pipeline(
@@ -78,7 +78,8 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
         partition_strategy="row_major",
         enable_double_buffer=True,
         enable_prefetch=True,
-        verbose=False)
+        verbose=False,
+    )
 
     # === Common Optimizations (Shared with CUDA) ===
     # These are backend-agnostic passes that work on TIR
@@ -96,7 +97,10 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     # TT supports vectorization with 32-element tiles
     pass_ctx = tilelang.transform.get_pass_context()
     from tilelang.engine.phase import allow_vectorize
-    mod = tilelang.transform.VectorizeLoop(enable_vectorize=allow_vectorize(pass_ctx=pass_ctx))(mod)
+
+    mod = tilelang.transform.VectorizeLoop(
+        enable_vectorize=allow_vectorize(pass_ctx=pass_ctx)
+    )(mod)
 
     # Rewrite storage allocations for better memory usage
     # Should work with TT's circular buffer model
@@ -212,8 +216,10 @@ def lower(
     # Validate that we're actually targeting Tenstorrent
     target_kind = get_target_kind(target)
     if target_kind != TENSTORRENT_TARGET:
-        raise ValueError(f"Tenstorrent lowering called with invalid target: {target_kind}. "
-                         f"Expected: {TENSTORRENT_TARGET}")
+        raise ValueError(
+            f"Tenstorrent lowering called with invalid target: {target_kind}. "
+            f"Expected: {TENSTORRENT_TARGET}"
+        )
 
     # Convert target to Target object if it's a string and create composite target
     # This matches CUDA backend behavior and provides proper target context for passes
@@ -252,10 +258,12 @@ def lower(
     # === Phase 5: Generate kernel source ===
     # Use emit_tt_artifacts to generate reader/compute/writer kernels
     import tilelang.tenstorrent as tt
+
     artifacts = tt.emit_tt_artifacts(device_mod)
 
     # Convert artifacts dict to JSON string for kernel_source field
     import json
+
     kernel_source = json.dumps(artifacts)
 
     # === Phase 6: Create CompiledArtifact ===

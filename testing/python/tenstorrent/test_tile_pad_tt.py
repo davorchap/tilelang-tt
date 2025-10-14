@@ -4,6 +4,7 @@ import tvm
 from tvm import tir
 from tilelang.tenstorrent.passes import TTTilesToCoreMap
 
+
 def test_tile_pad_integrated():
     """Tile padding is now integrated into TTTilesToCoreMap."""
     # Padding to tile boundaries happens automatically in TTTilesToCoreMap
@@ -21,6 +22,7 @@ def test_tile_pad_integrated():
     # Should have work partition with padded dimensions
     assert "tt.work_partition" in func.attrs
     print("Tile padding integrated into TTTilesToCoreMap")
+
 
 if __name__ == "__main__":
     test_tile_pad_integrated()

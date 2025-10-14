@@ -2,6 +2,7 @@
 TTTilesToCoreMap: computes CoreRange(s) and a layout-aware work partition.
 This pass assigns output tiles to cores based on the specified partitioning strategy.
 """
+
 from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 import logging
@@ -15,7 +16,14 @@ except ImportError:  # pragma: no cover
     tir = None
     IRModule = object
 
-from ..attrs import (TT_CORE_GRID, TT_CORE_RANGES, TT_CORE_RANGE, TT_WORK_PARTITION, CoreRange, WorkItem)
+from ..attrs import (
+    TT_CORE_GRID,
+    TT_CORE_RANGES,
+    TT_CORE_RANGE,
+    TT_WORK_PARTITION,
+    CoreRange,
+    WorkItem,
+)
 from ..ir_sugar import with_core_ranges, with_work_partition
 
 logger = logging.getLogger(__name__)
@@ -29,9 +37,11 @@ class TTTilesToCoreMap:
     creating a work partition that respects layout constraints.
     """
 
-    def __init__(self,
-                 fallback_grid: Tuple[int, int] = (1, 1),
-                 partition_strategy: str = "row_major") -> None:
+    def __init__(
+        self,
+        fallback_grid: Tuple[int, int] = (1, 1),
+        partition_strategy: str = "row_major",
+    ) -> None:
         """
         Initialize the pass.
 
@@ -79,7 +89,10 @@ class TTTilesToCoreMap:
 
                 # Create work partition based on strategy
                 work = self._create_work_partition(
-                    grid=(int(gx), int(gy)), tile_info=tile_info, strategy=self.partition_strategy)
+                    grid=(int(gx), int(gy)),
+                    tile_info=tile_info,
+                    strategy=self.partition_strategy,
+                )
 
                 func = with_work_partition(func, work)
                 logger.info(f"Created work partition with {len(work)} core assignments")
@@ -117,20 +130,30 @@ class TTTilesToCoreMap:
                     shape = buffer.shape
                     if len(shape) >= 2:
                         # Assume last two dims are M and N
-                        m_size = int(shape[-2]) if hasattr(shape[-2], "value") else shape[-2]
-                        n_size = int(shape[-1]) if hasattr(shape[-1], "value") else shape[-1]
+                        m_size = (
+                            int(shape[-2]) if hasattr(shape[-2], "value") else shape[-2]
+                        )
+                        n_size = (
+                            int(shape[-1]) if hasattr(shape[-1], "value") else shape[-1]
+                        )
 
-                        tile_info["output_tiles_m"] = math.ceil(m_size / tile_info["tile_size_m"])
-                        tile_info["output_tiles_n"] = math.ceil(n_size / tile_info["tile_size_n"])
+                        tile_info["output_tiles_m"] = math.ceil(
+                            m_size / tile_info["tile_size_m"]
+                        )
+                        tile_info["output_tiles_n"] = math.ceil(
+                            n_size / tile_info["tile_size_n"]
+                        )
                         logger.debug(
                             f"Inferred tile counts from buffer {buffer.name}: "
-                            f"M={tile_info['output_tiles_m']}, N={tile_info['output_tiles_n']}")
+                            f"M={tile_info['output_tiles_m']}, N={tile_info['output_tiles_n']}"
+                        )
                         break
 
         return tile_info
 
-    def _create_work_partition(self, grid: Tuple[int, int], tile_info: Dict[str, Any],
-                               strategy: str) -> Dict[str, List[WorkItem]]:
+    def _create_work_partition(
+        self, grid: Tuple[int, int], tile_info: Dict[str, Any], strategy: str
+    ) -> Dict[str, List[WorkItem]]:
         """
         Create a work partition assigning tiles to cores.
 
@@ -166,7 +189,10 @@ class TTTilesToCoreMap:
                             io = tile_idx // n_tiles
                             jo = tile_idx % n_tiles
                             work[key].append(
-                                WorkItem(io=io, jo=jo, len_k=k_tiles, tile_order="row_major"))
+                                WorkItem(
+                                    io=io, jo=jo, len_k=k_tiles, tile_order="row_major"
+                                )
+                            )
                             tile_idx += 1
 
                     # If no work assigned, give a dummy item
@@ -189,7 +215,13 @@ class TTTilesToCoreMap:
                             jo = tile_idx // m_tiles
                             io = tile_idx % m_tiles
                             work[key].append(
-                                WorkItem(io=io, jo=jo, len_k=k_tiles, tile_order="column_major"))
+                                WorkItem(
+                                    io=io,
+                                    jo=jo,
+                                    len_k=k_tiles,
+                                    tile_order="column_major",
+                                )
+                            )
                             tile_idx += 1
 
                     if not work[key]:
@@ -217,7 +249,10 @@ class TTTilesToCoreMap:
                     for io in range(m_start, m_end):
                         for jo in range(n_start, n_end):
                             work[key].append(
-                                WorkItem(io=io, jo=jo, len_k=k_tiles, tile_order="block"))
+                                WorkItem(
+                                    io=io, jo=jo, len_k=k_tiles, tile_order="block"
+                                )
+                            )
 
                     if not work[key]:
                         work[key] = [WorkItem(io=0, jo=0, len_k=0)]

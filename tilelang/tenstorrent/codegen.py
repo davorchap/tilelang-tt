@@ -55,6 +55,7 @@ def write_artifacts_to_disk(artifacts: Dict[str, str], output_dir: str = "."):
         >>> write_artifacts_to_disk(artifacts, output_dir="./build/tt_kernels")
     """
     import os
+
     os.makedirs(output_dir, exist_ok=True)
 
     for filename, content in artifacts.items():

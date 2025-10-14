@@ -3,6 +3,7 @@ Attribute keys and simple dataclasses for the Tenstorrent TileLang backend.
 This module is pure-Python and has no heavy deps.
 Centralized attribute definitions to prevent drift between passes and host code.
 """
+
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Any, Optional
@@ -26,6 +27,7 @@ TT_PARTITION_MODE = "partition_mode"
 @dataclass(frozen=True)
 class CoreRange:
     """Represents a rectangular range of cores."""
+
     start: Tuple[int, int]  # (sx, sy)
     extent: Tuple[int, int]  # (ex, ey)
 
@@ -40,6 +42,7 @@ class CoreRange:
 @dataclass(frozen=True)
 class WorkItem:
     """Represents a unit of work assigned to a core."""
+
     io: int
     jo: int
     len_k: Optional[int] = None
@@ -58,9 +61,12 @@ class WorkItem:
         return cls(**data)
 
 
-def plan_dict(core_grid: Tuple[int, int], core_ranges: List[CoreRange],
-              work_partition: Dict[str, List[WorkItem]],
-              layouts: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+def plan_dict(
+    core_grid: Tuple[int, int],
+    core_ranges: List[CoreRange],
+    work_partition: Dict[str, List[WorkItem]],
+    layouts: Dict[str, Dict[str, Any]],
+) -> Dict[str, Any]:
     """Build a plan dictionary for tt.plan.json."""
     return {
         "core_grid": list(core_grid),

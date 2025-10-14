@@ -54,28 +54,27 @@ class InferTTLayout:
                     extract_from_node(node.block.body)
 
             elif isinstance(node, tir.AttrStmt):
-                if node.attr_key == "thread_extent":
+                if node.attr_key == "thread_extent" and hasattr(node.node, "thread_tag"):
                     # Check if it's a blockIdx binding
-                    if hasattr(node.node, "thread_tag"):
-                        tag = node.node.thread_tag
-                        extent = node.value
+                    tag = node.node.thread_tag
+                    extent = node.value
 
-                        # Get the integer value
-                        if hasattr(extent, "value"):
-                            extent_val = int(extent.value)
-                        elif isinstance(extent, int):
-                            extent_val = extent
-                        else:
-                            # It might be an IntImm
-                            try:
-                                extent_val = int(extent)
-                            except:
-                                extent_val = 1
+                    # Get the integer value
+                    if hasattr(extent, "value"):
+                        extent_val = int(extent.value)
+                    elif isinstance(extent, int):
+                        extent_val = extent
+                    else:
+                        # It might be an IntImm
+                        try:
+                            extent_val = int(extent)
+                        except Exception:
+                            extent_val = 1
 
-                        if tag == "blockIdx.x":
-                            grid_x = extent_val
-                        elif tag == "blockIdx.y":
-                            grid_y = extent_val
+                    if tag == "blockIdx.x":
+                        grid_x = extent_val
+                    elif tag == "blockIdx.y":
+                        grid_y = extent_val
 
                 # Continue with the body
                 if hasattr(node, "body"):

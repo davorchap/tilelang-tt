@@ -3,6 +3,7 @@ tt.plan.json emitter and runtime plan utilities.
 Reads attributes from a PrimFunc and writes a single JSON file that serves
 as the single source of truth for host/device coordination.
 """
+
 from __future__ import annotations
 import json
 from typing import Any, Dict, List
@@ -15,8 +16,16 @@ except ImportError:  # pragma: no cover
     tvm = None
     tir = None
 
-from .attrs import (TT_CORE_GRID, TT_CORE_RANGES, TT_CORE_RANGE, TT_WORK_PARTITION, TT_LAYOUT_DESC,
-                    CoreRange, WorkItem, plan_dict)
+from .attrs import (
+    TT_CORE_GRID,
+    TT_CORE_RANGES,
+    TT_CORE_RANGE,
+    TT_WORK_PARTITION,
+    TT_LAYOUT_DESC,
+    CoreRange,
+    WorkItem,
+    plan_dict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -31,27 +40,29 @@ def _as_py(obj):
         return {k: _as_py(v) for k, v in obj.items()}
 
     # Handle TVM container types - check by class name
-    if tvm and hasattr(obj, '__class__'):
+    if tvm and hasattr(obj, "__class__"):
         class_name = obj.__class__.__name__
-        module_name = obj.__class__.__module__ if hasattr(obj.__class__, '__module__') else ''
+        module_name = (
+            obj.__class__.__module__ if hasattr(obj.__class__, "__module__") else ""
+        )
 
         # Map type - has items() method
-        if 'Map' in class_name and hasattr(obj, 'items'):
+        if "Map" in class_name and hasattr(obj, "items"):
             return {str(k): _as_py(v) for k, v in obj.items()}
 
         # Array type - can iterate
-        if 'Array' in class_name:
+        if "Array" in class_name:
             try:
                 return [_as_py(x) for x in obj]
             except (TypeError, AttributeError):
                 pass
 
         # String type
-        if 'String' in class_name:
+        if "String" in class_name:
             return str(obj)
 
     # Handle dataclass instances (CoreRange, WorkItem)
-    if hasattr(obj, '__dataclass_fields__'):
+    if hasattr(obj, "__dataclass_fields__"):
         return {k: _as_py(getattr(obj, k)) for k in obj.__dataclass_fields__}
 
     return obj
@@ -61,7 +72,10 @@ def _read_core_ranges(attrs) -> List[CoreRange]:
     """Read core ranges from attributes, handling both new and legacy formats."""
     if TT_CORE_RANGES in attrs:
         arr = attrs[TT_CORE_RANGES]
-        return [CoreRange(tuple(_as_py(x["start"])), tuple(_as_py(x["extent"]))) for x in arr]
+        return [
+            CoreRange(tuple(_as_py(x["start"])), tuple(_as_py(x["extent"])))
+            for x in arr
+        ]
     if TT_CORE_RANGE in attrs:
         x = attrs[TT_CORE_RANGE]
         return [CoreRange(tuple(_as_py(x["start"])), tuple(_as_py(x["extent"])))]
@@ -97,10 +111,14 @@ def extract_runtime_plan(func: "tir.PrimFunc") -> Dict[str, Any]:
     # Extract layout descriptors
     layouts = _as_py(attrs.get(TT_LAYOUT_DESC, {}))
 
-    return plan_dict(core_grid=grid, core_ranges=ranges, work_partition=work, layouts=layouts)
+    return plan_dict(
+        core_grid=grid, core_ranges=ranges, work_partition=work, layouts=layouts
+    )
 
 
-def emit_tt_plan(func: "tir.PrimFunc", out_path: str = "tt.plan.json") -> Dict[str, Any]:
+def emit_tt_plan(
+    func: "tir.PrimFunc", out_path: str = "tt.plan.json"
+) -> Dict[str, Any]:
     """
     Emit a tt.plan.json file from a PrimFunc's attributes.
     This serves as the single source of truth for host/device coordination.

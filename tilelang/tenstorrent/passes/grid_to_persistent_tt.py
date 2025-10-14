@@ -2,6 +2,7 @@
 GridToPersistentTT: late pass that injects persistent outer loops, staging buffers,
 and emits host worklists. This is the final lowering step to TT persistent kernels.
 """
+
 from __future__ import annotations
 import logging
 
@@ -31,10 +32,12 @@ class GridToPersistentTT:
     5. Emits tt.plan.json for host coordination
     """
 
-    def __init__(self,
-                 plan_path: str = "tt.plan.json",
-                 enable_double_buffer: bool = True,
-                 enable_prefetch: bool = True) -> None:
+    def __init__(
+        self,
+        plan_path: str = "tt.plan.json",
+        enable_double_buffer: bool = True,
+        enable_prefetch: bool = True,
+    ) -> None:
         """
         Initialize the pass.
 
@@ -100,7 +103,7 @@ class GridToPersistentTT:
             "persistent_loop": True,
             "staging_buffers": self.enable_double_buffer,
             "prefetch": self.enable_prefetch,
-            "plan_path": self.plan_path
+            "plan_path": self.plan_path,
         }
         func = func.with_attr("tt.transform_info", tvm.runtime.convert(transform_info))
 

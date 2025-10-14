@@ -83,7 +83,8 @@ def apply_tt_defaults(mod: tvm.IRModule) -> tvm.IRModule:
 
         # Check if any TT-specific attributes are already present
         has_tt_attrs = any(
-            key.startswith("tt_") for key in (func.attrs.keys() if func.attrs else []))
+            key.startswith("tt_") for key in (func.attrs.keys() if func.attrs else [])
+        )
 
         # If no TT attributes present, add defaults
         if not has_tt_attrs:

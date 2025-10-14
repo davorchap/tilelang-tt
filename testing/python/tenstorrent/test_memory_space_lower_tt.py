@@ -4,6 +4,7 @@ import tvm
 from tvm import tir
 from tilelang.tenstorrent.passes import GridToPersistentTT
 
+
 def test_memory_space_lower_integrated():
     """Memory space lowering is now integrated into GridToPersistentTT."""
     # This functionality is now part of the final lowering pass
@@ -23,6 +24,7 @@ def test_memory_space_lower_integrated():
     func = mod["main"]
     assert "tt.persistent_kernel" in func.attrs
     print("Memory space lowering integrated into GridToPersistentTT")
+
 
 if __name__ == "__main__":
     test_memory_space_lower_integrated()

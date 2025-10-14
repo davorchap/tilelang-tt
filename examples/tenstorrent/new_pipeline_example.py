@@ -92,7 +92,7 @@ def example_basic_pipeline():
 
     # Run the pipeline
     output_plan = "matmul_basic.plan.json"
-    result_mod = run_pipeline(mod, plan_path=output_plan)
+    run_pipeline(mod, plan_path=output_plan)
 
     # Load and validate the generated plan
     if Path(output_plan).exists():
@@ -170,7 +170,7 @@ def example_custom_partition():
 
     # Run with custom settings
     output_plan = "matmul_custom.plan.json"
-    result_mod = run_pipeline(
+    run_pipeline(
         mod,
         plan_path=output_plan,
         target_device="wormhole",  # Target Wormhole device
@@ -223,7 +223,7 @@ def example_multi_range():
     mod = tvm.IRModule({"main": matmul})
 
     output_plan = "matmul_multirange.plan.json"
-    result_mod = run_pipeline(mod, plan_path=output_plan, partition_strategy="block")
+    run_pipeline(mod, plan_path=output_plan, partition_strategy="block")
 
     if Path(output_plan).exists():
         plan = load_tt_plan(output_plan)

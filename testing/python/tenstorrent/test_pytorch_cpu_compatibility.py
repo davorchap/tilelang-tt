@@ -27,7 +27,8 @@ def test_pytorch_cpu_only_installation():
     assert not torch.cuda.is_available(), (
         "Expected CPU-only PyTorch installation. "
         "TT backend doesn't require CUDA. "
-        "Consider using: pip install torch --index-url https://download.pytorch.org/whl/cpu")
+        "Consider using: pip install torch --index-url https://download.pytorch.org/whl/cpu"
+    )
 
     # Verify we can create CPU tensors
     x = torch.randn(10)
