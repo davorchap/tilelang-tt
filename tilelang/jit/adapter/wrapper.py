@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Union, Any
 from tvm import IRModule
 from tvm.target import Target
 from .utils import (match_declare_kernel, match_declare_kernel_cpu, is_cuda_target, is_hip_target,
-                    is_cpu_target, get_annotated_mod, pythonic_expr)
+                    is_cpu_target, is_tenstorrent_target, get_annotated_mod, pythonic_expr)
 import re
 import logging
 import textwrap
@@ -1104,8 +1104,12 @@ class TLWrapper(BaseWrapper):
             wrapper_class = TLHIPSourceWrapper
         elif is_cpu_target(self.target):
             wrapper_class = TLCPUSourceWrapper
+        elif is_tenstorrent_target(self.target):
+            # For TT backend, we use CPU wrapper since TT artifacts are C++ based
+            # The actual TT kernels are generated separately during codegen
+            wrapper_class = TLCPUSourceWrapper
         else:
-            raise ValueError(f"Unsupported platform: {self.arch.platform}")
+            raise ValueError(f"Unsupported platform: {self.target}")
         wrapper = wrapper_class(
             scheduled_ir_module=self.scheduled_ir_module,
             source=c_source,

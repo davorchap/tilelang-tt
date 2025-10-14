@@ -19,29 +19,44 @@ from tilelang.tenstorrent.passes import run_pipeline
 
 
 def LowerAndLegalizeTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
-    """Frontend lowering phase - shared with CUDA backend.
+    """Frontend lowering phase adapted for TT backend.
 
-    This calls the shared LowerAndLegalize pipeline which applies:
-    - LetInline
-    - AddWrapperForSingleBufStore
-    - InjectAssumes
-    - Simplify
-    - LayoutReducer
-    - LayoutInference
-    - LowerTileOp
-    - LowerL2Persistent
-    - LegalizeVectorizedLoop
-    - LegalizeSafeMemoryAccess
-    - LoopVectorizeDynamic
+    This is a simplified version of LowerAndLegalize that skips
+    CUDA-specific passes that are incompatible with the Tenstorrent target.
 
     Args:
         mod: The TVM IRModule to lower
         target: The target (Tenstorrent)
 
     Returns:
-        Lowered and legalized IRModule
+        Lowered and legalized IRModule suitable for TT
     """
-    return LowerAndLegalize(mod, target)
+    # Bind the target device information to the module
+    mod = tvm.tir.transform.BindTarget(target)(mod)
+
+    # Inline let expressions and statements
+    mod = tilelang.transform.LetInline()(mod)
+
+    # Add wrapper for single buf store
+    mod = tilelang.transform.AddWrapperForSingleBufStore()(mod)
+
+    # Simplify the IR expressions
+    mod = tvm.tir.transform.Simplify()(mod)
+
+    # Skip these CUDA-specific passes that don't support TT:
+    # - InjectAssumes (CUDA memory model assumptions)
+    # - LayoutReducer (CUDA-specific reducer layouts)
+    # - LayoutInference (throws error for T.gemm with TT target)
+    # - LowerTileOp (CUDA tile operations)
+    # - LowerL2Persistent (CUDA L2 cache persistence)
+    # - LegalizeVectorizedLoop (CUDA vectorization patterns)
+    # - LegalizeSafeMemoryAccess (CUDA memory safety)
+    # - LoopVectorizeDynamic (CUDA dynamic vectorization)
+
+    # The TT backend handles tile operations and layout
+    # through its metadata-driven pipeline in OptimizeForTargetTT
+
+    return mod
 
 
 def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
@@ -100,9 +115,10 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
 
     mod = tilelang.transform.VectorizeLoop(enable_vectorize=allow_vectorize(pass_ctx=pass_ctx))(mod)
 
-    # Rewrite storage allocations for better memory usage
-    # Should work with TT's circular buffer model
-    mod = tilelang.transform.StorageRewrite()(mod)
+    # Skip StorageRewrite for TT backend - it conflicts with persistent kernel model
+    # and causes "buffer occurred before its declaration" errors with T.alloc_fragment
+    # TT manages its own memory through L1 circular buffers
+    # mod = tilelang.transform.StorageRewrite()(mod)
 
     # Unroll loops for better performance
     mod = tvm.tir.transform.UnrollLoop()(mod)

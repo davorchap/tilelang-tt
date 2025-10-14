@@ -634,9 +634,11 @@ std::unordered_map<std::string, std::string>
 CodegenTT(const IRModule &mod, const std::string &target) {
   std::unordered_map<std::string, std::string> artifacts;
 
-  // Get main function
+  // Get the primary function (either 'main' or the first PrimFunc)
   auto funcs = mod->functions;
   PrimFunc main_func;
+
+  // First try to find 'main' function
   for (const auto &kv : funcs) {
     if (kv.first->name_hint == "main") {
       main_func = Downcast<PrimFunc>(kv.second);
@@ -644,8 +646,18 @@ CodegenTT(const IRModule &mod, const std::string &target) {
     }
   }
 
+  // If no 'main', use the first PrimFunc in the module
   if (!main_func.defined()) {
-    LOG(FATAL) << "No main function found in module";
+    for (const auto &kv : funcs) {
+      if (kv.second->IsInstance<PrimFuncNode>()) {
+        main_func = Downcast<PrimFunc>(kv.second);
+        break;
+      }
+    }
+  }
+
+  if (!main_func.defined()) {
+    LOG(FATAL) << "No PrimFunc found in module";
   }
 
   // Generate all 3 kernels using IR-driven codegen
