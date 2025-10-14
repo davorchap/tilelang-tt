@@ -36,7 +36,7 @@ class TestGridToPersistentTT:
         mod = apply_tt_metadata_passes(mod)
 
         # Apply GridToPersistentTT
-        mod = grid_to_persistent_tt(mod)
+        mod = GridToPersistentTT()(mod)
 
         # Verify metadata was added
         func = mod["main"]
@@ -91,7 +91,7 @@ class TestGridToPersistentTT:
         mod = tvm.IRModule.from_expr(kernel_1d.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)
         mod = apply_tt_metadata_passes(mod)
-        mod = grid_to_persistent_tt(mod)
+        mod = GridToPersistentTT()(mod)
 
         func = mod["main"]
         runtime_args = func.attrs["tt_runtime_args"]
@@ -135,7 +135,7 @@ class TestGridToPersistentTT:
         mod = apply_tt_defaults(mod)
         mod = apply_tt_metadata_passes(mod)
         mod = apply_layout_aware_metadata_passes(mod)
-        mod = grid_to_persistent_tt(mod)
+        mod = GridToPersistentTT()(mod)
 
         func = mod["main"]
         runtime_args = func.attrs["tt_runtime_args"]
@@ -168,7 +168,7 @@ class TestGridToPersistentTT:
         mod = tvm.IRModule.from_expr(kernel_3d.with_attr("global_symbol", "main"))
         mod = apply_tt_defaults(mod)
         mod = apply_tt_metadata_passes(mod)
-        mod = grid_to_persistent_tt(mod)
+        mod = GridToPersistentTT()(mod)
 
         func = mod["main"]
         runtime_args = func.attrs["tt_runtime_args"]

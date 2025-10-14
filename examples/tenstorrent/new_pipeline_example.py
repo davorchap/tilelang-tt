@@ -7,7 +7,6 @@ a simple matrix multiplication for Tenstorrent hardware.
 """
 
 import os
-import json
 from pathlib import Path
 
 try:
@@ -34,12 +33,12 @@ from tilelang.tenstorrent import (
 
 def create_matmul_ir(M: int = 128, N: int = 128, K: int = 128):
     """Create a simple matrix multiplication PrimFunc."""
-    
+
     @T.prim_func
     def matmul(
-        A: T.Buffer((M, K), "float16"),
-        B: T.Buffer((K, N), "float16"),
-        C: T.Buffer((M, N), "float32"),
+            A: T.Buffer((M, K), "float16"),
+            B: T.Buffer((K, N), "float16"),
+            C: T.Buffer((M, N), "float32"),
     ):
         # Grid iteration (will be transformed to persistent loops)
         for i in T.grid(M):
@@ -48,14 +47,16 @@ def create_matmul_ir(M: int = 128, N: int = 128, K: int = 128):
                     vi, vj = T.axis.remap("SS", [i, j])
                     T.reads(A[vi, 0:K], B[0:K, vj])
                     T.writes(C[vi, vj])
-                    
+
                     # Initialize accumulator
                     C[vi, vj] = T.float32(0)
-                    
+
                     # Compute
                     for k in range(K):
-                        C[vi, vj] = C[vi, vj] + T.cast(A[vi, k], "float32") * T.cast(B[k, vj], "float32")
-    
+                        C[vi,
+                          vj] = C[vi,
+                                  vj] + T.cast(A[vi, k], "float32") * T.cast(B[k, vj], "float32")
+
     return matmul
 
 
@@ -64,26 +65,36 @@ def example_basic_pipeline():
     print("=" * 60)
     print("Basic Pipeline Example")
     print("=" * 60)
-    
+
     # Create the IR
     matmul = create_matmul_ir(128, 128, 128)
-    
+
     # Attach metadata using the new API
     matmul = with_core_grid(matmul, 4, 4)  # 4x4 core grid
     matmul = with_core_ranges(matmul, [CoreRange((0, 0), (4, 4))])  # Use all cores
-    matmul = with_layout_desc(matmul, {
-        "A": {"shard": "DRAM", "interleave": True},
-        "B": {"shard": "DRAM", "interleave": True},
-        "C": {"shard": "L1", "tile_id_order": "row_major"},
-    })
-    
+    matmul = with_layout_desc(
+        matmul, {
+            "A": {
+                "shard": "DRAM",
+                "interleave": True
+            },
+            "B": {
+                "shard": "DRAM",
+                "interleave": True
+            },
+            "C": {
+                "shard": "L1",
+                "tile_id_order": "row_major"
+            },
+        })
+
     # Create module and run pipeline
     mod = tvm.IRModule({"main": matmul})
-    
+
     # Run the pipeline
     output_plan = "matmul_basic.plan.json"
     result_mod = run_pipeline(mod, plan_path=output_plan)
-    
+
     # Load and validate the generated plan
     if Path(output_plan).exists():
         plan = load_tt_plan(output_plan)
@@ -91,7 +102,7 @@ def example_basic_pipeline():
         print(f"Core grid: {plan['core_grid']}")
         print(f"Number of core ranges: {len(plan['core_ranges'])}")
         print(f"Work items assigned: {sum(len(v) for v in plan['work_partition'].values())}")
-        
+
         # Validate the plan
         errors = validate_plan(plan)
         if errors:
@@ -107,44 +118,57 @@ def example_custom_partition():
     print("\n" + "=" * 60)
     print("Custom Partition Example")
     print("=" * 60)
-    
+
     # Create the IR
     matmul = create_matmul_ir(256, 256, 128)
-    
+
     # Custom work partition: assign specific tiles to specific cores
     work_partition = {}
     tile_size = 32
     m_tiles = 256 // tile_size  # 8 tiles
     n_tiles = 256 // tile_size  # 8 tiles
-    
+
     # Distribute tiles in a custom pattern
     for cx in range(4):
         for cy in range(4):
             core_key = f"({cx},{cy})"
             work_items = []
-            
+
             # Each core gets 2 tiles in a diagonal pattern
             base_i = (cx * 2) % m_tiles
             base_j = (cy * 2) % n_tiles
-            
+
             work_items.append(WorkItem(io=base_i, jo=base_j, len_k=128))
-            work_items.append(WorkItem(io=(base_i + 1) % m_tiles, jo=(base_j + 1) % n_tiles, len_k=128))
-            
+            work_items.append(
+                WorkItem(io=(base_i + 1) % m_tiles, jo=(base_j + 1) % n_tiles, len_k=128))
+
             work_partition[core_key] = work_items
-    
+
     # Attach metadata
     matmul = with_core_grid(matmul, 4, 4)
     matmul = with_core_ranges(matmul, [CoreRange((0, 0), (4, 4))])
     matmul = with_work_partition(matmul, work_partition)
-    matmul = with_layout_desc(matmul, {
-        "A": {"shard": "DRAM", "interleave": False, "stride": [256, 1]},
-        "B": {"shard": "DRAM", "interleave": True},
-        "C": {"shard": "L1", "tile_id_order": "z_order"},  # Z-order for cache efficiency
-    })
-    
+    matmul = with_layout_desc(
+        matmul,
+        {
+            "A": {
+                "shard": "DRAM",
+                "interleave": False,
+                "stride": [256, 1]
+            },
+            "B": {
+                "shard": "DRAM",
+                "interleave": True
+            },
+            "C": {
+                "shard": "L1",
+                "tile_id_order": "z_order"
+            },  # Z-order for cache efficiency
+        })
+
     # Create module and run pipeline
     mod = tvm.IRModule({"main": matmul})
-    
+
     # Run with custom settings
     output_plan = "matmul_custom.plan.json"
     result_mod = run_pipeline(
@@ -154,7 +178,7 @@ def example_custom_partition():
         enable_double_buffer=True,
         enable_prefetch=True,
     )
-    
+
     # Display the custom partition
     if Path(output_plan).exists():
         plan = load_tt_plan(output_plan)
@@ -171,35 +195,41 @@ def example_multi_range():
     print("\n" + "=" * 60)
     print("Multi-Range Example")
     print("=" * 60)
-    
+
     # Create the IR
     matmul = create_matmul_ir(128, 128, 64)
-    
+
     # Define multiple core ranges (e.g., for multi-chip or partitioned execution)
     core_ranges = [
         CoreRange((0, 0), (2, 2)),  # Top-left quadrant
         CoreRange((2, 2), (2, 2)),  # Bottom-right quadrant
     ]
-    
+
     # Attach metadata
     matmul = with_core_grid(matmul, 4, 4)
     matmul = with_core_ranges(matmul, core_ranges)
     matmul = with_layout_desc(matmul, {
-        "A": {"shard": "DRAM"},
-        "B": {"shard": "DRAM"},
-        "C": {"shard": "L1"},
+        "A": {
+            "shard": "DRAM"
+        },
+        "B": {
+            "shard": "DRAM"
+        },
+        "C": {
+            "shard": "L1"
+        },
     })
-    
+
     # Create module and run pipeline
     mod = tvm.IRModule({"main": matmul})
-    
+
     output_plan = "matmul_multirange.plan.json"
     result_mod = run_pipeline(mod, plan_path=output_plan, partition_strategy="block")
-    
+
     if Path(output_plan).exists():
         plan = load_tt_plan(output_plan)
         print(f"\nMulti-range plan saved to: {output_plan}")
-        print(f"Core ranges:")
+        print("Core ranges:")
         for i, cr in enumerate(plan['core_ranges']):
             print(f"  Range {i}: start={cr['start']}, extent={cr['extent']}")
 
@@ -208,22 +238,22 @@ def main():
     """Run all examples."""
     print("Tenstorrent New Pipeline Examples")
     print("=" * 60)
-    
+
     # Create output directory
     os.makedirs("tt_output", exist_ok=True)
     os.chdir("tt_output")
-    
+
     try:
         # Run examples
         example_basic_pipeline()
         example_custom_partition()
         example_multi_range()
-        
+
         print("\n" + "=" * 60)
         print("All examples completed successfully!")
         print(f"Output files saved in: {os.getcwd()}")
         print("=" * 60)
-        
+
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback

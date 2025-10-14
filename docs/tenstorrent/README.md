@@ -67,9 +67,9 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 - IR-driven reader/compute/writer visitors aligned with the new runtime contract.
 - Mock-mode CI parity via `maint/scripts/local_build_and_test_tt.sh`.
 - **NEW**: Refactored metadata-driven lowering pipeline with cleaner abstractions and centralized attribute definitions.
+- **NEW**: Migration to pure Python pass implementation complete (2025-10-14) - removed all legacy C++ passes.
 
 ### 🚧 In Progress
-- Extending `lower_gemm_to_tt_intrinsics.cc` with loop matchers to retire heuristic detection in compute codegen.
 - Additional diagnostics for halo hints, L1 capacity checks, and documentation refreshes.
 
 ### ⏸️ Blocked
@@ -91,13 +91,12 @@ Layout-Aware Metadata
     ├─ PropagateTTLayout (CB metadata)
     └─ LayoutAwareWorkPartitionTT (core ranges, partition mode, runtime args)
     ↓
-Transform Pipeline (TT-specific + shared passes)
-    ├─ grid_to_persistent_tt (GPU grid → persistent loop)
-    ├─ memory_space_lower_tt (DRAM → L1 circular buffers)
-    ├─ tile_pad_tt (pad to 32×32 tiles)
-    ├─ lower_gemm_to_tt_intrinsics (pattern detection; matcher upgrades in progress)
-    ├─ verify_tt_ir (constraint verification)
-    └─ infer_default_tt_schedule / infer_default_tt_shard (legacy fallbacks)
+Transform Pipeline (New Python Implementation)
+    ├─ InferTTLayout (extract grid, infer layouts)
+    ├─ PropagateTTLayout (normalize and distribute)
+    ├─ TTTilesToCoreMap (work partition generation)
+    ├─ LowerTTTileIntrinsics (tile op lowering)
+    └─ GridToPersistentTT (final lowering + plan emission)
     ↓
 Code Generation (IR-Driven Visitors)
     ├─ Reader Kernel (NOC DRAM→L1)

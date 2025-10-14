@@ -46,7 +46,7 @@ def create_func_with_padding_metadata(needs_padding=True):
 
 def test_tile_pad_tt_basic():
     """Test TilePadTT generates padding metadata."""
-    from tilelang.tenstorrent.passes import tile_pad_tt
+    from tilelang.tenstorrent.compat import tile_pad_tt
 
     func = create_func_with_padding_metadata(needs_padding=True)
     mod = tvm.IRModule({"main": func})
@@ -62,7 +62,7 @@ def test_tile_pad_tt_basic():
 
 def test_tile_pad_tt_padded_dimensions():
     """Test TilePadTT computes correct padded dimensions."""
-    from tilelang.tenstorrent.passes import tile_pad_tt
+    from tilelang.tenstorrent.compat import tile_pad_tt
 
     func = create_func_with_padding_metadata(needs_padding=True)
     mod = tvm.IRModule({"main": func})
@@ -88,7 +88,7 @@ def test_tile_pad_tt_padded_dimensions():
 
 def test_tile_pad_tt_padding_amount():
     """Test TilePadTT calculates correct padding amounts."""
-    from tilelang.tenstorrent.passes import tile_pad_tt
+    from tilelang.tenstorrent.compat import tile_pad_tt
 
     func = create_func_with_padding_metadata(needs_padding=True)
     mod = tvm.IRModule({"main": func})
@@ -112,7 +112,7 @@ def test_tile_pad_tt_padding_amount():
 
 def test_tile_pad_tt_original_shape():
     """Test TilePadTT preserves original shape."""
-    from tilelang.tenstorrent.passes import tile_pad_tt
+    from tilelang.tenstorrent.compat import tile_pad_tt
 
     func = create_func_with_padding_metadata(needs_padding=True)
     mod = tvm.IRModule({"main": func})
@@ -135,7 +135,7 @@ def test_tile_pad_tt_original_shape():
 
 def test_tile_pad_tt_skip_aligned_buffers():
     """Test TilePadTT skips already aligned buffers."""
-    from tilelang.tenstorrent.passes import tile_pad_tt
+    from tilelang.tenstorrent.compat import tile_pad_tt
 
     func = create_func_with_padding_metadata(needs_padding=False)
     mod = tvm.IRModule({"main": func})
@@ -152,7 +152,7 @@ def test_tile_pad_tt_skip_aligned_buffers():
 
 def test_tile_pad_tt_skip_non_tt_functions():
     """Test TilePadTT skips functions without TT attributes."""
-    from tilelang.tenstorrent.passes import tile_pad_tt
+    from tilelang.tenstorrent.compat import tile_pad_tt
 
     # Create function WITHOUT TT attributes
     A = tir.decl_buffer((250, 250), "float16", name="A")
@@ -171,7 +171,7 @@ def test_tile_pad_tt_skip_non_tt_functions():
 
 def test_tile_pad_tt_multiple_buffers():
     """Test TilePadTT handles multiple buffers with different padding needs."""
-    from tilelang.tenstorrent.passes import tile_pad_tt
+    from tilelang.tenstorrent.compat import tile_pad_tt
 
     # Create buffers with different padding needs
     A = tir.decl_buffer((250, 250), "float16", name="A", scope="global")  # Needs padding

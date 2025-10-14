@@ -8,9 +8,10 @@ from typing import List, Optional
 
 try:
     import tvm
-    from tvm import IRModule
+    from tvm import tir, IRModule
 except ImportError:  # pragma: no cover
     tvm = None
+    tir = None
     IRModule = object
 
 from .infer_tt_layout import InferTTLayout
@@ -20,6 +21,7 @@ from .lower_tt_tile_intrinsics import LowerTTTileIntrinsics
 from .grid_to_persistent_tt import GridToPersistentTT
 
 logger = logging.getLogger(__name__)
+
 
 def build_tt_pipeline(plan_path: str = "tt.plan.json",
                       target_device: str = "grayskull",
@@ -44,31 +46,31 @@ def build_tt_pipeline(plan_path: str = "tt.plan.json",
     pipeline = [
         # 1. Infer and attach layout metadata
         InferTTLayout(),
-        
+
         # 2. Propagate and normalize layout info
         PropagateTTLayout(),
-        
+
         # 3. Compute core mapping and work partition
         TTTilesToCoreMap(partition_strategy=partition_strategy),
-        
+
         # 4. Lower tile-level intrinsics to device ops
         LowerTTTileIntrinsics(target_device=target_device),
-        
+
         # 5. Final lowering to persistent kernels
         GridToPersistentTT(
             plan_path=plan_path,
             enable_double_buffer=enable_double_buffer,
-            enable_prefetch=enable_prefetch
-        ),
+            enable_prefetch=enable_prefetch),
     ]
-    
+
     # Insert any custom passes before the final lowering
     if custom_passes:
         pipeline = pipeline[:-1] + custom_passes + pipeline[-1:]
-    
+
     return pipeline
 
-def run_pipeline(mod: IRModule, 
+
+def run_pipeline(mod: IRModule,
                  plan_path: str = "tt.plan.json",
                  target_device: str = "grayskull",
                  partition_strategy: str = "row_major",
@@ -93,34 +95,34 @@ def run_pipeline(mod: IRModule,
     if tvm is None:
         logger.error("TVM not available, cannot run pipeline")
         return mod
-    
+
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
-    
+
     logger.info("Starting Tenstorrent lowering pipeline")
-    
+
     # Build the pipeline
     pipeline = build_tt_pipeline(
         plan_path=plan_path,
         target_device=target_device,
         partition_strategy=partition_strategy,
         enable_double_buffer=enable_double_buffer,
-        enable_prefetch=enable_prefetch
-    )
-    
+        enable_prefetch=enable_prefetch)
+
     # Execute each pass
     for i, pass_instance in enumerate(pipeline):
         pass_name = pass_instance.__class__.__name__
         logger.info(f"Running pass {i+1}/{len(pipeline)}: {pass_name}")
-        
+
         try:
             mod = pass_instance(mod)
         except Exception as e:
             logger.error(f"Pass {pass_name} failed: {e}")
             raise
-    
+
     logger.info("Tenstorrent lowering pipeline completed successfully")
     return mod
+
 
 def validate_module_for_tt(mod: IRModule) -> List[str]:
     """
@@ -130,11 +132,11 @@ def validate_module_for_tt(mod: IRModule) -> List[str]:
         List of validation errors (empty if valid)
     """
     errors = []
-    
+
     if not mod.functions:
         errors.append("Module contains no functions")
         return errors
-    
+
     for gvar, func in mod.functions_items():
         if isinstance(func, tir.PrimFunc):
             # Check for required buffer properties
@@ -144,5 +146,5 @@ def validate_module_for_tt(mod: IRModule) -> List[str]:
                     # Check buffer properties
                     if buffer.dtype not in ["float16", "float32", "int8", "uint8", "int32"]:
                         errors.append(f"Buffer {buffer.name} has unsupported dtype {buffer.dtype}")
-    
+
     return errors

@@ -52,14 +52,14 @@ def create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8):
 
 def test_tt_tiles_to_core_map_basic():
     """Test TTTilesToCoreMap generates core ranges correctly."""
-    from tilelang.tenstorrent.passes import tt_tiles_to_core_map
+    from tilelang.tenstorrent.passes import TTTilesToCoreMap
 
     # Create function with metadata inference stage metadata
     func = create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8)
     mod = tvm.IRModule({"main": func})
 
     # Apply TTTilesToCoreMap
-    mod = tt_tiles_to_core_map(mod)
+    mod = TTTilesToCoreMap()(mod)
     func = mod["main"]
 
     # Verify core ranges attribute exists
@@ -78,12 +78,12 @@ def test_tt_tiles_to_core_map_basic():
 
 def test_tt_tiles_to_core_map_coordinates():
     """Test TTTilesToCoreMap generates correct physical coordinates."""
-    from tilelang.tenstorrent.passes import tt_tiles_to_core_map
+    from tilelang.tenstorrent.passes import TTTilesToCoreMap
 
     func = create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8)
     mod = tvm.IRModule({"main": func})
 
-    mod = tt_tiles_to_core_map(mod)
+    mod = TTTilesToCoreMap()(mod)
     func = mod["main"]
 
     core_ranges = func.attrs["tt_core_ranges"]
@@ -120,12 +120,12 @@ def test_tt_tiles_to_core_map_coordinates():
 
 def test_tt_tiles_to_core_map_runtime_args():
     """Test TTTilesToCoreMap generates correct runtime args."""
-    from tilelang.tenstorrent.passes import tt_tiles_to_core_map
+    from tilelang.tenstorrent.passes import TTTilesToCoreMap
 
     func = create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8)
     mod = tvm.IRModule({"main": func})
 
-    mod = tt_tiles_to_core_map(mod)
+    mod = TTTilesToCoreMap()(mod)
     func = mod["main"]
 
     core_runtime_args = func.attrs["tt_core_runtime_args"]
@@ -145,7 +145,7 @@ def test_tt_tiles_to_core_map_runtime_args():
 
 def test_tt_tiles_to_core_map_skip_without_metadata():
     """Test TTTilesToCoreMap skips functions without metadata inference stage metadata."""
-    from tilelang.tenstorrent.passes import tt_tiles_to_core_map
+    from tilelang.tenstorrent.passes import TTTilesToCoreMap
 
     # Create function WITHOUT metadata inference stage metadata
     A = tir.decl_buffer((256, 256), "float16", name="A")
@@ -154,7 +154,7 @@ def test_tt_tiles_to_core_map_skip_without_metadata():
     mod = tvm.IRModule({"main": func})
 
     # Apply pass
-    mod = tt_tiles_to_core_map(mod)
+    mod = TTTilesToCoreMap()(mod)
     func = mod["main"]
 
     # Should NOT add core ranges
@@ -163,7 +163,7 @@ def test_tt_tiles_to_core_map_skip_without_metadata():
 
 def test_tt_tiles_to_core_map_consistency_with_metadata():
     """Test TTTilesToCoreMap output is consistent with metadata inference input."""
-    from tilelang.tenstorrent.passes import tt_tiles_to_core_map
+    from tilelang.tenstorrent.passes import TTTilesToCoreMap
 
     func = create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8)
     mod = tvm.IRModule({"main": func})
@@ -172,7 +172,7 @@ def test_tt_tiles_to_core_map_consistency_with_metadata():
     original_tiles_per_core = func.attrs["tt_tiles_per_core"]
 
     # Apply pass
-    mod = tt_tiles_to_core_map(mod)
+    mod = TTTilesToCoreMap()(mod)
     func = mod["main"]
 
     core_ranges = func.attrs["tt_core_ranges"]
@@ -227,7 +227,7 @@ def test_tt_tiles_to_core_map_integration_with_metadata():
     # Apply TT defaults -> metadata inference -> TTTilesToCoreMap pipeline
     mod = apply_tt_defaults(mod)
     mod = apply_tt_metadata_passes(mod)
-    mod = tt_tiles_to_core_map(mod)
+    mod = TTTilesToCoreMap()(mod)
 
     func = mod["main"]
 
