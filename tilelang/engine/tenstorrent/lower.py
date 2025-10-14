@@ -14,8 +14,8 @@ import tilelang
 from tilelang import tvm as tvm
 from tilelang.engine.param import CompiledArtifact, KernelParam
 from tilelang.engine.phase import LowerAndLegalize
-from tilelang.tt import apply_tt_defaults
-from tilelang.tt.passes import (
+from tilelang.tenstorrent import apply_tt_defaults
+from tilelang.tenstorrent.passes import (
     infer_default_tt_schedule,
     infer_default_tt_shard,
     apply_layout_aware_metadata_passes,
@@ -281,7 +281,7 @@ def lower(
 
     # === Phase 5: Generate kernel source ===
     # Use emit_tt_artifacts to generate reader/compute/writer kernels
-    import tilelang.tt as tt
+    import tilelang.tenstorrent as tt
     artifacts = tt.emit_tt_artifacts(device_mod)
 
     # Convert artifacts dict to JSON string for kernel_source field

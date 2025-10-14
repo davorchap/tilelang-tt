@@ -2,7 +2,7 @@
 
 **Status**: 🟡 Partial  
 **Priority**: HIGH  
-**File**: `src/transform/tt/lower_gemm_to_tt_intrinsics.cc`
+**File**: `src/transform/tenstorrent/lower_gemm_to_tt_intrinsics.cc`
 
 ---
 

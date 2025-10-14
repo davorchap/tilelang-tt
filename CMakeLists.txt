@@ -129,12 +129,12 @@ tilelang_file_glob(GLOB TILE_LANG_SRCS
   src/*.cc
   src/layout/*.cc
   src/transform/*.cc
-  src/transform/tt/*.cc
+  src/transform/tenstorrent/*.cc
   src/op/*.cc
   src/target/utils.cc
   src/target/codegen_cpp.cc
   src/target/rt_mod_cpp.cc
-  src/target/tt/*.cc
+  src/target/tenstorrent/*.cc
   # webgpu doesn't have system dependency
   src/target/codegen_webgpu.cc
   # intrin_rule doesn't have system dependency
@@ -270,17 +270,17 @@ target_compile_definitions(tilelang_objs PRIVATE -DTILE_LANG_EXPORTS)
 add_library(tilelang SHARED $<TARGET_OBJECTS:tilelang_objs>)
 target_link_libraries(tilelang PUBLIC tvm_runtime)
 
-# Link Metalium libraries if available
+# Static library
+add_library(tilelang_static STATIC $<TARGET_OBJECTS:tilelang_objs>)
+add_dependencies(tilelang_static tvm_runtime)
+set_target_properties(tilelang_static PROPERTIES OUTPUT_NAME tilelang)
+
+# Link Metalium libraries if available (must be after both targets are defined)
 if(METALIUM_FOUND AND TARGET TT::Metalium)
   target_link_libraries(tilelang PRIVATE TT::Metalium)
   target_link_libraries(tilelang_static PRIVATE TT::Metalium)
   message(STATUS "Linked TileLang against TT::Metalium target")
 endif()
-
-# Static library
-add_library(tilelang_static STATIC $<TARGET_OBJECTS:tilelang_objs>)
-add_dependencies(tilelang_static tvm_runtime)
-set_target_properties(tilelang_static PROPERTIES OUTPUT_NAME tilelang)
 
 # Apply static linking flags only to static library to avoid Python extension conflicts
 if(TILE_LANG_STATIC_STDCPP AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")

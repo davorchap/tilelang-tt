@@ -220,11 +220,11 @@ See [PASS_TABLE_SHARED.md](./PASS_TABLE_SHARED.md) for the optimization passes t
 
 | Component | Input IR | Output Artifacts | Purpose | File |
 |-----------|----------|------------------|---------|------|
-| **TTReaderCodegenVisitor** | Annotated TIR | `reader.cpp` | Generate reader kernel | `src/target/tt/codegen_tt_reader_visitor.cc` |
-| **TTComputeCodegenVisitor** | Annotated TIR | `compute.cpp` | Generate compute kernel | `src/target/tt/codegen_tt_compute_visitor.cc` |
-| **TTWriterCodegenVisitor** | Annotated TIR | `writer.cpp` | Generate writer kernel | `src/target/tt/codegen_tt_writer_visitor.cc` |
-| **EmitTTHostProgram** | Annotated TIR | `main.cpp` | Generate host program | `src/target/tt/codegen_tt.cc` |
-| **EmitTTPlanJSON** | Schedule metadata | `tt.plan.json` | Generate execution plan | `src/target/tt/codegen_tt.cc` |
+| **TTReaderCodegenVisitor** | Annotated TIR | `reader.cpp` | Generate reader kernel | `src/target/tenstorrent/codegen_tt_reader_visitor.cc` |
+| **TTComputeCodegenVisitor** | Annotated TIR | `compute.cpp` | Generate compute kernel | `src/target/tenstorrent/codegen_tt_compute_visitor.cc` |
+| **TTWriterCodegenVisitor** | Annotated TIR | `writer.cpp` | Generate writer kernel | `src/target/tenstorrent/codegen_tt_writer_visitor.cc` |
+| **EmitTTHostProgram** | Annotated TIR | `main.cpp` | Generate host program | `src/target/tenstorrent/codegen_tt.cc` |
+| **EmitTTPlanJSON** | Schedule metadata | `tt.plan.json` | Generate execution plan | `src/target/tenstorrent/codegen_tt.cc` |
 
 **Output:** 5 TT artifacts (reader, compute, writer, host, plan)
 
@@ -285,9 +285,9 @@ See [Tenstorrent Backend Tasks](./TT_BACKEND_TASKS.md) for the full implementati
 - Verification: `verify_tt_ir`
 
 **Key TT Files:**
-- `tilelang/engine/tt/lower.py` (Tenstorrent orchestration)
-- `src/transform/tt/*.cc` (Tenstorrent transforms)
-- `src/target/tt/codegen_tt*.cc` (reader/compute/writer/host visitors)
+- `tilelang/engine/tenstorrent/lower.py` (Tenstorrent orchestration)
+- `src/transform/tenstorrent/*.cc` (Tenstorrent transforms)
+- `src/target/tenstorrent/codegen_tt*.cc` (reader/compute/writer/host visitors)
 
 ## Planned Pass Specifications
 
@@ -336,7 +336,7 @@ for tile_id in range(start_id, start_id + count):
 - **NOC Efficiency:** Group cores with similar access patterns
 - **Multicast Setup:** Enable multicast by creating core groups with shared data
 
-**Implementation Location:** `src/transform/tt/rasterization_tt.cc` (to be created)
+**Implementation Location:** `src/transform/tenstorrent/rasterization_tt.cc` (to be created)
 
 **Related Passes:**
 - Runs after `grid_to_persistent_tt` (modifies tile ID → (bx, by) mapping)
@@ -418,7 +418,7 @@ if (is_sender_core()) {
 - Without multicast: 64 cores × 8 A tiles = 512 DRAM reads for row
 - With multicast: 8 senders × 1 read = 8 DRAM reads (64× reduction)
 
-**Implementation Location:** `src/transform/tt/tt_multicast_reuse.cc` (to be created)
+**Implementation Location:** `src/transform/tenstorrent/tt_multicast_reuse.cc` (to be created)
 
 **Related Passes:**
 - Runs after `rasterization_tt` (needs optimized core grouping)

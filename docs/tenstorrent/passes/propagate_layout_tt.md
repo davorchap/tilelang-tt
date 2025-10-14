@@ -2,7 +2,7 @@
 
 **Status**: 🟡 Partial (defaults only)  
 **Priority**: P0  
-**File**: Python helper in `tilelang/tt/passes.py`
+**File**: Python helper in `tilelang/tenstorrent/passes.py`
 
 ---
 
@@ -57,7 +57,7 @@ fails or when `tt.buffer.*` metadata is missing.
 
 ## Tests
 
-`testing/python/tt/test_layout_aware_metadata.py` exercises the default DRAM
+`testing/python/tenstorrent/test_layout_aware_metadata.py` exercises the default DRAM
 path. Additional coverage will be added once role-aware heuristics exist.
 
 ---

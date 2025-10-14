@@ -2,7 +2,7 @@
 
 **Status**: 🟡 Partial (global mode only)  
 **Priority**: P0  
-**File**: Python helper in `tilelang/tt/passes.py`
+**File**: Python helper in `tilelang/tenstorrent/passes.py`
 
 ---
 
@@ -60,8 +60,8 @@ cores and report inconsistencies.
 
 ## Tests
 
-- `testing/python/tt/test_layout_aware_metadata.py` ensures metadata is present.
-- `testing/python/tt/test_persistent_lowering.py` verifies persistent
+- `testing/python/tenstorrent/test_layout_aware_metadata.py` ensures metadata is present.
+- `testing/python/tenstorrent/test_persistent_lowering.py` verifies persistent
   lowering consumes the canonical runtime argument list.
 
 Additional shard-aware tests will arrive alongside the `local_shard` feature.

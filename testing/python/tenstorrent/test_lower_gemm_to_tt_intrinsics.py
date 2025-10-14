@@ -167,7 +167,7 @@ def create_manual_matmul_func():
 
 def test_lower_gemm_to_tt_intrinsics_basic():
     """Test the TT GEMM lowering annotates matmul operations."""
-    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
+    from tilelang.tenstorrent.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_gemm()
     mod = tvm.IRModule({"main": func})
@@ -184,7 +184,7 @@ def test_lower_gemm_to_tt_intrinsics_basic():
 
 def test_lower_gemm_to_tt_intrinsics_matmul_count():
     """Test the TT GEMM lowering counts matmul operations correctly."""
-    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
+    from tilelang.tenstorrent.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_gemm()
     mod = tvm.IRModule({"main": func})
@@ -198,7 +198,7 @@ def test_lower_gemm_to_tt_intrinsics_matmul_count():
 
 def test_lower_gemm_to_tt_intrinsics_multiple_matmuls():
     """Test the TT GEMM lowering handles multiple matmul operations."""
-    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
+    from tilelang.tenstorrent.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_multiple_gemms()
     mod = tvm.IRModule({"main": func})
@@ -212,7 +212,7 @@ def test_lower_gemm_to_tt_intrinsics_multiple_matmuls():
 
 def test_lower_gemm_to_tt_intrinsics_has_flag():
     """Test the TT GEMM lowering sets has_tensorize flag."""
-    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
+    from tilelang.tenstorrent.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_gemm()
     mod = tvm.IRModule({"main": func})
@@ -226,7 +226,7 @@ def test_lower_gemm_to_tt_intrinsics_has_flag():
 
 def test_lower_gemm_to_tt_intrinsics_skip_non_gemm_functions():
     """Test the TT GEMM lowering skips functions without GEMM operations."""
-    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
+    from tilelang.tenstorrent.passes import lower_gemm_to_tt_intrinsics
 
     # Create function without gemm
     A = tir.decl_buffer((32, 32), "float16", name="A")
@@ -245,7 +245,7 @@ def test_lower_gemm_to_tt_intrinsics_skip_non_gemm_functions():
 
 def test_lower_gemm_to_tt_intrinsics_skip_non_tt_functions():
     """Test the TT GEMM lowering skips functions without TT attributes."""
-    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
+    from tilelang.tenstorrent.passes import lower_gemm_to_tt_intrinsics
 
     # Create function WITHOUT TT attributes
     A = tir.decl_buffer((32, 32), "float16", name="A")
@@ -265,8 +265,8 @@ def test_lower_gemm_to_tt_intrinsics_skip_non_tt_functions():
 
 def test_lower_gemm_to_tt_intrinsics_integration_with_ws1_ws2():
     """Test the TT GEMM lowering integrates with the defaults + metadata pipeline."""
-    from tilelang.tt.passes import apply_tt_metadata_passes, lower_gemm_to_tt_intrinsics
-    from tilelang.tt.target import apply_tt_defaults
+    from tilelang.tenstorrent.passes import apply_tt_metadata_passes, lower_gemm_to_tt_intrinsics
+    from tilelang.tenstorrent.target import apply_tt_defaults
 
     # Create function with gemm intrinsic
     A = tir.decl_buffer((256, 256), "float16", name="A", scope="global")
@@ -308,7 +308,7 @@ def test_lower_gemm_to_tt_intrinsics_integration_with_ws1_ws2():
 
 def test_lower_gemm_to_tt_intrinsics_records_pattern_metadata():
     """Lowering should attach pattern metadata for pragma-based matmuls."""
-    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
+    from tilelang.tenstorrent.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_gemm()
     mod = tvm.IRModule({"main": func})
@@ -335,7 +335,7 @@ def test_lower_gemm_to_tt_intrinsics_records_pattern_metadata():
 
 def test_lower_gemm_to_tt_intrinsics_emits_sequence():
     """Lowering should rewrite matmul loops into the expected TT intrinsic sequence."""
-    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
+    from tilelang.tenstorrent.passes import lower_gemm_to_tt_intrinsics
 
     func = create_func_with_gemm()
     mod = tvm.IRModule({"main": func})
@@ -374,7 +374,7 @@ def test_lower_gemm_to_tt_intrinsics_ignores_unmarked_calls():
     This test verifies that the pass processes explicit tl.tl_gemm intrinsics
     regardless of whether they're wrapped in pragma attributes. The new design
     consumes frontend gemm markers directly."""
-    from tilelang.tt.passes import lower_gemm_to_tt_intrinsics
+    from tilelang.tenstorrent.passes import lower_gemm_to_tt_intrinsics
 
     func = create_manual_matmul_func()
     mod = tvm.IRModule({"main": func})

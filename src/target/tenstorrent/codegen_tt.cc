@@ -671,7 +671,7 @@ Map<String, String> EmitTTArtifacts(const IRModule &mod,
 runtime::Module BuildTileLangTT(IRModule mod, Target target) {
   // For now, just return a null module
   // The actual code generation happens via EmitTTArtifacts which is called
-  // from Python in tilelang/engine/tt/lower.py
+  // from Python in tilelang/engine/tenstorrent/lower.py
   //
   // TODO: When TT-Metalium SDK is available, this should:
   // 1. Generate artifacts via CodegenTT()

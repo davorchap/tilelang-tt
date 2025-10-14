@@ -13,7 +13,7 @@ This example demonstrates how to:
 
 import tvm
 import tilelang.language as T
-import tilelang.tt as tt
+import tilelang.tenstorrent as tt
 
 
 def matmul(M, N, K, block_M, block_N, block_K, dtype="float16"):

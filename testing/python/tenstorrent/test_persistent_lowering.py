@@ -7,7 +7,7 @@ that converts grid-style kernels to persistent per-core loops.
 import pytest
 from tilelang import tvm
 import tilelang.language as T
-from tilelang.tt import (
+from tilelang.tenstorrent import (
     apply_tt_defaults,
     apply_tt_metadata_passes,
     apply_layout_aware_metadata_passes,

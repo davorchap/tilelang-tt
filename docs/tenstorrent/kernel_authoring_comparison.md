@@ -89,7 +89,7 @@ __global__ void matmul_kernel(float16* A, float16* B, float16* C, int M, int K, 
 
 **Apply TT-specific annotations:**
 ```python
-import tilelang.tt as tt
+import tilelang.tenstorrent as tt
 
 # Compile for Tenstorrent
 mod = tvm.IRModule.from_expr(matmul)
@@ -388,7 +388,7 @@ def kernel(...):
 ### Tenstorrent Annotations (More Explicit)
 
 ```python
-import tilelang.tt as tt
+import tilelang.tenstorrent as tt
 
 @T.prim_func
 def kernel(...):
@@ -402,7 +402,7 @@ mod = tvm.IRModule.from_expr(kernel)
 mod = tt.apply_tt_defaults(mod)
 
 # Option 2: Explicit scheduling
-from tilelang.tt import annotate_tt_schedule, annotate_tt_sharding
+from tilelang.tenstorrent import annotate_tt_schedule, annotate_tt_sharding
 
 @annotate_tt_schedule(policy="contiguous", order="row_major", chunk_k_tiles=4)
 @annotate_tt_sharding({

@@ -82,7 +82,7 @@ All Python packages are installed in an isolated virtual environment (`.venv/`) 
 > pip uninstall -y torch triton
 > pip install torch --index-url https://download.pytorch.org/whl/cpu
 > ```
-> CPU-only PyTorch provides all functionality needed for TT backend development (tensor operations, NumPy interop, DLPack conversion). See `testing/python/tt/test_pytorch_cpu_compatibility.py` for verification tests.
+> CPU-only PyTorch provides all functionality needed for TT backend development (tensor operations, NumPy interop, DLPack conversion). See `testing/python/tenstorrent/test_pytorch_cpu_compatibility.py` for verification tests.
 
 #### TVM and TileLang (editable installs)
 
@@ -215,12 +215,12 @@ The script runs Tenstorrent backend tests:
 
 1. **Target registration tests:**
    ```bash
-   pytest testing/python/tt/test_target_registration.py -v
+   pytest testing/python/tenstorrent/test_target_registration.py -v
    ```
 
 2. **All Tenstorrent tests:**
    ```bash
-   pytest testing/python/tt/ -v --tb=short
+   pytest testing/python/tenstorrent/ -v --tb=short
    ```
 
 **Test environment:**
@@ -241,7 +241,7 @@ source .venv/bin/activate
 export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
 
 # Run a specific test file
-cd testing/python/tt
+cd testing/python/tenstorrent
 pytest test_target_registration.py -v
 
 # Run a single test function
@@ -253,7 +253,7 @@ pytest test_target_registration.py -vv --tb=long
 
 **Quick one-liner for running tests:**
 ```bash
-source .venv/bin/activate && export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH && cd testing/python/tt && pytest test_target_registration.py -v
+source .venv/bin/activate && export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH && cd testing/python/tenstorrent && pytest test_target_registration.py -v
 ```
 
 ## Troubleshooting
@@ -286,7 +286,7 @@ bash maint/scripts/local_build_and_test_tt.sh --jobs 2
 **Solution:** The script automatically sets this. If running tests manually:
 ```bash
 export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
-pytest testing/python/tt/ -v
+pytest testing/python/tenstorrent/ -v
 ```
 
 ### Issue: "Virtual environment creation fails"
@@ -348,7 +348,7 @@ pip install -e .
 
 # 8. Run tests
 export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
-pytest testing/python/tt/ -v
+pytest testing/python/tenstorrent/ -v
 ```
 
 ## Cleaning Up
@@ -425,7 +425,7 @@ This script replicates the GitHub Actions CI workflow defined in `.github/workfl
    ```bash
    source .venv/bin/activate
    export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
-   pytest testing/python/tt/test_target_registration.py -v
+   pytest testing/python/tenstorrent/test_target_registration.py -v
    ```
 
 3. **Check code formatting:**

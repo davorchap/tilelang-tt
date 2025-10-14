@@ -302,7 +302,7 @@ if (call->op == "tvm_mma_sync") {
 
 ### Phase 1: Apply TT Defaults (TT-Specific)
 
-**Location:** `tilelang/engine/tt/lower.py` → `apply_tt_defaults()`
+**Location:** `tilelang/engine/tenstorrent/lower.py` → `apply_tt_defaults()`
 
 ```python
 # Apply default TT annotations (Target Registration)
@@ -313,7 +313,7 @@ mod = apply_tt_defaults(mod)
 
 ### Phase 2: Frontend Lowering (Shared with CUDA)
 
-**Location:** `tilelang/engine/tt/lower.py` → `LowerAndLegalizeTT()`
+**Location:** `tilelang/engine/tenstorrent/lower.py` → `LowerAndLegalizeTT()`
 
 ```python
 # Calls the same LowerAndLegalize() as CUDA
@@ -325,7 +325,7 @@ with target:
 
 ### Phase 3: TT-Specific Optimizations
 
-**Location:** `tilelang/engine/tt/lower.py` → `OptimizeForTargetTT()`
+**Location:** `tilelang/engine/tenstorrent/lower.py` → `OptimizeForTargetTT()`
 
 ```python
 def OptimizeForTargetTT(mod: IRModule, target: Target) -> IRModule:
@@ -375,7 +375,7 @@ def OptimizeForTargetTT(mod: IRModule, target: Target) -> IRModule:
 
 ### Phase 4: LowerGemmToTTIntrinsics Pass
 
-**Location:** `src/transform/tt/lower_gemm_to_tt_intrinsics.cc`
+**Location:** `src/transform/tenstorrent/lower_gemm_to_tt_intrinsics.cc`
 
 **Current State:**
 - Consumes frontend-issued `tl.gemm` intrinsics (mirroring the CUDA pipeline)
@@ -394,7 +394,7 @@ def OptimizeForTargetTT(mod: IRModule, target: Target) -> IRModule:
 
 ### Phase 5: Device Splitting (TT 3-Kernel Architecture)
 
-**Location:** `tilelang/engine/tt/lower.py` → `SplitTTKernels()`
+**Location:** `tilelang/engine/tenstorrent/lower.py` → `SplitTTKernels()`
 
 ```python
 def SplitTTKernels(mod: IRModule) -> Tuple[IRModule, IRModule]:
@@ -411,12 +411,12 @@ def SplitTTKernels(mod: IRModule) -> Tuple[IRModule, IRModule]:
 
 ### Phase 6: Codegen (IR-Driven Visitors)
 
-**Location:** `src/target/tt/codegen_tt_*.cc`
+**Location:** `src/target/tenstorrent/codegen_tt_*.cc`
 
 **Current Implementation:**
 
-- `LowerGemmToTTIntrinsics` lowers frontend `tl.gemm` calls into explicit TT intrinsic sequences before codegen, emitting `tt.tile_regs_acquire`, `tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`, `tt.cb_pop_front`, `tt.cb_reserve_back`, `tt.pack_tile`, and `tt.cb_push_back` sequences (`src/transform/tt/lower_gemm_to_tt_intrinsics.cc`).
-- `TTComputeCodegenVisitor` walks the existing IR without heuristics. It prints the surrounding loop structure and the `Evaluate(tt.*)` nodes left behind by tensorization (`src/target/tt/codegen_tt_compute_visitor.cc`).
+- `LowerGemmToTTIntrinsics` lowers frontend `tl.gemm` calls into explicit TT intrinsic sequences before codegen, emitting `tt.tile_regs_acquire`, `tt.mm_init`, `tt.matmul_tiles`, `tt.cb_wait_front`, `tt.cb_pop_front`, `tt.cb_reserve_back`, `tt.pack_tile`, and `tt.cb_push_back` sequences (`src/transform/tenstorrent/lower_gemm_to_tt_intrinsics.cc`).
+- `TTComputeCodegenVisitor` walks the existing IR without heuristics. It prints the surrounding loop structure and the `Evaluate(tt.*)` nodes left behind by tensorization (`src/target/tenstorrent/codegen_tt_compute_visitor.cc`).
 
 ```cpp
 void TTComputeCodegenVisitor::VisitStmt_(const ForNode* op) {

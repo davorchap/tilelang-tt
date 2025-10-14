@@ -7,7 +7,7 @@ on representative GEMM workloads.
 
 import tvm
 from tvm import tir
-import tilelang.tt as tt
+import tilelang.tenstorrent as tt
 
 
 def create_test_module(M, N, K):

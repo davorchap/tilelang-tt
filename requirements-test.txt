@@ -1,9 +1,6 @@
-# lint requirements
 -r requirements-lint.txt
-# build requirements
 Cython
 cmake>=3.26
-# runtime requirements
 cffi
 cpplint
 Cython
@@ -22,9 +19,6 @@ requests
 cloudpickle
 ml_dtypes
 psutil
-# PyTorch - installs CUDA version by default (~6GB)
-# For TT backend, CPU-only PyTorch is sufficient and saves ~5GB
-# The build script automatically replaces this with CPU-only version
 torch
 tabulate
 wheel

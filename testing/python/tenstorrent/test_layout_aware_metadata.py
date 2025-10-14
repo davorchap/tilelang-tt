@@ -5,7 +5,7 @@ import pytest
 from tilelang import tvm
 import tilelang.language as T
 
-from tilelang.tt import (
+from tilelang.tenstorrent import (
     annotate_tt_layout,
     apply_tt_defaults,
     apply_tt_metadata_passes,

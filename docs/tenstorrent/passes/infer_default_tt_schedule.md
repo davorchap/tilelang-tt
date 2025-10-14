@@ -2,7 +2,7 @@
 
 **Status**: 🟡 Legacy (superseded by layout-aware pipeline)  
 **Priority**: P1 (compatibility)
-**File**: `src/transform/tt/infer_tt_schedule.cc`
+**File**: `src/transform/tenstorrent/infer_tt_schedule.cc`
 
 ---
 
@@ -63,7 +63,7 @@ Legacy attributes (`tt.schedule`) are maintained for backward compatibility; new
 
 ## Tests
 
-**File**: `testing/python/tt/test_passes.py`
+**File**: `testing/python/tenstorrent/test_passes.py`
 **Status**: ✅ 7 tests passing
 
 Tests cover:
@@ -88,9 +88,9 @@ Tests cover:
 
 ## Related Files
 
-- `src/transform/tt/infer_tt_schedule.cc` - Implementation
-- `tilelang/tt/passes.py` - Python binding
-- `testing/python/tt/test_passes.py` - Tests
+- `src/transform/tenstorrent/infer_tt_schedule.cc` - Implementation
+- `tilelang/tenstorrent/passes.py` - Python binding
+- `testing/python/tenstorrent/test_passes.py` - Tests
 
 ---
 

@@ -44,7 +44,7 @@ def apply_tt_defaults(mod: tvm.IRModule) -> tvm.IRModule:
 
     Example:
         >>> import tilelang.language as T
-        >>> from tilelang.tt import apply_tt_defaults
+        >>> from tilelang.tenstorrent import apply_tt_defaults
         >>>
         >>> @T.prim_func
         >>> def gemm(A, B, C):

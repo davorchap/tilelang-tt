@@ -1,27 +1,6 @@
-# Tenstorrent Backend Requirements
-#
-# This is a curated requirements file for Tenstorrent backend development.
-# It includes only CPU-friendly dependencies and excludes CUDA/GPU packages.
-#
-# Key differences from requirements.txt and requirements-test.txt:
-# - Uses CPU-only PyTorch (saves ~5GB vs CUDA version)
-# - Excludes Triton GPU compiler
-# - Minimal dependencies for TT backend development
-#
-# To use:
-#   pip install -r requirements-tenstorrent.txt
-#
-# For verification:
-#   pytest testing/python/tt/test_pytorch_cpu_compatibility.py -v
-
-# Lint requirements
 -r requirements-lint.txt
-
-# Build requirements
 Cython>=3.0.0
 cmake>=3.26
-
-# Runtime requirements
 cffi
 cloudpickle
 docutils
@@ -40,16 +19,11 @@ tornado
 tqdm>=4.62.3
 typing_extensions>=4.10.0
 wheel
-
-# Testing requirements
 cpplint
 pytest>=6.2.4
 pytest-durations
 pytest-timeout
 pytest_xdist>=2.2.1
-
-# PyTorch CPU-only (no CUDA, saves ~5GB)
-# This is installed from the CPU-only index to avoid CUDA dependencies
 --index-url https://download.pytorch.org/whl/cpu
 --extra-index-url https://pypi.org/simple
 torch

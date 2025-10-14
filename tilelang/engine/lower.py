@@ -15,7 +15,7 @@ from tilelang.engine.phase import (
     LowerAndLegalize,
     OptimizeForTarget,
 )
-from tilelang.engine.tt import lower_tenstorrent
+from tilelang.engine.tenstorrent import lower_tenstorrent
 from tilelang.utils.target import TENSTORRENT_TARGET
 
 

@@ -104,7 +104,7 @@ The Tenstorrent backend uses a **two-tier CI approach** to balance speed and val
 1. Checkout repository
 2. Set up Python with pip caching (caches `requirements-mypy.txt` dependencies)
 3. Install mypy from requirements-mypy.txt
-4. Run mypy on `tilelang/engine/tt/` (currently set to continue-on-error)
+4. Run mypy on `tilelang/engine/tenstorrent/` (currently set to continue-on-error)
 
 **Caching:**
 - Pip packages are cached based on `requirements-mypy.txt` hash
@@ -128,10 +128,10 @@ The Tenstorrent backend uses a **two-tier CI approach** to balance speed and val
 
 **Triggers:**
 - Pull requests modifying:
-  - `tilelang/engine/tt/**`
-  - `src/target/tt/**`
-  - `src/transform/tt/**`
-  - `testing/python/tt/**`
+  - `tilelang/engine/tenstorrent/**`
+  - `src/target/tenstorrent/**`
+  - `src/transform/tenstorrent/**`
+  - `testing/python/tenstorrent/**`
   - `tilelang/utils/target.py`
   - `.github/workflows/tenstorrent-ci.yml`
 - Pushes to `main` or `ws*-**` branches
@@ -216,7 +216,7 @@ git add .
 git commit -m "Apply formatting"
 
 # Run tests (requires TileLang built with TVM)
-cd testing/python/tt
+cd testing/python/tenstorrent
 pytest test_target_registration.py -v
 
 # Or use automated local build script
@@ -244,7 +244,7 @@ pip install -e . --no-build-isolation
 
 # Run tests
 export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
-pytest testing/python/tt/ -v
+pytest testing/python/tenstorrent/ -v
 ```
 
 See [`METALIUM_SETUP_GUIDE.md`](METALIUM_SETUP_GUIDE.md) for detailed SDK installation instructions.
@@ -318,7 +318,7 @@ See [`METALIUM_SETUP_GUIDE.md`](METALIUM_SETUP_GUIDE.md) for detailed SDK instal
                                                            ▼
                                         ┌──────────────────────────────┐
                                         │ 6. Run Tenstorrent tests     │
-                                        │    pytest testing/python/tt/ │
+                                        │    pytest testing/python/tenstorrent/ │
                                         │    ✅ 95/95 tests pass       │
                                         │    Time: ~30 seconds         │
                                         └──────────────────────────────┘
@@ -395,7 +395,7 @@ See [`METALIUM_SETUP_GUIDE.md`](METALIUM_SETUP_GUIDE.md) for detailed SDK instal
                          ▼
          ┌───────────────────────────────────┐
          │ 5. Run SDK integration tests      │
-         │    pytest testing/python/tt/ -v   │
+         │    pytest testing/python/tenstorrent/ -v   │
          │    ✅ 95/95 tests pass            │
          │    + SDK-specific tests (future)  │
          └───────────────┬───────────────────┘

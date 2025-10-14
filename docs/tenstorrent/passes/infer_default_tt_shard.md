@@ -2,7 +2,7 @@
 
 **Status**: ✅ Complete  
 **Priority**: CRITICAL  
-**File**: `src/transform/tt/infer_tt_shard.cc`
+**File**: `src/transform/tenstorrent/infer_tt_shard.cc`
 
 ---
 
@@ -56,7 +56,7 @@ A = T.Buffer((256, 256), "float16")  # DRAM buffer
 
 ## Tests
 
-**File**: Covered indirectly via `testing/python/tt/test_persistent_lowering.py`  
+**File**: Covered indirectly via `testing/python/tenstorrent/test_persistent_lowering.py`  
 **Status**: ✅ Metadata shape validated alongside persistent transform stage transforms
 
 ---
@@ -74,8 +74,8 @@ A = T.Buffer((256, 256), "float16")  # DRAM buffer
 
 ## Related Files
 
-- `src/transform/tt/infer_tt_shard.cc` - Implementation
-- `tilelang/tt/passes.py` - Python binding
+- `src/transform/tenstorrent/infer_tt_shard.cc` - Implementation
+- `tilelang/tenstorrent/passes.py` - Python binding
 
 ---
 

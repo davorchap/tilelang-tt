@@ -3,9 +3,9 @@ name: Tenstorrent Backend CI
 on:
   pull_request:
     paths:
-      - 'tilelang/engine/tt/**'
-      - 'tilelang/tt/**'
-      - 'testing/python/tt/**'
+      - 'tilelang/engine/tenstorrent/**'
+      - 'tilelang/tenstorrent/**'
+      - 'testing/python/tenstorrent/**'
       - 'tilelang/utils/target.py'
       - '.github/workflows/tenstorrent-ci.yml'
   push:
@@ -171,14 +171,14 @@ jobs:
       - name: Run Tenstorrent target registration tests
         run: |
           export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
-          cd testing/python/tt
+          cd testing/python/tenstorrent
           pytest test_target_registration.py -v --tb=short
 
       - name: Run all Python tests
         run: |
           export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
           cd testing/python
-          pytest tt/ -v --tb=short
+          pytest tenstorrent/ -v --tb=short
 
       - name: Save TVM build cache
         uses: actions/cache/save@v4
@@ -212,6 +212,6 @@ jobs:
 
       - name: Type check Tenstorrent backend
         run: |
-          mypy tilelang/engine/tt/ --ignore-missing-imports || true
-          mypy tilelang/tt/ --ignore-missing-imports || true
+          mypy tilelang/engine/tenstorrent/ --ignore-missing-imports || true
+          mypy tilelang/tenstorrent/ --ignore-missing-imports || true
         continue-on-error: true

@@ -327,7 +327,7 @@ TileLang provides a GPU-like surface that lowers to Tenstorrent's model:
 
 ```python
 import tilelang.language as T
-import tilelang.tt as tt
+import tilelang.tenstorrent as tt
 
 @T.prim_func
 def matmul(A: T.Buffer, B: T.Buffer, C: T.Buffer):

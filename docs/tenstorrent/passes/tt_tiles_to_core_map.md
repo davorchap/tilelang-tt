@@ -2,7 +2,7 @@
 
 **Status**: 🟡 Legacy (compatibility shim)  
 **Priority**: MEDIUM  
-**File**: `src/transform/tt/tt_tiles_to_core_map.cc`
+**File**: `src/transform/tenstorrent/tt_tiles_to_core_map.cc`
 
 ---
 
@@ -55,7 +55,7 @@ pipeline this responsibility moves to `LayoutAwareWorkPartitionTT`, which can em
 
 ## Tests
 
-**File**: `testing/python/tt/test_tt_tiles_to_core_map.py`  
+**File**: `testing/python/tenstorrent/test_tt_tiles_to_core_map.py`  
 **Status**: ✅ Covers basic mapping, coordinate validation, runtime arg structure, and legacy metadata integration.
 
 ---
