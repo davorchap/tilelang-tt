@@ -4,8 +4,48 @@ This package provides Tenstorrent-specific functionality including:
 - Default annotation helpers for schedule and sharding (TT Defaults stage)
 - Schedule and sharding inference passes (Metadata Inference stage)
 - TT-specific transforms and utilities
+- New metadata-driven lowering pipeline with mid-level IR representation
 """
 
+# Core attribute definitions and dataclasses
+from .attrs import (
+    CoreRange,
+    WorkItem,
+    plan_dict,
+    TT_CORE_GRID,
+    TT_CORE_RANGES,
+    TT_WORK_PARTITION,
+    TT_LAYOUT_DESC,
+)
+
+# IR sugar helpers for metadata attachment
+from .ir_sugar import (
+    with_core_grid,
+    with_core_ranges,
+    with_work_partition,
+    with_layout_desc,
+)
+
+# Runtime plan utilities
+from .runtime_plan import (
+    emit_tt_plan,
+    extract_runtime_plan,
+    load_tt_plan,
+    validate_plan,
+)
+
+# New pass pipeline (from passes submodule)
+from .passes import (
+    InferTTLayout,
+    PropagateTTLayout,
+    TTTilesToCoreMap,
+    LowerTTTileIntrinsics,
+    GridToPersistentTT,
+    build_tt_pipeline,
+    run_pipeline,
+)
+
+# Legacy imports (kept for compatibility)
 from .target import apply_tt_defaults
 from .annotations import annotate_tt_layout, annotate_tt_schedule
 from .passes import (
@@ -31,6 +71,30 @@ from .codegen import (
 from . import intrin
 
 __all__ = [
+    # New exports
+    "CoreRange",
+    "WorkItem",
+    "plan_dict",
+    "TT_CORE_GRID",
+    "TT_CORE_RANGES",
+    "TT_WORK_PARTITION",
+    "TT_LAYOUT_DESC",
+    "with_core_grid",
+    "with_core_ranges",
+    "with_work_partition",
+    "with_layout_desc",
+    "emit_tt_plan",
+    "extract_runtime_plan",
+    "load_tt_plan",
+    "validate_plan",
+    "InferTTLayout",
+    "PropagateTTLayout",
+    "TTTilesToCoreMap",
+    "LowerTTTileIntrinsics",
+    "GridToPersistentTT",
+    "build_tt_pipeline",
+    "run_pipeline",
+    # Legacy exports
     "apply_tt_defaults",
     "annotate_tt_layout",
     "annotate_tt_schedule",

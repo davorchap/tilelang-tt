@@ -32,6 +32,9 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
+| **[NEW_LOWERING_ARCHITECTURE.md](NEW_LOWERING_ARCHITECTURE.md)** 🆕 | New metadata-driven Grid → Persistent lowering | All developers |
+| **[RUNTIME_PLAN.md](RUNTIME_PLAN.md)** 🆕 | Runtime plan specification (tt.plan.json) | Backend developers |
+| **[passes/NEW_PIPELINE.md](passes/NEW_PIPELINE.md)** 🆕 | New pass pipeline documentation | Transform developers |
 | **[TT_ARCHITECTURE.md](TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture | All developers |
 | **[IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md)** | GPU vs TT lowering pipeline comparison | Compiler engineers |
 | **[PASS_TABLE_SHARED.md](PASS_TABLE_SHARED.md)** | Shared lowering/optimization passes | Transform developers |
@@ -63,6 +66,7 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 - Grid-to-persistent transformation with shard-aware guardrails and per-core runtime metadata tables in host artifacts.
 - IR-driven reader/compute/writer visitors aligned with the new runtime contract.
 - Mock-mode CI parity via `maint/scripts/local_build_and_test_tt.sh`.
+- **NEW**: Refactored metadata-driven lowering pipeline with cleaner abstractions and centralized attribute definitions.
 
 ### 🚧 In Progress
 - Extending `lower_gemm_to_tt_intrinsics.cc` with loop matchers to retire heuristic detection in compute codegen.
