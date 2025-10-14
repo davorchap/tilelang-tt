@@ -4,7 +4,7 @@ Helper functions for migrating tests to the new metadata-driven architecture.
 This module provides utilities to help tests transition from the old C++ FFI-based
 implementation to the new Python implementation.
 """
-from tilelang import tvm
+
 
 
 def use_new_pipeline(mod, **kwargs):
@@ -21,8 +21,8 @@ def use_new_pipeline(mod, **kwargs):
     from tilelang.tenstorrent.passes import run_pipeline
 
     # Set defaults
-    kwargs.setdefault('plan_path', 'test.plan.json')
-    kwargs.setdefault('verbose', False)
+    kwargs.setdefault("plan_path", "test.plan.json")
+    kwargs.setdefault("verbose", False)
 
     return run_pipeline(mod, **kwargs)
 
@@ -42,15 +42,15 @@ def get_pass_by_name(pass_name):
     )
 
     pass_map = {
-        'InferDefaultTTSchedule': InferTTLayout,
-        'InferDefaultTTShard': PropagateTTLayout,
-        'TTTilesToCoreMap': TTTilesToCoreMap,
-        'LowerGemmToTTIntrinsics': LowerTTTileIntrinsics,
-        'GridToPersistentTT': GridToPersistentTT,
+        "InferDefaultTTSchedule": InferTTLayout,
+        "InferDefaultTTShard": PropagateTTLayout,
+        "TTTilesToCoreMap": TTTilesToCoreMap,
+        "LowerGemmToTTIntrinsics": LowerTTTileIntrinsics,
+        "GridToPersistentTT": GridToPersistentTT,
         # Add legacy names
-        'MemorySpaceLowerTT': lambda: GridToPersistentTT(),  # Integrated
-        'TilePadTT': lambda: TTTilesToCoreMap(),  # Integrated
-        'VerifyTTIR': lambda mod: mod,  # No-op, verification is integrated
+        "MemorySpaceLowerTT": lambda: GridToPersistentTT(),  # Integrated
+        "TilePadTT": lambda: TTTilesToCoreMap(),  # Integrated
+        "VerifyTTIR": lambda mod: mod,  # No-op, verification is integrated
     }
 
     pass_class = pass_map.get(pass_name)
@@ -79,11 +79,11 @@ def convert_legacy_attrs(func):
     Use this when asserting on function attributes.
     """
     attr_map = {
-        'tt.grid': 'tt.core_grid',
-        'tt.tiles_per_core': 'tt.work_partition',
-        'tt.block_shape': 'tt.work_partition',  # Derived
-        'tt.start_tile': 'tt.work_partition',   # Derived
-        'tt.runtime_args': 'tt.work_partition',  # Converted
+        "tt.grid": "tt.core_grid",
+        "tt.tiles_per_core": "tt.work_partition",
+        "tt.block_shape": "tt.work_partition",  # Derived
+        "tt.start_tile": "tt.work_partition",  # Derived
+        "tt.runtime_args": "tt.work_partition",  # Converted
     }
 
     return attr_map
@@ -99,8 +99,11 @@ def assert_has_new_attrs(func, required_attrs=None):
     """
     if required_attrs is None:
         from tilelang.tenstorrent.attrs import (
-            TT_CORE_GRID, TT_LAYOUT_DESC, TT_WORK_PARTITION
+            TT_CORE_GRID,
+            TT_LAYOUT_DESC,
+            TT_WORK_PARTITION,
         )
+
         required_attrs = [TT_CORE_GRID, TT_LAYOUT_DESC, TT_WORK_PARTITION]
 
     for attr in required_attrs:

@@ -11,7 +11,6 @@ from pathlib import Path
 
 try:
     import tvm
-    from tvm import tir
     from tvm.script import tir as T
 except ImportError:
     print("TVM not found. Please install TVM first.")

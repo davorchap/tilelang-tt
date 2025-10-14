@@ -12,7 +12,6 @@ from tilelang.tenstorrent.passes import (
     TTTilesToCoreMap,
     LowerTTTileIntrinsics,
     GridToPersistentTT,
-    run_pipeline,
 )
 
 
