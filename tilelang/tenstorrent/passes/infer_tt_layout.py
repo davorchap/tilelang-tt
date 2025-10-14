@@ -2,6 +2,7 @@
 InferTTLayout: stamps layout/shard metadata onto PrimFuncs.
 This pass ensures all buffers have layout descriptors, applying defaults where needed.
 """
+
 from __future__ import annotations
 from typing import Optional, Dict, Any
 import logging
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 class InferTTLayout:
     """
     Pass to infer and attach layout descriptors to PrimFuncs.
-    
+
     This pass ensures every buffer has a layout descriptor, applying
     sensible defaults based on buffer usage patterns.
     """
@@ -31,7 +32,7 @@ class InferTTLayout:
     def __init__(self, defaults: Optional[Dict[str, Any]] = None) -> None:
         """
         Initialize the pass with optional default layout settings.
-        
+
         Args:
             defaults: Default layout descriptors to apply when none exist.
                      Example: {"shard": "DRAM", "interleave": True}
@@ -49,18 +50,18 @@ class InferTTLayout:
 
             if isinstance(node, tir.BlockRealize):
                 # Extract from the Block's body
-                if hasattr(node.block, 'body'):
+                if hasattr(node.block, "body"):
                     extract_from_node(node.block.body)
 
             elif isinstance(node, tir.AttrStmt):
                 if node.attr_key == "thread_extent":
                     # Check if it's a blockIdx binding
-                    if hasattr(node.node, 'thread_tag'):
+                    if hasattr(node.node, "thread_tag"):
                         tag = node.node.thread_tag
                         extent = node.value
 
                         # Get the integer value
-                        if hasattr(extent, 'value'):
+                        if hasattr(extent, "value"):
                             extent_val = int(extent.value)
                         elif isinstance(extent, int):
                             extent_val = extent
@@ -77,14 +78,14 @@ class InferTTLayout:
                             grid_y = extent_val
 
                 # Continue with the body
-                if hasattr(node, 'body'):
+                if hasattr(node, "body"):
                     extract_from_node(node.body)
 
-            elif hasattr(node, 'body'):
+            elif hasattr(node, "body"):
                 # Generic case - recursively visit body
                 extract_from_node(node.body)
 
-        if hasattr(func, 'body'):
+        if hasattr(func, "body"):
             try:
                 extract_from_node(func.body)
             except Exception as e:
@@ -105,10 +106,43 @@ class InferTTLayout:
 
             # Extract and set grid dimensions if not already present
             if func.attrs is None or TT_CORE_GRID not in func.attrs:
-                grid_x, grid_y = self._extract_grid_dimensions(func)
-                if grid_x > 1 or grid_y > 1:
+                # First check if there are tl.grid_x/tl.grid_y attributes (from test setup)
+                grid_x, grid_y = 1, 1
+                if (
+                    func.attrs
+                    and "tl.grid_x" in func.attrs
+                    and "tl.grid_y" in func.attrs
+                ):
+                    # Extract from tl.grid_x/tl.grid_y attributes
+                    grid_x_attr = func.attrs["tl.grid_x"]
+                    grid_y_attr = func.attrs["tl.grid_y"]
+
+                    # Handle IntImm or int values
+                    grid_x = (
+                        int(grid_x_attr.value)
+                        if hasattr(grid_x_attr, "value")
+                        else int(grid_x_attr)
+                    )
+                    grid_y = (
+                        int(grid_y_attr.value)
+                        if hasattr(grid_y_attr, "value")
+                        else int(grid_y_attr)
+                    )
+                    logger.debug(
+                        f"Found grid dimensions from tl.grid_x/y attributes: ({grid_x}, {grid_y})"
+                    )
+                else:
+                    # Otherwise extract from IR structure (T.Kernel)
+                    grid_x, grid_y = self._extract_grid_dimensions(func)
+                    if grid_x > 1 or grid_y > 1:
+                        logger.debug(
+                            f"Extracted grid dimensions from IR: ({grid_x}, {grid_y})"
+                        )
+
+                # Set the core grid if we have valid dimensions
+                if grid_x >= 1 and grid_y >= 1:
                     func = with_core_grid(func, grid_x, grid_y)
-                    logger.debug(f"Extracted grid dimensions: ({grid_x}, {grid_y})")
+                    logger.debug(f"Set core grid dimensions: ({grid_x}, {grid_y})")
 
             # Get existing layout descriptors or initialize empty
             layouts = func.attrs.get(TT_LAYOUT_DESC, None) if func.attrs else None

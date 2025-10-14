@@ -546,12 +546,32 @@ std::string EmitTTHostProgram(const PrimFunc &func) {
 std::string EmitTTPlanJSON(const PrimFunc &func) {
   std::ostringstream json;
 
-  // Read metadata
-  auto grid_x = func->attrs.GetAttr<Integer>("tt_grid_x");
-  auto grid_y = func->attrs.GetAttr<Integer>("tt_grid_y");
-  auto grid_z = func->attrs.GetAttr<Integer>("tt_grid_z");
-  auto num_tiles = func->attrs.GetAttr<Integer>("tt_num_tiles");
-  auto num_cores = func->attrs.GetAttr<Integer>("tt_num_cores");
+  // Read metadata from both new and old formats for compatibility
+  int grid_x_val = 1, grid_y_val = 1, grid_z_val = 1;
+  int num_tiles_val = 1, num_cores_val = 64;
+
+  // Try new metadata format first (tt.core_grid)
+  auto core_grid = func->attrs.GetAttr<Array<Integer>>("tt.core_grid");
+  if (core_grid.defined() && core_grid.value().size() >= 2) {
+    grid_x_val = core_grid.value()[0]->value;
+    grid_y_val = core_grid.value()[1]->value;
+    num_tiles_val = grid_x_val * grid_y_val;
+    num_cores_val = num_tiles_val; // Assuming 1:1 mapping for simplicity
+  } else {
+    // Fall back to old format
+    auto grid_x = func->attrs.GetAttr<Integer>("tt_grid_x");
+    auto grid_y = func->attrs.GetAttr<Integer>("tt_grid_y");
+    auto grid_z = func->attrs.GetAttr<Integer>("tt_grid_z");
+    auto num_tiles = func->attrs.GetAttr<Integer>("tt_num_tiles");
+    auto num_cores = func->attrs.GetAttr<Integer>("tt_num_cores");
+
+    if (grid_x.defined()) grid_x_val = grid_x.value()->value;
+    if (grid_y.defined()) grid_y_val = grid_y.value()->value;
+    if (grid_z.defined()) grid_z_val = grid_z.value()->value;
+    if (num_tiles.defined()) num_tiles_val = num_tiles.value()->value;
+    if (num_cores.defined()) num_cores_val = num_cores.value()->value;
+  }
+
   auto tiles_per_core =
       func->attrs.GetAttr<Array<Array<Integer>>>("tt_tiles_per_core");
 
@@ -562,20 +582,15 @@ std::string EmitTTPlanJSON(const PrimFunc &func) {
 
   // Grid section
   json << "  \"grid\": {\n";
-  json << "    \"x\": " << (grid_x.defined() ? grid_x.value()->value : 1)
-       << ",\n";
-  json << "    \"y\": " << (grid_y.defined() ? grid_y.value()->value : 1)
-       << ",\n";
-  json << "    \"z\": " << (grid_z.defined() ? grid_z.value()->value : 1)
-       << ",\n";
-  json << "    \"total_tiles\": "
-       << (num_tiles.defined() ? num_tiles.value()->value : 1) << "\n";
+  json << "    \"x\": " << grid_x_val << ",\n";
+  json << "    \"y\": " << grid_y_val << ",\n";
+  json << "    \"z\": " << grid_z_val << ",\n";
+  json << "    \"total_tiles\": " << num_tiles_val << "\n";
   json << "  },\n";
 
   // Cores section
   json << "  \"cores\": {\n";
-  json << "    \"num_cores\": "
-       << (num_cores.defined() ? num_cores.value()->value : 64) << ",\n";
+  json << "    \"num_cores\": " << num_cores_val << ",\n";
   json << "    \"topology\": \"8x8_grid\",\n";
   json << "    \"assignments\": [\n";
 
