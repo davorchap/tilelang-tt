@@ -270,17 +270,17 @@ target_compile_definitions(tilelang_objs PRIVATE -DTILE_LANG_EXPORTS)
 add_library(tilelang SHARED $<TARGET_OBJECTS:tilelang_objs>)
 target_link_libraries(tilelang PUBLIC tvm_runtime)
 
-# Link Metalium libraries if available
+# Static library
+add_library(tilelang_static STATIC $<TARGET_OBJECTS:tilelang_objs>)
+add_dependencies(tilelang_static tvm_runtime)
+set_target_properties(tilelang_static PROPERTIES OUTPUT_NAME tilelang)
+
+# Link Metalium libraries if available (must be after both targets are defined)
 if(METALIUM_FOUND AND TARGET TT::Metalium)
   target_link_libraries(tilelang PRIVATE TT::Metalium)
   target_link_libraries(tilelang_static PRIVATE TT::Metalium)
   message(STATUS "Linked TileLang against TT::Metalium target")
 endif()
-
-# Static library
-add_library(tilelang_static STATIC $<TARGET_OBJECTS:tilelang_objs>)
-add_dependencies(tilelang_static tvm_runtime)
-set_target_properties(tilelang_static PROPERTIES OUTPUT_NAME tilelang)
 
 # Apply static linking flags only to static library to avoid Python extension conflicts
 if(TILE_LANG_STATIC_STDCPP AND CMAKE_CXX_COMPILER_ID MATCHES "GNU")
