@@ -103,6 +103,22 @@ TileLang provides various GEMM examples demonstrating different features and bac
 - **Run**: `python examples/tenstorrent/example_gemm_tt.py`
 - **Key concepts**: TT-specific optimizations, L1 circular buffers
 
+#### 8. **`example_gemm_tt_minimal.py`** - Minimal TT Changes
+- **Purpose**: Shows minimal changes needed to run on TT
+- **Features**: Same as original GEMM with just 2 line changes
+- **Run**: `python examples/tenstorrent/example_gemm_tt_minimal.py`
+- **Shows**: Artifacts directory location and generated files
+
+#### 9. **`run_gemm_with_tt_backend.py`** - TT Backend Demo
+- **Purpose**: Comprehensive demonstration of TT backend features
+- **Features**: Shows all artifacts, execution plan, and mappings
+- **Run**: `python examples/tenstorrent/run_gemm_with_tt_backend.py`
+
+#### Documentation: **`examples/tenstorrent/HOWTO_RUN_GEMM_WITH_TT.md`**
+- Step-by-step guide for running GEMM with TT backend
+- Shows exactly what changes are needed
+- Explains artifact generation and locations
+
 ### Running Examples with Different Backends
 
 #### For CUDA (Default):
