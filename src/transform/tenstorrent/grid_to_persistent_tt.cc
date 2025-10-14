@@ -39,6 +39,7 @@
 #include <string>
 #include <tuple>
 #include <tvm/runtime/logging.h>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -46,6 +47,32 @@ namespace tvm {
 namespace tl {
 
 using namespace tir;
+
+/*!
+ * \brief Visitor to detect if any variables from a given set are referenced
+ *
+ * Used to check if threadIdx variables are used in the kernel body.
+ */
+class VarUseDetector : public StmtExprVisitor {
+public:
+  explicit VarUseDetector(const std::unordered_set<const VarNode *> &vars_to_check)
+      : vars_to_check_(vars_to_check) {}
+
+  void VisitExpr_(const VarNode *op) final {
+    if (vars_to_check_.count(op) > 0) {
+      found_vars_.insert(op);
+    }
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  const std::unordered_set<const VarNode *> &GetFoundVars() const {
+    return found_vars_;
+  }
+
+private:
+  const std::unordered_set<const VarNode *> &vars_to_check_;
+  std::unordered_set<const VarNode *> found_vars_;
+};
 
 /*!
  * \brief Mutator to replace block indices with computed values
@@ -134,10 +161,13 @@ public:
         return VisitStmt(op->body);
       }
 
-      // Also remove threadIdx constructs (GPU threading model not used in TT
-      // backend)
+      // Track threadIdx constructs for error detection
+      // (GPU threading model not used in TT backend)
       if (thread_tag == "threadIdx.x" || thread_tag == "threadIdx.y" ||
           thread_tag == "threadIdx.z") {
+        // Track this variable to check if it's used
+        thread_idx_vars_.push_back({iv->var, thread_tag});
+
         // Remove the attr statement, just process body
         return VisitStmt(op->body);
       }
@@ -146,8 +176,43 @@ public:
   }
 
   Stmt Transform(Stmt body) {
-    // Visit the body to collect blockIdx variables
+    // Visit the body to collect blockIdx and threadIdx variables
     Stmt processed_body = VisitStmt(body);
+
+    // Check if any threadIdx variables are actually used in the kernel body
+    if (!thread_idx_vars_.empty()) {
+      std::unordered_set<const VarNode *> thread_idx_var_nodes;
+      for (const auto &[var, tag] : thread_idx_vars_) {
+        thread_idx_var_nodes.insert(var.get());
+      }
+
+      VarUseDetector detector(thread_idx_var_nodes);
+      detector(processed_body);
+
+      const auto &found_vars = detector.GetFoundVars();
+      if (!found_vars.empty()) {
+        // Build error message with the thread tags that were found
+        std::vector<std::string> used_tags;
+        for (const auto &[var, tag] : thread_idx_vars_) {
+          if (found_vars.count(var.get()) > 0) {
+            used_tags.push_back(tag + " (" + var->name_hint + ")");
+          }
+        }
+
+        std::string tags_str;
+        for (size_t i = 0; i < used_tags.size(); ++i) {
+          if (i > 0) tags_str += ", ";
+          tags_str += used_tags[i];
+        }
+
+        LOG(FATAL) << "GridToPersistentTT: Kernel uses threadIdx variables that are not "
+                   << "supported in Tenstorrent's persistent core execution model.\n"
+                   << "Found uses of: " << tags_str << "\n"
+                   << "Tenstorrent backend uses persistent cores that iterate over tiles, "
+                   << "not ephemeral GPU threads with intra-tile parallelism.\n"
+                   << "Please rewrite the kernel without threadIdx references.";
+      }
+    }
 
     // Create tile_id variable and loop variable
     Var tile_id("tt_tile_id", DataType::Int(32));
@@ -179,6 +244,7 @@ private:
   int grid_y_;
   int grid_z_;
   std::vector<std::pair<Var, std::string>> block_idx_vars_;
+  std::vector<std::pair<Var, std::string>> thread_idx_vars_;
 };
 
 /*!

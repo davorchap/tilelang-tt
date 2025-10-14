@@ -53,13 +53,14 @@ def test_tenstorrent_engine_lower_returns_compiled_artifact(toggle_tt_backend):
     toggle_tt_backend(True)
 
     # Use TileLang DSL to create a proper kernel
+    # Note: TT backend doesn't support threadIdx (T.Parallel), use blockIdx only
     import tilelang.language as T
 
     @T.prim_func
-    def simple_copy(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16")):
-        with T.Kernel(1, 1) as (bx, by):
-            for i, j in T.Parallel(32, 32):
-                B[i, j] = A[i, j]
+    def simple_copy(A: T.Buffer((128, 128), "float16")):
+        with T.Kernel(4, 4) as (bx, by):
+            # Simple tile-level access without intra-tile parallelism (no threadIdx)
+            T.evaluate(A[bx * 32, by * 32])
 
     # Create IRModule
     mod = tvm.IRModule({"main": simple_copy})
