@@ -17,29 +17,39 @@ from .tt_tiles_to_core_map import tt_tiles_to_core_map
 from .verify_tt_ir import verify_tt_ir
 
 
+def _log_pass_output(mod: tvm.IRModule, *, pass_name: str) -> tvm.IRModule:
+    """Print the TIR module produced by a Tenstorrent pass."""
+
+    header = f"--- [Tenstorrent] After {pass_name} ---"
+    print(header)
+    # Include metadata in the textual IR so downstream debugging has full context.
+    print(mod.script(show_meta=True))
+    return mod
+
+
 def apply_tt_metadata_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Run legacy Tenstorrent metadata inference passes."""
-    mod = infer_default_tt_schedule(mod)
-    mod = infer_default_tt_shard(mod)
+    mod = _log_pass_output(infer_default_tt_schedule(mod), pass_name="InferDefaultTTSchedule")
+    mod = _log_pass_output(infer_default_tt_shard(mod), pass_name="InferDefaultTTShard")
     return mod
 
 
 def apply_layout_aware_metadata_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Run the layout-aware metadata inference pipeline."""
-    mod = infer_tt_layout(mod)
-    mod = propagate_tt_layout(mod)
-    mod = layout_aware_work_partition_tt(mod)
+    mod = _log_pass_output(infer_tt_layout(mod), pass_name="InferTTLayout")
+    mod = _log_pass_output(propagate_tt_layout(mod), pass_name="PropagateTTLayout")
+    mod = _log_pass_output(layout_aware_work_partition_tt(mod), pass_name="LayoutAwareWorkPartitionTT")
     return mod
 
 
 def apply_tt_transform_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Run the Tenstorrent persistent transform pipeline."""
-    mod = grid_to_persistent_tt(mod)
-    mod = tt_tiles_to_core_map(mod)
-    mod = memory_space_lower_tt(mod)
-    mod = tile_pad_tt(mod)
-    mod = lower_gemm_to_tt_intrinsics(mod)
-    mod = verify_tt_ir(mod)
+    mod = _log_pass_output(grid_to_persistent_tt(mod), pass_name="GridToPersistentTT")
+    mod = _log_pass_output(tt_tiles_to_core_map(mod), pass_name="TTTilesToCoreMap")
+    mod = _log_pass_output(memory_space_lower_tt(mod), pass_name="MemorySpaceLowerTT")
+    mod = _log_pass_output(tile_pad_tt(mod), pass_name="TilePadTT")
+    mod = _log_pass_output(lower_gemm_to_tt_intrinsics(mod), pass_name="LowerGemmToTTIntrinsics")
+    mod = _log_pass_output(verify_tt_ir(mod), pass_name="VerifyTTIR")
     return mod
 
 
