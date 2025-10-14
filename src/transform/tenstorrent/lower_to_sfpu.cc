@@ -34,9 +34,9 @@
 #include <tvm/tir/transform.h>
 
 #include <string>
+#include <tvm/runtime/logging.h>
 #include <unordered_set>
 #include <vector>
-#include <tvm/runtime/logging.h>
 
 namespace tvm {
 namespace tl {
@@ -74,7 +74,8 @@ private:
  */
 class VarUseDetector : public StmtExprVisitor {
 public:
-  explicit VarUseDetector(const std::unordered_set<const VarNode *> &vars_to_check)
+  explicit VarUseDetector(
+      const std::unordered_set<const VarNode *> &vars_to_check)
       : vars_to_check_(vars_to_check) {}
 
   void VisitExpr_(const VarNode *op) final {
@@ -108,7 +109,7 @@ PrimFunc LowerToSFPUImpl(PrimFunc f) {
 
   const auto &thread_vars = detector.GetThreadIdxVars();
   if (thread_vars.empty()) {
-    return f;  // No threadIdx constructs, nothing to do
+    return f; // No threadIdx constructs, nothing to do
   }
 
   // Check if any threadIdx variables are actually used
@@ -132,16 +133,21 @@ PrimFunc LowerToSFPUImpl(PrimFunc f) {
 
     std::string tags_str;
     for (size_t i = 0; i < used_tags.size(); ++i) {
-      if (i > 0) tags_str += ", ";
+      if (i > 0)
+        tags_str += ", ";
       tags_str += used_tags[i];
     }
 
-    LOG(FATAL) << "LowerToSFPU: Found threadIdx constructs that require SFPU lowering.\n"
-               << "Detected: " << tags_str << "\n"
-               << "SFPU (SIMD Floating Point Unit) lowering is not yet implemented.\n"
-               << "T.Parallel() constructs will be supported in a future update to map "
-               << "intra-tile parallelism to Tenstorrent SFPU operations.\n"
-               << "For now, please use only tile-level parallelism (blockIdx via T.Kernel).";
+    LOG(FATAL)
+        << "LowerToSFPU: Found threadIdx constructs that require SFPU "
+           "lowering.\n"
+        << "Detected: " << tags_str << "\n"
+        << "SFPU (SIMD Floating Point Unit) lowering is not yet implemented.\n"
+        << "T.Parallel() constructs will be supported in a future update to "
+           "map "
+        << "intra-tile parallelism to Tenstorrent SFPU operations.\n"
+        << "For now, please use only tile-level parallelism (blockIdx via "
+           "T.Kernel).";
   }
 
   // threadIdx declared but not used - pass through for now
