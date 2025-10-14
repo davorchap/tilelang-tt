@@ -89,11 +89,17 @@ jobs:
           git clone --depth 1 --branch "$TT_METAL_GIT_TAG" \
             https://github.com/tenstorrent/tt-metal.git /tmp/tt-metal-headers
 
-          # Verify clone succeeded
+          # Verify clone succeeded and show what we got
+          echo "Contents of /tmp/tt-metal-headers:"
+          ls -la /tmp/tt-metal-headers/ | head -30
+
           if [ ! -d "/tmp/tt-metal-headers/tt_metal" ]; then
-            echo "❌ Failed to clone tt-metal repository"
+            echo "❌ Failed to clone tt-metal repository - tt_metal directory not found"
             exit 1
           fi
+          echo "✅ tt_metal directory exists, checking for host_api.hpp:"
+          ls -la /tmp/tt-metal-headers/tt_metal/ | grep -i host || echo "host_api.hpp not in root of tt_metal"
+          find /tmp/tt-metal-headers/tt_metal -name "host_api.hpp" -type f | head -5
 
           # Create a hybrid SDK directory structure
           echo ""
