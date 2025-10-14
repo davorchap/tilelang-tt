@@ -10,6 +10,7 @@ from .infer_default_tt_shard import infer_default_tt_shard
 from .infer_tt_layout import infer_tt_layout
 from .layout_aware_work_partition_tt import layout_aware_work_partition_tt
 from .lower_gemm_to_tt_intrinsics import lower_gemm_to_tt_intrinsics
+from .lower_to_sfpu import lower_to_sfpu
 from .memory_space_lower_tt import memory_space_lower_tt
 from .propagate_tt_layout import propagate_tt_layout
 from .tile_pad_tt import tile_pad_tt
@@ -46,6 +47,7 @@ def apply_layout_aware_metadata_passes(mod: tvm.IRModule) -> tvm.IRModule:
 def apply_tt_transform_passes(mod: tvm.IRModule) -> tvm.IRModule:
     """Run the Tenstorrent persistent transform pipeline."""
     mod = _log_pass_output(grid_to_persistent_tt(mod), pass_name="GridToPersistentTT")
+    mod = _log_pass_output(lower_to_sfpu(mod), pass_name="LowerToSFPU")
     mod = _log_pass_output(tt_tiles_to_core_map(mod), pass_name="TTTilesToCoreMap")
     mod = _log_pass_output(memory_space_lower_tt(mod), pass_name="MemorySpaceLowerTT")
     mod = _log_pass_output(tile_pad_tt(mod), pass_name="TilePadTT")
@@ -64,6 +66,7 @@ __all__ = [
     "infer_tt_layout",
     "layout_aware_work_partition_tt",
     "lower_gemm_to_tt_intrinsics",
+    "lower_to_sfpu",
     "memory_space_lower_tt",
     "propagate_tt_layout",
     "tile_pad_tt",

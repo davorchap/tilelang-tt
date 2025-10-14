@@ -49,6 +49,7 @@ def test_pipeline_prints_tir_for_each_pass(capsys) -> None:
 
     for expected in (
             "--- [Tenstorrent] After GridToPersistentTT ---",
+            "--- [Tenstorrent] After LowerToSFPU ---",
             "--- [Tenstorrent] After TTTilesToCoreMap ---",
             "--- [Tenstorrent] After MemorySpaceLowerTT ---",
             "--- [Tenstorrent] After TilePadTT ---",
@@ -60,9 +61,10 @@ def test_pipeline_prints_tir_for_each_pass(capsys) -> None:
     # The persistent lowering pipeline should surface persistent loop metadata in the dump.
     assert "tt_persistent_loop" in transform_output
 
-    # Verify GPU threading constructs (threadIdx, blockIdx) are removed after GridToPersistentTT
+    # Verify blockIdx constructs are removed after GridToPersistentTT (replaced with tile ID recovery)
     after_persistent = transform_output.split("--- [Tenstorrent] After GridToPersistentTT ---")[
-        1].split("--- [Tenstorrent] After TTTilesToCoreMap ---")[0]
-    assert "launch_thread" not in after_persistent, "GPU threading constructs should be removed by GridToPersistentTT"
-    assert "threadIdx" not in after_persistent, "threadIdx should be removed by GridToPersistentTT"
+        1].split("--- [Tenstorrent] After LowerToSFPU ---")[0]
     assert "blockIdx" not in after_persistent, "blockIdx should be removed by GridToPersistentTT"
+
+    # Note: If threadIdx were present, LowerToSFPU would error out (not yet implemented)
+    # For now, our test kernel doesn't use T.Parallel so no threadIdx should be created

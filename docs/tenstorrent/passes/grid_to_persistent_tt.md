@@ -126,11 +126,15 @@ for tt_tile_iter in range(tt_tile_count):
 
 This is **correct and expected behavior** - it's how TVM normalizes block structure after IR transformations. The root block becomes explicit to properly represent the nesting structure once the thread launch constructs are removed.
 
-**GPU Threading Construct Removal**:
+**GPU Threading Construct Handling**:
 
-As of the latest update, `GridToPersistentTT` removes **both** `blockIdx.*` and `threadIdx.*` constructs:
-- `blockIdx.x/y/z` are **replaced** with tile ID recovery expressions (e.g., `tt_tile_id % 4`)
-- `threadIdx.x/y/z` are **removed entirely** (TT uses persistent cores, not ephemeral threads)
+`GridToPersistentTT` handles tile-level parallelism only:
+- `blockIdx.x/y/z` are **removed and replaced** with tile ID recovery expressions (e.g., `tt_tile_id % 4`)
+- `threadIdx.x/y/z` are **left untouched** for the `LowerToSFPU` pass to handle
+
+The separation of concerns is:
+- **GridToPersistentTT**: blockIdx → persistent core loops (tile-level)
+- **LowerToSFPU**: threadIdx → SFPU operations (intra-tile SIMD)
 
 ---
 
