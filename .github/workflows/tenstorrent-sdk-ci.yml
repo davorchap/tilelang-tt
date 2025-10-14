@@ -265,7 +265,7 @@ jobs:
           echo "=== Running Tenstorrent Tests with Real Metalium ==="
           pytest testing/python/tenstorrent/ -v --tb=short
 
-      - name: Verify generated code uses real Metalium APIs
+      - name: Verify generated code uses real Metalium kernel APIs
         run: |
           export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
 
@@ -274,7 +274,7 @@ jobs:
           import tvm
           from tvm import tir
 
-          print("=== Verifying Real Metalium API Usage ===")
+          print("=== Verifying Real Metalium Kernel API Usage ===")
 
           # Create simple test module
           A = tir.decl_buffer((256, 256), "float16", name="A")
@@ -295,31 +295,45 @@ jobs:
           mod = tt.apply_tt_defaults(mod)
           artifacts = tt.emit_tt_artifacts(mod)
 
-          # Verify main.cpp uses real Metalium headers
-          main_cpp = artifacts.get("main.cpp", "")
+          # Verify kernel files use real Metalium API headers
+          # (Note: host program uses metadata summary format regardless of SDK mode)
+          compute_cpp = artifacts.get("compute.cpp", "")
+          reader_cpp = artifacts.get("reader.cpp", "")
+          writer_cpp = artifacts.get("writer.cpp", "")
 
-          # Check for real API includes
-          real_api_markers = [
-              "#include \"tt_metal/host_api.hpp\"",
-              "distributed::MeshDevice",
-              "distributed::MeshBuffer",
+          # Check for real kernel API includes in compute kernel
+          kernel_api_markers = [
+              "#include \"ckernel_include.h\"",
+              "#include \"compute_kernel_api",
+          ]
+
+          dataflow_markers = [
+              "#include \"dataflow_api.h\"",
           ]
 
           missing = []
-          for marker in real_api_markers:
-              if marker not in main_cpp:
-                  missing.append(marker)
+
+          # Check compute kernel for real APIs
+          for marker in kernel_api_markers:
+              if marker not in compute_cpp:
+                  missing.append(f"compute.cpp: {marker}")
+
+          # Check reader/writer kernels for dataflow APIs
+          for marker in dataflow_markers:
+              if marker not in reader_cpp:
+                  missing.append(f"reader.cpp: {marker}")
+              if marker not in writer_cpp:
+                  missing.append(f"writer.cpp: {marker}")
 
           if missing:
-              print(f"❌ Missing real Metalium API markers: {missing}")
-              print("\nGenerated code snippet:")
-              print(main_cpp[:500])
+              print(f"❌ Missing real Metalium kernel API markers: {missing}")
+              print("\nCompute kernel snippet:")
+              print(compute_cpp[:300])
               exit(1)
           else:
-              print("✅ Generated code uses real Metalium APIs")
-              print("  - Found tt_metal/host_api.hpp include")
-              print("  - Found distributed::MeshDevice usage")
-              print("  - Found distributed::MeshBuffer usage")
+              print("✅ Generated kernels use real Metalium APIs")
+              print("  - Compute kernel uses ckernel_include.h and compute_kernel_api headers")
+              print("  - Reader/Writer kernels use dataflow_api.h")
 
           print("\n=== Verification Complete ===")
           '
