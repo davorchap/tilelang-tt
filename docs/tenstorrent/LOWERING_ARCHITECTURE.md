@@ -147,5 +147,5 @@ mod = run_pipeline(mod, plan_path="my_plan.json")
 
 ## References
 
-- [Pass Pipeline Details](passes/pipeline.md)
-- [Runtime Plan Specification](RUNTIME_PLAN.md)
+- [TIR Basics](TIR_BASICS.md) - TensorIR primer and lowering concepts
+- [Runtime Plan Specification](RUNTIME_PLAN.md) - tt.plan.json specification

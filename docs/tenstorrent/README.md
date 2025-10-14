@@ -32,9 +32,10 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[LOWERING_ARCHITECTURE.md](LOWERING_ARCHITECTURE.md)** | Metadata-driven Grid → Persistent lowering | All developers |
-| **[RUNTIME_PLAN.md](RUNTIME_PLAN.md)** | Runtime plan specification (tt.plan.json) | Backend developers |
 | **[TT_ARCHITECTURE.md](TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture | All developers |
+| **[TIR_BASICS.md](TIR_BASICS.md)** | TensorIR primer and TT lowering concepts | All developers |
+| **[LOWERING_ARCHITECTURE.md](LOWERING_ARCHITECTURE.md)** | Metadata-driven Grid → Persistent lowering | Backend developers |
+| **[RUNTIME_PLAN.md](RUNTIME_PLAN.md)** | Runtime plan specification (tt.plan.json) | Backend developers |
 | **[IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md)** | GPU vs TT lowering pipeline comparison | Compiler engineers |
 | **[PASS_TABLE_SHARED.md](PASS_TABLE_SHARED.md)** | Shared lowering/optimization passes | Transform developers |
 | **[PASS_TABLE_GPU.md](PASS_TABLE_GPU.md)** | CUDA/ROCm-only pass reference | GPU backend developers |
