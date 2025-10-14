@@ -83,20 +83,56 @@ jobs:
           TT_METAL_GIT_TAG="v${TTNN_VERSION}"
           echo "Corresponding tt-metal tag: $TT_METAL_GIT_TAG"
 
+          # Verify the tag exists on GitHub
+          echo ""
+          echo "Verifying tag exists on GitHub..."
+          git ls-remote --tags https://github.com/tenstorrent/tt-metal.git | grep "$TT_METAL_GIT_TAG" || {
+            echo "❌ Tag $TT_METAL_GIT_TAG not found in tt-metal repository"
+            echo "Available tags matching ${TTNN_VERSION}:"
+            git ls-remote --tags https://github.com/tenstorrent/tt-metal.git | grep "${TTNN_VERSION}"
+            exit 1
+          }
+
           # Clone tt-metal repo for headers (no submodules, no build)
-          # Note: Not using --depth 1 to ensure working tree is properly checked out
           echo ""
           echo "Step 3: Cloning tt-metal repository for headers..."
-          git clone --branch "$TT_METAL_GIT_TAG" \
-            https://github.com/tenstorrent/tt-metal.git /tmp/tt-metal-headers
+          echo "Git version: $(git --version)"
+
+          if git clone --branch "$TT_METAL_GIT_TAG" \
+            https://github.com/tenstorrent/tt-metal.git /tmp/tt-metal-headers; then
+            echo "✅ Git clone command succeeded"
+          else
+            echo "❌ Git clone command failed with exit code $?"
+            exit 1
+          fi
 
           # Verify clone succeeded and show what we got
+          echo ""
+          echo "Verifying clone and working tree..."
+          cd /tmp/tt-metal-headers
+
+          # Check git status to see if working tree is clean
+          echo "Git status:"
+          git status --short || echo "git status failed"
+
+          # Show what files exist
+          echo ""
           echo "Contents of /tmp/tt-metal-headers:"
           ls -la /tmp/tt-metal-headers/ | head -30
 
           if [ ! -d "/tmp/tt-metal-headers/tt_metal" ]; then
-            echo "❌ Failed to clone tt-metal repository - tt_metal directory not found"
-            exit 1
+            echo ""
+            echo "❌ tt_metal directory not found - working tree may not be checked out"
+            echo "Attempting explicit checkout..."
+            git checkout "$TT_METAL_GIT_TAG" || git checkout HEAD
+
+            echo "After checkout, contents:"
+            ls -la /tmp/tt-metal-headers/ | head -30
+
+            if [ ! -d "/tmp/tt-metal-headers/tt_metal" ]; then
+              echo "❌ Still no tt_metal directory after explicit checkout"
+              exit 1
+            fi
           fi
           echo "✅ tt_metal directory exists, checking for host_api.hpp:"
           ls -la /tmp/tt-metal-headers/tt_metal/ | grep -i host || echo "host_api.hpp not in root of tt_metal"
