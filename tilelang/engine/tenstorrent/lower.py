@@ -15,17 +15,7 @@ from tilelang import tvm as tvm
 from tilelang.engine.param import CompiledArtifact, KernelParam
 from tilelang.engine.phase import LowerAndLegalize
 from tilelang.tenstorrent import apply_tt_defaults
-from tilelang.tenstorrent.passes import (
-    infer_default_tt_schedule,
-    infer_default_tt_shard,
-    apply_layout_aware_metadata_passes,
-    grid_to_persistent_tt,
-    tt_tiles_to_core_map,
-    memory_space_lower_tt,
-    tile_pad_tt,
-    lower_gemm_to_tt_intrinsics,
-    verify_tt_ir,
-)
+from tilelang.tenstorrent.passes import run_pipeline
 
 
 def LowerAndLegalizeTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
@@ -55,21 +45,16 @@ def LowerAndLegalizeTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
 
 
 def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
-    """TT-specific optimization phase.
+    """TT-specific optimization phase using the new metadata-driven pipeline.
 
-    This phase transforms TIR into TT-ready IR with:
-    - Schedule inference (compute per-core tile ranges)
-    - Sharding inference (DRAM layout descriptors)
-    - Persistent loop structure (grid → persistent cores)
-    - Core topology mapping (shard → core coordinates)
-    - Circular buffer allocations (memory space lowering)
-    - Tile padding (align buffers to 32×32 tiles)
-    - Tensorization (map to TT intrinsics like matmul_tiles)
-    - Common optimizations (buffer flattening, loop unrolling, etc.)
-    - IR validation (verify TT constraints)
+    This phase transforms TIR into TT-ready IR using the new 5-pass pipeline:
+    1. InferTTLayout - Infer buffer layouts and metadata
+    2. PropagateTTLayout - Propagate and normalize layout info
+    3. TTTilesToCoreMap - Compute core mapping and work partition
+    4. LowerTTTileIntrinsics - Lower tile ops to device intrinsics
+    5. GridToPersistentTT - Final lowering to persistent kernels
 
-    This integrates Metadata Inference stage and Persistent Transform stage transformation passes, plus common
-    backend-agnostic optimizations shared with CUDA.
+    The pipeline also emits a runtime plan (tt.plan.json) for host-device coordination.
 
     Args:
         mod: The TVM IRModule to optimize
@@ -78,36 +63,23 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     Returns:
         Optimized IRModule with TT-specific transforms
     """
-    # === Metadata Inference stage: Schedule and Sharding Inference ===
-    # Metadata Inference stage Phase 1: Schedule inference
-    # Compute per-core tile ranges from grid dimensions
-    mod = infer_default_tt_schedule(mod)
+    # Import the new pipeline
 
-    # Metadata Inference stage Phase 2: Sharding inference
-    # Generate DRAM layout descriptors (tiled, interleaved)
-    mod = infer_default_tt_shard(mod)
+    # Extract device type from target if possible
+    target_device = "grayskull"  # Default
+    if hasattr(target, "attrs") and "device" in target.attrs:
+        target_device = target.attrs["device"]
 
-    # Layout-aware metadata (buffer layouts, partitioning, runtime arg schema)
-    mod = apply_layout_aware_metadata_passes(mod)
-
-    # === Persistent Transform stage: TT-Specific TIR Transformations ===
-    # Persistent Transform stage: Grid to persistent transformation
-    # Transform GPU-style grid kernel to TT persistent loop model
-    mod = grid_to_persistent_tt(mod)
-
-    # Persistent Transform stage: Core topology and memory
-    # Map scheduled tiles to core coordinates (x, y) on NOC grid
-    mod = tt_tiles_to_core_map(mod)
-
-    # Lower memory spaces (DRAM → L1 circular buffers)
-    mod = memory_space_lower_tt(mod)
-
-    # Pad buffers to tile-aligned dimensions (multiple of 32)
-    mod = tile_pad_tt(mod)
-
-    # Persistent Transform stage Phase 3: Tensorization
-    # Map high-level ops (gemm, etc.) to TT intrinsics (matmul_tiles, etc.)
-    mod = lower_gemm_to_tt_intrinsics(mod)
+    # Run the new metadata-driven pipeline
+    mod = run_pipeline(
+        mod,
+        plan_path="tt.plan.json",
+        target_device=target_device,
+        partition_strategy="row_major",
+        enable_double_buffer=True,
+        enable_prefetch=True,
+        verbose=False,
+    )
 
     # === Common Optimizations (Shared with CUDA) ===
     # These are backend-agnostic passes that work on TIR
@@ -125,6 +97,7 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     # TT supports vectorization with 32-element tiles
     pass_ctx = tilelang.transform.get_pass_context()
     from tilelang.engine.phase import allow_vectorize
+
     mod = tilelang.transform.VectorizeLoop(enable_vectorize=allow_vectorize(pass_ctx=pass_ctx))(mod)
 
     # Rewrite storage allocations for better memory usage
@@ -153,8 +126,7 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     # Verify memory accesses are correct
     mod = tvm.tir.transform.VerifyMemory()(mod)
 
-    # TT-specific IR verification (grid size, CB counts, etc.)
-    mod = verify_tt_ir(mod)
+    # Note: TT-specific IR verification is now integrated into the pipeline passes
 
     return mod
 
@@ -282,10 +254,12 @@ def lower(
     # === Phase 5: Generate kernel source ===
     # Use emit_tt_artifacts to generate reader/compute/writer kernels
     import tilelang.tenstorrent as tt
+
     artifacts = tt.emit_tt_artifacts(device_mod)
 
     # Convert artifacts dict to JSON string for kernel_source field
     import json
+
     kernel_source = json.dumps(artifacts)
 
     # === Phase 6: Create CompiledArtifact ===

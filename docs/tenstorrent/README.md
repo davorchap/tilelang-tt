@@ -33,6 +33,9 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 | Document | Purpose | Audience |
 |----------|---------|----------|
 | **[TT_ARCHITECTURE.md](TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture | All developers |
+| **[TIR_BASICS.md](TIR_BASICS.md)** | TensorIR primer and TT lowering concepts | All developers |
+| **[LOWERING_ARCHITECTURE.md](LOWERING_ARCHITECTURE.md)** | Metadata-driven Grid → Persistent lowering | Backend developers |
+| **[RUNTIME_PLAN.md](RUNTIME_PLAN.md)** | Runtime plan specification (tt.plan.json) | Backend developers |
 | **[IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md)** | GPU vs TT lowering pipeline comparison | Compiler engineers |
 | **[PASS_TABLE_SHARED.md](PASS_TABLE_SHARED.md)** | Shared lowering/optimization passes | Transform developers |
 | **[PASS_TABLE_GPU.md](PASS_TABLE_GPU.md)** | CUDA/ROCm-only pass reference | GPU backend developers |
@@ -55,17 +58,20 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 ---
 
-## Current Status (2025-10-10)
+## Current Status (2025-10-14)
 
 ### ✅ Completed
 - Target registration and Python orchestration (`tilelang/tenstorrent`).
-- Layout-aware metadata pipeline (`InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT`) generating canonical runtime-argument schemas.
+- Pure Python metadata-driven pipeline with 5 well-structured passes.
+- Layout-aware metadata pipeline (`InferTTLayout`, `PropagateTTLayout`, `TTTilesToCoreMap`) generating canonical runtime-argument schemas.
 - Grid-to-persistent transformation with shard-aware guardrails and per-core runtime metadata tables in host artifacts.
 - IR-driven reader/compute/writer visitors aligned with the new runtime contract.
 - Mock-mode CI parity via `maint/scripts/local_build_and_test_tt.sh`.
+- Runtime plan generation (`tt.plan.json`) for host-device coordination.
+- Grid extraction from T.Kernel IR structure.
+- Proper JSON serialization for TVM container types.
 
 ### 🚧 In Progress
-- Extending `lower_gemm_to_tt_intrinsics.cc` with loop matchers to retire heuristic detection in compute codegen.
 - Additional diagnostics for halo hints, L1 capacity checks, and documentation refreshes.
 
 ### ⏸️ Blocked
@@ -80,20 +86,14 @@ TileLang DSL (Python)
     ↓
 TVM IRModule
     ↓
-Apply TT Defaults → Stamp legacy schedule/shard metadata (compatibility path)
+Apply TT Defaults
     ↓
-Layout-Aware Metadata
-    ├─ InferTTLayout (buffer + shard schema)
-    ├─ PropagateTTLayout (CB metadata)
-    └─ LayoutAwareWorkPartitionTT (core ranges, partition mode, runtime args)
-    ↓
-Transform Pipeline (TT-specific + shared passes)
-    ├─ grid_to_persistent_tt (GPU grid → persistent loop)
-    ├─ memory_space_lower_tt (DRAM → L1 circular buffers)
-    ├─ tile_pad_tt (pad to 32×32 tiles)
-    ├─ lower_gemm_to_tt_intrinsics (pattern detection; matcher upgrades in progress)
-    ├─ verify_tt_ir (constraint verification)
-    └─ infer_default_tt_schedule / infer_default_tt_shard (legacy fallbacks)
+Transform Pipeline (Python Implementation)
+    ├─ InferTTLayout (extract grid, infer layouts)
+    ├─ PropagateTTLayout (normalize and distribute)
+    ├─ TTTilesToCoreMap (work partition generation)
+    ├─ LowerTTTileIntrinsics (tile op lowering)
+    └─ GridToPersistentTT (final lowering + plan emission)
     ↓
 Code Generation (IR-Driven Visitors)
     ├─ Reader Kernel (NOC DRAM→L1)

@@ -71,7 +71,7 @@ TT-Metalium C++ Code
 }
 ```
 
-**Purpose:** Ensure backward compatibility - GPU-style kernels run on TT with sensible defaults.
+**Purpose:** Ensure GPU-style kernels run on TT with sensible defaults.
 
 ### Phase 2.5: Layout-Aware Metadata (Planned)
 
@@ -113,7 +113,7 @@ TT-Metalium C++ Code
 }
 ```
 
-This metadata becomes the authoritative source for later stages, allowing legacy heuristics to be removed.
+This metadata becomes the authoritative source for later stages.
 
 ### Phase 3: TT-Specific Optimization
 
@@ -156,7 +156,6 @@ This metadata becomes the authoritative source for later stages, allowing legacy
    - Input: Arbitrary buffer shapes
    - Output: Tile-aligned shapes (multiples of 32)
 
-Legacy passes `infer_default_tt_schedule` and `tt_tiles_to_core_map` remain available for backward compatibility but will be phased out once the layout-aware stack ships.
 
 **Common Optimization Passes (11, shared with CUDA):**
 - `FlattenBuffer` - Flatten multi-dim buffers to 1D
@@ -251,7 +250,7 @@ Legacy passes `infer_default_tt_schedule` and `tt_tiles_to_core_map` remain avai
 
 | Scenario | Goal | Expected Verification |
 |----------|------|-----------------------|
-| DRAM interleaved | Preserve legacy behavior | `tt.partition_mode="global"`, TA compile-args present, default CB geometry. |
+| DRAM interleaved | Default behavior | `tt.partition_mode="global"`, TA compile-args present, default CB geometry. |
 | DRAM sharded | Treat sharding as first-class | Host uses `ShardedBufferConfig`, runtime args remain global, tile IDs map via TensorAccessor. |
 | L1 sharded | Enforce opt-in residency | `tt.partition_mode="local_shard"`, `tt.core_ranges` == shard grid, runtime args include shard offsets. |
 | ND sharding projection | Validate axis → compute mapping | `[Gy,Gx]`, `[Sm,Sn]` derived correctly for mixed axes. |
@@ -715,7 +714,7 @@ tilelang-tt/
 │       └── codegen_tt_writer_visitor.cc       # Writer kernel
 └── testing/python/tenstorrent/
     ├── test_target_registration.py      # Target registration
-    ├── test_metadata_inference.py       # Legacy metadata inference (7 tests)
+    ├── test_metadata_inference.py       # Metadata inference tests
     ├── test_layout_aware_metadata.py    # Layout-aware metadata (9 tests)
     ├── test_persistent_lowering.py      # Persistent pipeline integration
     ├── test_tt_tiles_to_core_map.py     # NOC mapping

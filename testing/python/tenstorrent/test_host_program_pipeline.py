@@ -77,7 +77,7 @@ def _make_tt_module(partition_mode: str = "global") -> tvm.IRModule:
             "Sm": 2,
             "Sn": 2,
             "Gy": 2,
-            "Gx": 2
+            "Gx": 2,
         }
         core_runtime_args: List[List[int]] = [
             [0, 4, 4, 1, 4, 2, 2, 2, 2, 0, 0],
@@ -186,9 +186,9 @@ def test_host_program_reports_partition_and_tensor_accessors():
     host_cpp = tt.emit_tt_artifacts(mod)["main.cpp"]
 
     assert 'constexpr const char* kPartitionMode = "global";' in host_cpp
-    assert 'TensorAccessorArgs::Create("A", "DRAM", "interleaved", 32, 32, 1, 1)' in host_cpp
-    assert 'TensorAccessorArgs::Create("C", "DRAM", "interleaved", 32, 32, 1, 1)' in host_cpp
-    assert "TensorAccessorArgs must be created via TensorAccessorArgs::Create" in host_cpp
+    assert ('TensorAccessorArgs::Create("A", "DRAM", "interleaved", 32, 32, 1, 1)' in host_cpp)
+    assert ('TensorAccessorArgs::Create("C", "DRAM", "interleaved", 32, 32, 1, 1)' in host_cpp)
+    assert ("TensorAccessorArgs must be created via TensorAccessorArgs::Create" in host_cpp)
 
 
 def test_host_program_runtime_args_schema_global():
@@ -197,9 +197,10 @@ def test_host_program_runtime_args_schema_global():
     mod = _make_tt_module(partition_mode="global")
     host_cpp = tt.emit_tt_artifacts(mod)["main.cpp"]
 
-    assert 'kRuntimeArgNames = {{"tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt"}};' in host_cpp
+    assert ('kRuntimeArgNames = {{"tt_start_tile", "tt_tile_count", "Mt", "Kt", "Nt"}};'
+            in host_cpp)
     assert "{{0, 64, 8, 1, 8}}" in host_cpp
-    assert '{"Mt", 8}' in host_cpp and '{"Kt", 1}' in host_cpp and '{"Nt", 8}' in host_cpp
+    assert ('{"Mt", 8}' in host_cpp and '{"Kt", 1}' in host_cpp and '{"Nt", 8}' in host_cpp)
 
 
 def test_host_program_runtime_args_schema_local_shard():

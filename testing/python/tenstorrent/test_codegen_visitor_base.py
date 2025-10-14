@@ -180,11 +180,14 @@ def test_visitor_expression_handling():
     assert isinstance(index_expr, tir.Add)
 
 
-@pytest.mark.parametrize("dtype,expected_size", [
-    ("float16", 2),
-    ("float32", 4),
-    ("int32", 4),
-])
+@pytest.mark.parametrize(
+    "dtype,expected_size",
+    [
+        ("float16", 2),
+        ("float32", 4),
+        ("int32", 4),
+    ],
+)
 def test_visitor_dtype_handling(dtype, expected_size):
     """Test that visitor can handle different data types."""
     A = tir.decl_buffer((256,), dtype, name="A")

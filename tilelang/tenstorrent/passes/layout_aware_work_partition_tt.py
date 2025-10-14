@@ -46,7 +46,8 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
                 if pg and pt:
                     detected_grid = [int(pg[0]), int(pg[1])]
                     detected_tiles = [int(pt[0]), int(pt[1])]
-            if layout_kind == "sharded" and memory_kind == "L1" and detected_grid and detected_tiles:
+            if (layout_kind == "sharded" and memory_kind == "L1" and detected_grid and
+                    detected_tiles):
                 has_l1_shard = True
 
         schedule_raw = get_attr(attrs, "tt.user_schedule")

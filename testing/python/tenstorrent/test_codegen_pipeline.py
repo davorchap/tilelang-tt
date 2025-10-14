@@ -74,7 +74,7 @@ def test_emit_tt_artifacts_basic():
     compute_cpp = artifacts["compute.cpp"]
 
     # Check IR-driven marker
-    assert "// Generated TT Compute Kernel (IR-Driven)" in compute_cpp, "IR-driven marker missing"
+    assert ("// Generated TT Compute Kernel (IR-Driven)" in compute_cpp), "IR-driven marker missing"
 
     # Check structure
     assert "void MAIN()" in compute_cpp, "MAIN function missing"
@@ -119,6 +119,7 @@ def test_emit_tt_artifacts_grid_metadata():
     # Check plan JSON grid section
     plan_json = artifacts["tt.plan.json"]
     import json
+
     plan_data = json.loads(plan_json)
 
     assert plan_data["grid"]["x"] == 8, "Grid X dimension incorrect"
@@ -141,6 +142,7 @@ def test_emit_tt_artifacts_scheduling_metadata():
     plan_json = artifacts["tt.plan.json"]
 
     import json
+
     plan_data = json.loads(plan_json)
 
     # Verify schedule section
@@ -161,7 +163,7 @@ def test_emit_tt_artifacts_scheduling_metadata():
 
     # Verify contiguous assignment: first core gets tile 0
     assert first_assignment["start_tile"] == 0, "First core should start at tile 0"
-    assert first_assignment["count"] == 1, "Each core should get 1 tile for 64-tile grid"
+    assert (first_assignment["count"] == 1), "Each core should get 1 tile for 64-tile grid"
 
     print("✓ Test 3 passed: Scheduling metadata verification")
 
@@ -188,6 +190,7 @@ def test_emit_tt_artifacts_various_grid_sizes():
 
         # Parse plan.json
         import json
+
         plan_data = json.loads(artifacts["tt.plan.json"])
 
         # Verify grid dimensions match
@@ -216,6 +219,7 @@ def test_write_artifacts_to_disk(tmp_path):
 
     # Verify files exist
     import os
+
     compute_path = os.path.join(output_dir, "compute.cpp")
     plan_path = os.path.join(output_dir, "tt.plan.json")
 

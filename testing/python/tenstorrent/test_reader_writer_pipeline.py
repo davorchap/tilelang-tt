@@ -72,15 +72,16 @@ def test_emit_reader_kernel_basic():
 
     # Verify reader kernel contains expected elements (IR-driven codegen)
     reader_cpp = artifacts["reader.cpp"]
-    assert "// Generated TT Reader Kernel (IR-Driven)" in reader_cpp, "IR-driven reader kernel header missing"
+    assert ("// Generated TT Reader Kernel (IR-Driven)"
+            in reader_cpp), "IR-driven reader kernel header missing"
     assert "void kernel_main()" in reader_cpp, "kernel_main function missing"
 
     # Verify CB API calls
-    assert "cb_reserve_back(cb_in0, 1)" in reader_cpp, "cb_reserve_back missing for cb_in0"
+    assert ("cb_reserve_back(cb_in0, 1)" in reader_cpp), "cb_reserve_back missing for cb_in0"
     assert "cb_push_back(cb_in0, 1)" in reader_cpp, "cb_push_back missing for cb_in0"
     assert "get_write_ptr(cb_in0)" in reader_cpp, "get_write_ptr missing for cb_in0"
 
-    assert "cb_reserve_back(cb_in1, 1)" in reader_cpp, "cb_reserve_back missing for cb_in1"
+    assert ("cb_reserve_back(cb_in1, 1)" in reader_cpp), "cb_reserve_back missing for cb_in1"
     assert "cb_push_back(cb_in1, 1)" in reader_cpp, "cb_push_back missing for cb_in1"
     assert "get_write_ptr(cb_in1)" in reader_cpp, "get_write_ptr missing for cb_in1"
 
@@ -89,8 +90,10 @@ def test_emit_reader_kernel_basic():
     assert "noc_async_read_barrier()" in reader_cpp, "noc_async_read_barrier missing"
 
     # Verify CB indices
-    assert "constexpr auto cb_in0 = tt::CBIndex::c_0" in reader_cpp, "cb_in0 index definition missing"
-    assert "constexpr auto cb_in1 = tt::CBIndex::c_1" in reader_cpp, "cb_in1 index definition missing"
+    assert ("constexpr auto cb_in0 = tt::CBIndex::c_0"
+            in reader_cpp), "cb_in0 index definition missing"
+    assert ("constexpr auto cb_in1 = tt::CBIndex::c_1"
+            in reader_cpp), "cb_in1 index definition missing"
 
     print("✓ Test 1 passed: Basic reader kernel generation")
 
@@ -112,11 +115,12 @@ def test_emit_writer_kernel_basic():
 
     # Verify writer kernel contains expected elements (IR-driven codegen)
     writer_cpp = artifacts["writer.cpp"]
-    assert "// Generated TT Writer Kernel (IR-Driven)" in writer_cpp, "IR-driven writer kernel header missing"
+    assert ("// Generated TT Writer Kernel (IR-Driven)"
+            in writer_cpp), "IR-driven writer kernel header missing"
     assert "void kernel_main()" in writer_cpp, "kernel_main function missing"
 
     # Verify CB API calls
-    assert "cb_wait_front(cb_out0, 1)" in writer_cpp, "cb_wait_front missing for cb_out0"
+    assert ("cb_wait_front(cb_out0, 1)" in writer_cpp), "cb_wait_front missing for cb_out0"
     assert "cb_pop_front(cb_out0, 1)" in writer_cpp, "cb_pop_front missing for cb_out0"
     assert "get_read_ptr(cb_out0)" in writer_cpp, "get_read_ptr missing for cb_out0"
 
@@ -125,7 +129,8 @@ def test_emit_writer_kernel_basic():
     assert "noc_async_write_barrier()" in writer_cpp, "noc_async_write_barrier missing"
 
     # Verify CB index
-    assert "constexpr auto cb_out0 = tt::CBIndex::c_16" in writer_cpp, "cb_out0 index definition missing"
+    assert ("constexpr auto cb_out0 = tt::CBIndex::c_16"
+            in writer_cpp), "cb_out0 index definition missing"
 
     print("✓ Test 2 passed: Basic writer kernel generation")
 
@@ -160,7 +165,7 @@ def test_3_kernel_coordination():
     assert "cb_in1 = tt::CBIndex::c_1" in compute_cpp, "cb_in1 not defined in compute"
 
     # cb_out0 should appear in compute and writer
-    assert "cb_out0 = tt::CBIndex::c_16" in compute_cpp, "cb_out0 not defined in compute"
+    assert ("cb_out0 = tt::CBIndex::c_16" in compute_cpp), "cb_out0 not defined in compute"
     assert "cb_out0 = tt::CBIndex::c_16" in writer_cpp, "cb_out0 not defined in writer"
 
     # Verify synchronization pattern in compute kernel (IR-driven)
@@ -193,16 +198,16 @@ def test_reader_writer_tile_counts():
         # reader/writer specialization stage: Reader/writer kernels now have matmul-specific structure
         # Verify they contain runtime args and loop structures
         reader_cpp = artifacts["reader.cpp"]
-        assert "num_out_tiles" in reader_cpp, \
-            f"Reader kernel missing num_out_tiles for {grid_x}x{grid_y} grid"
-        assert "for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile)" in reader_cpp, \
-            f"Reader kernel missing output tile loop for {grid_x}x{grid_y} grid"
+        assert ("num_out_tiles"
+                in reader_cpp), f"Reader kernel missing num_out_tiles for {grid_x}x{grid_y} grid"
+        assert ("for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile)"
+                in reader_cpp), f"Reader kernel missing output tile loop for {grid_x}x{grid_y} grid"
 
         writer_cpp = artifacts["writer.cpp"]
-        assert "num_out_tiles" in writer_cpp, \
-            f"Writer kernel missing num_out_tiles for {grid_x}x{grid_y} grid"
-        assert "for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile)" in writer_cpp, \
-            f"Writer kernel missing output tile loop for {grid_x}x{grid_y} grid"
+        assert ("num_out_tiles"
+                in writer_cpp), f"Writer kernel missing num_out_tiles for {grid_x}x{grid_y} grid"
+        assert ("for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile)"
+                in writer_cpp), f"Writer kernel missing output tile loop for {grid_x}x{grid_y} grid"
 
         print(f"✓ Test 4 passed for grid {grid_x}x{grid_y} ({expected_tiles} tiles)")
 
@@ -226,10 +231,10 @@ def test_cb_synchronization_pattern():
 
     # Reader pattern: reserve → write → push (reader/writer specialization stage: unified kernel_main)
     # Check order by finding positions
-    reader_lines = reader_cpp.split('\n')
+    reader_lines = reader_cpp.split("\n")
     reader_kernel_start = next(
         i for i, line in enumerate(reader_lines) if "void kernel_main()" in line)
-    reader_kernel_section = '\n'.join(reader_lines[reader_kernel_start:reader_kernel_start + 30])
+    reader_kernel_section = "\n".join(reader_lines[reader_kernel_start:reader_kernel_start + 30])
 
     assert "cb_reserve_back" in reader_kernel_section, "Reader missing reserve"
     assert "noc_async_read" in reader_kernel_section, "Reader missing async read"
@@ -243,21 +248,22 @@ def test_cb_synchronization_pattern():
     # Compute pattern: wait (inputs) → matmul → pop (inputs) → push (output)
     # Note: IR-driven codegen generates from actual IR body. Empty body = no CB operations.
     # This test is for template-based codegen. For IR-driven, CB operations come from IR.
-    compute_lines = compute_cpp.split('\n')
+    compute_lines = compute_cpp.split("\n")
     main_start = next(i for i, line in enumerate(compute_lines) if "void MAIN()" in line)
-    '\n'.join(compute_lines[main_start:main_start + 40])
+    "\n".join(compute_lines[main_start:main_start + 40])
 
     # IR-driven: Check for operations if present (empty body won't have them)
     if "for (uint32_t" in compute_cpp:
         # Has loop body, check for CB operations
-        assert "cb_wait_front" in compute_cpp or "matmul_tiles" in compute_cpp, "Compute missing operations"
+        assert ("cb_wait_front" in compute_cpp or
+                "matmul_tiles" in compute_cpp), "Compute missing operations"
     # else: Empty body is valid for IR-driven (just has runtime args)
 
     # Writer pattern: wait → read → pop (reader/writer specialization stage: kernel_main)
-    writer_lines = writer_cpp.split('\n')
+    writer_lines = writer_cpp.split("\n")
     writer_kernel_start = next(
         i for i, line in enumerate(writer_lines) if "void kernel_main()" in line)
-    writer_kernel_section = '\n'.join(writer_lines[writer_kernel_start:writer_kernel_start + 20])
+    writer_kernel_section = "\n".join(writer_lines[writer_kernel_start:writer_kernel_start + 20])
 
     assert "cb_wait_front" in writer_kernel_section, "Writer missing wait"
     assert "noc_async_write" in writer_kernel_section, "Writer missing async write"

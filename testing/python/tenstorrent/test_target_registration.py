@@ -60,8 +60,10 @@ def test_tenstorrent_engine_lower_returns_compiled_artifact(toggle_tt_backend):
     def simple_kernel(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16")):
         with T.Kernel(4, 4) as (bx, by):
             # Simple tile-level intrinsic: copy one tile from A to B
-            T.copy(A[bx * 32:(bx + 1) * 32, by * 32:(by + 1) * 32], B[bx * 32:(bx + 1) * 32,
-                                                                      by * 32:(by + 1) * 32])
+            T.copy(
+                A[bx * 32:(bx + 1) * 32, by * 32:(by + 1) * 32],
+                B[bx * 32:(bx + 1) * 32, by * 32:(by + 1) * 32],
+            )
 
     # Create IRModule
     mod = tvm.IRModule({"main": simple_kernel})
@@ -79,10 +81,10 @@ def test_tenstorrent_engine_lower_returns_compiled_artifact(toggle_tt_backend):
 
     # Verify result is a CompiledArtifact with expected attributes
     assert isinstance(result, CompiledArtifact)
-    assert hasattr(result, 'host_mod')
-    assert hasattr(result, 'device_mod')
-    assert hasattr(result, 'params')
-    assert hasattr(result, 'kernel_source')
+    assert hasattr(result, "host_mod")
+    assert hasattr(result, "device_mod")
+    assert hasattr(result, "params")
+    assert hasattr(result, "kernel_source")
     assert isinstance(result.host_mod, tvm.IRModule)
     assert isinstance(result.device_mod, tvm.IRModule)
 
