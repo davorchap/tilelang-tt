@@ -89,17 +89,38 @@ jobs:
           git clone --depth 1 --branch "$TT_METAL_GIT_TAG" \
             https://github.com/tenstorrent/tt-metal.git /tmp/tt-metal-headers
 
+          # Verify clone succeeded
+          if [ ! -d "/tmp/tt-metal-headers/tt_metal" ]; then
+            echo "❌ Failed to clone tt-metal repository"
+            exit 1
+          fi
+
           # Create a hybrid SDK directory structure
           echo ""
           echo "Step 4: Setting up hybrid SDK structure..."
           mkdir -p ~/tt-metal-sdk
 
           # Copy headers from cloned repo
+          echo "Copying headers from /tmp/tt-metal-headers/tt_metal to ~/tt-metal-sdk/"
           cp -r /tmp/tt-metal-headers/tt_metal ~/tt-metal-sdk/
 
+          # Verify headers were copied
+          if [ ! -f ~/tt-metal-sdk/tt_metal/host_api.hpp ]; then
+            echo "❌ Failed to copy headers"
+            ls -la /tmp/tt-metal-headers/ | head -20
+            ls -la ~/tt-metal-sdk/ | head -20
+            exit 1
+          fi
+          echo "✅ Headers copied successfully"
+
           # Symlink libraries from pip-installed ttnn
+          echo "Symlinking libraries from $TTNN_LOCATION/build/lib/"
           mkdir -p ~/tt-metal-sdk/build/lib
           ln -sf "$TTNN_LOCATION"/build/lib/*.so ~/tt-metal-sdk/build/lib/
+
+          # Verify symlinks
+          echo "Library symlinks created:"
+          ls -lh ~/tt-metal-sdk/build/lib/ | head -10
 
           # Set TT_METAL_HOME to our hybrid directory
           echo "TT_METAL_HOME=$HOME/tt-metal-sdk" >> $GITHUB_ENV
