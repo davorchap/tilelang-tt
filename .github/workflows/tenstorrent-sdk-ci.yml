@@ -254,6 +254,7 @@ jobs:
           cd ../../..
 
           # Install TileLang
+          export USE_LLVM=true
           pip install -e . --no-build-isolation
 
       - name: Run tests with real Metalium APIs
