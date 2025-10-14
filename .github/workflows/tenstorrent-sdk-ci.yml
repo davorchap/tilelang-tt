@@ -292,7 +292,7 @@ jobs:
           mod = tvm.IRModule({"main": func})
 
           # Apply TT defaults and generate code
-          mod = tt.apply_default_schedule(mod)
+          mod = tt.apply_tt_defaults(mod)
           artifacts = tt.emit_tt_artifacts(mod)
 
           # Verify main.cpp uses real Metalium headers
