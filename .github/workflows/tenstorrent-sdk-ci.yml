@@ -83,10 +83,11 @@ jobs:
           TT_METAL_GIT_TAG="v${TTNN_VERSION}"
           echo "Corresponding tt-metal tag: $TT_METAL_GIT_TAG"
 
-          # Clone tt-metal repo for headers (lightweight - no submodules, no build)
+          # Clone tt-metal repo for headers (no submodules, no build)
+          # Note: Not using --depth 1 to ensure working tree is properly checked out
           echo ""
           echo "Step 3: Cloning tt-metal repository for headers..."
-          git clone --depth 1 --branch "$TT_METAL_GIT_TAG" \
+          git clone --branch "$TT_METAL_GIT_TAG" \
             https://github.com/tenstorrent/tt-metal.git /tmp/tt-metal-headers
 
           # Verify clone succeeded and show what we got
