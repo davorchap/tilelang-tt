@@ -203,7 +203,18 @@ def test_tt_tiles_to_core_map_consistency_with_metadata():
 
 def test_tt_tiles_to_core_map_integration_with_metadata():
     """Test TTTilesToCoreMap integrates with metadata inference passes."""
-    from tilelang.tenstorrent.passes import apply_tt_metadata_passes, tt_tiles_to_core_map
+    from tilelang.tenstorrent.passes import (
+        InferTTLayout,
+        PropagateTTLayout,
+        TTTilesToCoreMap,
+    )
+
+    def apply_tt_metadata_passes(mod):
+        """Helper to apply metadata passes in the new pipeline."""
+        mod = InferTTLayout()(mod)
+        mod = PropagateTTLayout()(mod)
+        mod = TTTilesToCoreMap()(mod)
+        return mod
     from tilelang.tenstorrent.target import apply_tt_defaults
 
     # Create a simple function
@@ -231,11 +242,11 @@ def test_tt_tiles_to_core_map_integration_with_metadata():
 
     func = mod["main"]
 
-    # Verify all metadata exists
+    # Verify all metadata exists (new pipeline format)
     assert "tt_schedule_policy" in func.attrs, "Should have TT defaults"
-    assert "tt_tiles_per_core" in func.attrs, "Should have metadata inference schedule metadata"
-    assert "tt_core_ranges" in func.attrs, "Should have TTTilesToCoreMap output"
-    assert "tt_core_runtime_args" in func.attrs, "Should have runtime args"
+    # The new pipeline uses different metadata attributes
+    assert "tt.core_grid" in func.attrs, "Should have core grid"
+    assert "tt.work_partition" in func.attrs, "Should have work partition"
 
 
 if __name__ == "__main__":
