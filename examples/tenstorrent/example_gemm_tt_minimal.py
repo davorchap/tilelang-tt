@@ -45,31 +45,40 @@ def main():
 
     print("✓ Kernel created with TT backend")
 
-    # Get the cache directory where artifacts are stored
+    # Get information about where artifacts are stored
     import os
-    import hashlib
     import json
 
-    # The kernel cache directory
+    print("\n📍 Artifact Locations:")
+
+    # 1. The artifacts are returned as JSON from get_kernel_source()
+    print("  1. In-memory: Available via kernel.get_kernel_source()")
+
+    # 2. Runtime plan is written to current directory
+    if os.path.exists("tt.plan.json"):
+        abs_path = os.path.abspath("tt.plan.json")
+        print(f"  2. Runtime plan: {abs_path}")
+
+    # 3. Cache directory (if kernel caching is enabled)
     cache_dir = os.path.expanduser("~/.tilelang/cache")
-
-    # Get kernel hash (this is how TileLang identifies kernels)
-    # Note: In a real implementation, we'd get this from the kernel object
-    # For now, we'll just show the most recent cache entry
     if os.path.exists(cache_dir):
-        cache_entries = [d for d in os.listdir(cache_dir) if os.path.isdir(os.path.join(cache_dir, d))]
-        if cache_entries:
-            # Sort by modification time to get the most recent
-            cache_entries.sort(key=lambda x: os.path.getmtime(os.path.join(cache_dir, x)), reverse=True)
-            latest_cache = cache_entries[0]
-            artifact_dir = os.path.join(cache_dir, latest_cache)
-            print(f"\n📁 Artifacts directory: {artifact_dir}")
+        # Find directories with kernel artifacts
+        kernel_dirs = []
+        for entry in os.listdir(cache_dir):
+            entry_path = os.path.join(cache_dir, entry)
+            if os.path.isdir(entry_path):
+                # Check if it contains kernel files
+                files = os.listdir(entry_path)
+                if any(f.endswith(('.cu', '.cpp', '.pkl', '.json')) for f in files):
+                    kernel_dirs.append(entry_path)
 
-            # List actual files in the cache
-            if os.path.exists(artifact_dir):
-                files = os.listdir(artifact_dir)
-                if files:
-                    print(f"   Files: {', '.join(files)}")
+        if kernel_dirs:
+            # Show the most recent one
+            kernel_dirs.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+            latest = kernel_dirs[0]
+            files = os.listdir(latest)
+            print(f"  3. Cache dir: {latest}")
+            print(f"     Files: {', '.join(sorted(files))}")
 
     # Get the generated artifacts from the kernel
     source = kernel.get_kernel_source()
@@ -94,6 +103,17 @@ def main():
         print(f"  - Generated in artifacts")
 
     print("\n✓ Artifacts ready for TT-Metalium SDK compilation!")
+
+    # Optional: Save artifacts to a directory for inspection
+    save_artifacts = False  # Set to True if you want to save artifacts
+    if save_artifacts:
+        output_dir = "tt_gemm_artifacts"
+        os.makedirs(output_dir, exist_ok=True)
+        for name, content in artifacts.items():
+            filepath = os.path.join(output_dir, name)
+            with open(filepath, "w") as f:
+                f.write(content)
+        print(f"\n💾 Artifacts saved to: {os.path.abspath(output_dir)}/")
 
     # Note: Actual execution would look like this (requires TT hardware):
     # import torch

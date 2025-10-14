@@ -76,6 +76,10 @@ class TTKernelAdapter(BaseKernelAdapter):
         self.buffer_dtype_map = self._process_buffer_dtype()
         self.buffer_device_map = self._process_buffer_device()
 
+        # Add libpath attribute to prevent cache error
+        # For TT, we don't have a compiled library, but we need this for compatibility
+        self.libpath = None  # TT artifacts are not compiled into a .so file
+
         self._post_init()
 
     def _process_buffer_dtype(self) -> Dict[str, torch.dtype]:
