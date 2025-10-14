@@ -140,22 +140,20 @@ def validate_module_for_tt(mod: IRModule) -> List[str]:
         errors.append("Module contains no functions")
         return errors
 
-    for gvar, func in mod.functions_items():
+    for _gvar, func in mod.functions_items():
         if isinstance(func, tir.PrimFunc):
             # Check for required buffer properties
             for param in func.params:
                 buffer = func.buffer_map.get(param, None)
-                if buffer:
-                    # Check buffer properties
-                    if buffer.dtype not in [
-                        "float16",
-                        "float32",
-                        "int8",
-                        "uint8",
-                        "int32",
-                    ]:
-                        errors.append(
-                            f"Buffer {buffer.name} has unsupported dtype {buffer.dtype}"
-                        )
+                if buffer and buffer.dtype not in [
+                    "float16",
+                    "float32",
+                    "int8",
+                    "uint8",
+                    "int32",
+                ]:
+                    errors.append(
+                        f"Buffer {buffer.name} has unsupported dtype {buffer.dtype}"
+                    )
 
     return errors

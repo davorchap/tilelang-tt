@@ -150,8 +150,8 @@ class TestLayoutInference:
         assert TT_CORE_GRID in func.attrs
         assert TT_WORK_PARTITION in func.attrs
 
-        # Verify core grid (should be 16x16 logically, mapped to physical cores)
-        core_grid = func.attrs[TT_CORE_GRID]
+        # Verify core grid exists (should be 16x16 logically, mapped to physical cores)
+        assert TT_CORE_GRID in func.attrs, "Core grid should be set"
 
         # Verify work partition - all 64 cores should have work
         work_partition = func.attrs[TT_WORK_PARTITION]

@@ -70,7 +70,7 @@ class GridToPersistentTT:
                 # This is our main compute function
                 if not plan_emitted:
                     # Emit the runtime plan (only once)
-                    plan = emit_tt_plan(func, out_path=self.plan_path)
+                    emit_tt_plan(func, out_path=self.plan_path)
                     logger.info(f"Emitted TT runtime plan to {self.plan_path}")
                     plan_emitted = True
 

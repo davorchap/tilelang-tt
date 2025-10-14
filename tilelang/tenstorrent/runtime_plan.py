@@ -42,9 +42,6 @@ def _as_py(obj):
     # Handle TVM container types - check by class name
     if tvm and hasattr(obj, "__class__"):
         class_name = obj.__class__.__name__
-        module_name = (
-            obj.__class__.__module__ if hasattr(obj.__class__, "__module__") else ""
-        )
 
         # Map type - has items() method
         if "Map" in class_name and hasattr(obj, "items"):

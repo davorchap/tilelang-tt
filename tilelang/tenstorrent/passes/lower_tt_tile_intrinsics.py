@@ -87,10 +87,11 @@ class LowerTTTileIntrinsics:
 
             # Count matmul operations with manual traversal
             def count_matmuls(stmt):
-                nonlocal num_matmuls, has_tensorize, matmul_patterns
+                nonlocal num_matmuls, has_tensorize
+                patterns = []
 
                 def visit(node):
-                    nonlocal num_matmuls, has_tensorize, matmul_patterns
+                    nonlocal num_matmuls, has_tensorize
 
                     if isinstance(node, tir.SeqStmt):
                         for s in node.seq:
@@ -112,16 +113,16 @@ class LowerTTTileIntrinsics:
                                 "cb_in1": 1,
                                 "cb_out": 16,
                             }
-                            matmul_patterns.append(pattern)
+                            patterns.append(pattern)
                             # Don't visit children - we already counted this gemm
                         else:
                             visit(node.body)
                     elif isinstance(node, tir.Evaluate):
-                        if isinstance(node.value, tir.Call):
-                            if (
-                                hasattr(node.value.op, "name")
-                                and "tl_gemm" in node.value.op.name
-                            ):
+                        if (
+                            isinstance(node.value, tir.Call)
+                            and hasattr(node.value.op, "name")
+                            and "tl_gemm" in node.value.op.name
+                        ):
                                 # Direct tl.tl_gemm call without pragma wrapper
                                 num_matmuls += 1
                                 has_tensorize = True
@@ -133,7 +134,7 @@ class LowerTTTileIntrinsics:
                                     "cb_in1": 1,
                                     "cb_out": 16,
                                 }
-                                matmul_patterns.append(pattern)
+                                patterns.append(pattern)
                     elif isinstance(node, tir.For):
                         visit(node.body)
                     elif isinstance(node, tir.IfThenElse):
@@ -148,8 +149,9 @@ class LowerTTTileIntrinsics:
                         visit(node.body)
 
                 visit(stmt)
+                return patterns
 
-            count_matmuls(func.body)
+            matmul_patterns = count_matmuls(func.body)
 
             # Transform the IR if there are matmuls
             if num_matmuls > 0:
@@ -210,13 +212,13 @@ class LowerTTTileIntrinsics:
                             self.transform(stmt.body),
                         )
                 elif isinstance(stmt, tir.Evaluate):
-                    if isinstance(stmt.value, tir.Call):
-                        if (
-                            hasattr(stmt.value.op, "name")
-                            and "tl_gemm" in stmt.value.op.name
-                        ):
-                            # Replace direct tl.tl_gemm with TT sequence
-                            return self._create_tt_matmul_sequence(stmt)
+                    if (
+                        isinstance(stmt.value, tir.Call)
+                        and hasattr(stmt.value.op, "name")
+                        and "tl_gemm" in stmt.value.op.name
+                    ):
+                        # Replace direct tl.tl_gemm with TT sequence
+                        return self._create_tt_matmul_sequence(stmt)
                     return stmt
                 elif isinstance(stmt, tir.For):
                     return tir.For(

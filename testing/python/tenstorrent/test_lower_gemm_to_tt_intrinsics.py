@@ -28,7 +28,7 @@ def collect_tt_intrinsic_sequence(stmt):
         if isinstance(node, tir.SeqStmt):
             for stmt in node.seq:
                 visit(stmt)
-        elif isinstance(node, tir.For) or isinstance(node, tir.AttrStmt):
+        elif isinstance(node, (tir.For, tir.AttrStmt)):
             visit(node.body)
         elif isinstance(node, tir.IfThenElse):
             visit(node.then_case)
@@ -36,7 +36,7 @@ def collect_tt_intrinsic_sequence(stmt):
                 visit(node.else_case)
         elif isinstance(node, tir.BlockRealize):
             visit(node.block.body)
-        elif isinstance(node, tir.Block) or isinstance(node, tir.LetStmt):
+        elif isinstance(node, (tir.Block, tir.LetStmt)):
             visit(node.body)
         elif isinstance(node, tir.Evaluate):
             call = node.value
