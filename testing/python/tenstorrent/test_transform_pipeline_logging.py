@@ -24,10 +24,16 @@ def test_pipeline_prints_tir_for_each_pass(capsys) -> None:
     """Run the transform pipeline and verify every pass prints its TIR."""
 
     mod = _make_test_module()
+    print("--- [Tenstorrent] Initial TIR (before any passes) ---")
+    print(mod.script(show_meta=True))
+
     mod = apply_tt_defaults(mod)
+    print("--- [Tenstorrent] After apply_tt_defaults ---")
+    print(mod.script(show_meta=True))
 
     mod = apply_tt_metadata_passes(mod)
     metadata_output = capsys.readouterr().out
+    print(metadata_output)  # Show captured metadata pass output
 
     for expected in (
             "--- [Tenstorrent] After InferDefaultTTSchedule ---",
@@ -39,6 +45,7 @@ def test_pipeline_prints_tir_for_each_pass(capsys) -> None:
 
     mod = apply_tt_transform_passes(mod)
     transform_output = capsys.readouterr().out
+    print(transform_output)  # Show captured transform pass output
 
     for expected in (
             "--- [Tenstorrent] After GridToPersistentTT ---",
@@ -52,3 +59,10 @@ def test_pipeline_prints_tir_for_each_pass(capsys) -> None:
 
     # The persistent lowering pipeline should surface persistent loop metadata in the dump.
     assert "tt_persistent_loop" in transform_output
+
+    # Verify GPU threading constructs (threadIdx, blockIdx) are removed after GridToPersistentTT
+    after_persistent = transform_output.split("--- [Tenstorrent] After GridToPersistentTT ---")[
+        1].split("--- [Tenstorrent] After TTTilesToCoreMap ---")[0]
+    assert "launch_thread" not in after_persistent, "GPU threading constructs should be removed by GridToPersistentTT"
+    assert "threadIdx" not in after_persistent, "threadIdx should be removed by GridToPersistentTT"
+    assert "blockIdx" not in after_persistent, "blockIdx should be removed by GridToPersistentTT"
