@@ -57,16 +57,18 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 ---
 
-## Current Status (2025-10-10)
+## Current Status (2025-10-14)
 
 ### ✅ Completed
 - Target registration and Python orchestration (`tilelang/tenstorrent`).
-- Layout-aware metadata pipeline (`InferTTLayout`, `PropagateTTLayout`, `LayoutAwareWorkPartitionTT`) generating canonical runtime-argument schemas.
+- Pure Python metadata-driven pipeline with 5 well-structured passes.
+- Layout-aware metadata pipeline (`InferTTLayout`, `PropagateTTLayout`, `TTTilesToCoreMap`) generating canonical runtime-argument schemas.
 - Grid-to-persistent transformation with shard-aware guardrails and per-core runtime metadata tables in host artifacts.
 - IR-driven reader/compute/writer visitors aligned with the new runtime contract.
 - Mock-mode CI parity via `maint/scripts/local_build_and_test_tt.sh`.
-- Metadata-driven lowering pipeline with centralized attribute definitions.
-- Pure Python pass implementation.
+- Runtime plan generation (`tt.plan.json`) for host-device coordination.
+- Grid extraction from T.Kernel IR structure.
+- Proper JSON serialization for TVM container types.
 
 ### 🚧 In Progress
 - Additional diagnostics for halo hints, L1 capacity checks, and documentation refreshes.

@@ -147,6 +147,5 @@ mod = run_pipeline(mod, plan_path="my_plan.json")
 
 ## References
 
-- [TIR Basics](TIR_BASICS.md)
 - [Pass Pipeline Details](passes/pipeline.md)
 - [Runtime Plan Specification](RUNTIME_PLAN.md)
