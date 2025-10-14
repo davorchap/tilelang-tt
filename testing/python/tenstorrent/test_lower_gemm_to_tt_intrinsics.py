@@ -262,7 +262,7 @@ def test_lower_gemm_to_tt_intrinsics_skip_non_tt_functions():
 def test_lower_gemm_to_tt_intrinsics_integration_with_ws1_ws2():
     """Test the TT GEMM lowering integrates with the defaults + metadata pipeline."""
     from tilelang.tenstorrent.passes import LowerTTTileIntrinsics
-    from tilelang.tenstorrent.compat import apply_tt_metadata_passes
+    from tilelang.tenstorrent.passes import InferTTLayout, PropagateTTLayout, TTTilesToCoreMap
     from tilelang.tenstorrent.target import apply_tt_defaults
 
     # Create function with gemm intrinsic
@@ -291,14 +291,17 @@ def test_lower_gemm_to_tt_intrinsics_integration_with_ws1_ws2():
 
     # Apply TT defaults stage → metadata inference stage → TT GEMM lowering
     mod = apply_tt_defaults(mod)
-    mod = apply_tt_metadata_passes(mod)
+    # Apply metadata passes directly
+    mod = InferTTLayout()(mod)
+    mod = PropagateTTLayout()(mod)
+    mod = TTTilesToCoreMap()(mod)
     mod = LowerTTTileIntrinsics()(mod)
 
     func = mod["main"]
 
     # Verify all metadata exists
     assert "tt_schedule_policy" in func.attrs, "Should have TT defaults stage defaults"
-    assert "tt_tiles_per_core" in func.attrs, "Should have metadata inference stage schedule metadata"
+    assert "tt.work_partition" in func.attrs, "Should have metadata inference stage schedule metadata"
     assert "tt_num_matmuls" in func.attrs, "Should have TT GEMM lowering output"
     assert "tt_has_tensorize" in func.attrs, "Should have tensorize flag"
 

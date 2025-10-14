@@ -42,8 +42,7 @@ class TestLayoutInference:
         mod = apply_tt_defaults(mod)
 
         # Convert legacy attributes to new format
-        from tilelang.tenstorrent.compat import apply_compatibility_transforms
-        mod = apply_compatibility_transforms(mod)
+        # No compatibility transform needed - using new API directly
 
         # Apply new pipeline passes
         mod = InferTTLayout()(mod)

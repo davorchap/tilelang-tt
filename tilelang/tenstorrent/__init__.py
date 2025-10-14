@@ -51,23 +51,6 @@ from .target import apply_tt_defaults
 # Legacy annotations (will be deprecated)
 from .annotations import annotate_tt_layout, annotate_tt_schedule
 
-# Legacy compatibility imports (deprecated, use new passes instead)
-from .compat import (
-    apply_tt_metadata_passes,
-    apply_layout_aware_metadata_passes,
-    apply_tt_transform_passes,
-    grid_to_persistent_tt,
-    infer_default_tt_schedule,
-    infer_default_tt_shard,
-    tile_pad_tt,
-    verify_tt_ir,
-    lower_gemm_to_tt_intrinsics,
-    memory_space_lower_tt,
-    tt_tiles_to_core_map,
-    infer_tt_layout,
-    propagate_tt_layout,
-    layout_aware_work_partition_tt,
-)
 from .codegen import (
     emit_tt_artifacts,
     write_artifacts_to_disk,
@@ -105,23 +88,9 @@ __all__ = [
     "apply_tt_defaults",
     "emit_tt_artifacts",
     "write_artifacts_to_disk",
-    # Legacy (deprecated - use new pipeline instead)
+    # Legacy annotations (temporary - will be removed)
     "annotate_tt_layout",
     "annotate_tt_schedule",
-    "apply_tt_metadata_passes",
-    "apply_layout_aware_metadata_passes",
-    "apply_tt_transform_passes",
-    "grid_to_persistent_tt",
-    "infer_default_tt_schedule",
-    "infer_default_tt_shard",
-    "tile_pad_tt",
-    "verify_tt_ir",
-    "lower_gemm_to_tt_intrinsics",
-    "memory_space_lower_tt",
-    "tt_tiles_to_core_map",
-    "infer_tt_layout",
-    "propagate_tt_layout",
-    "layout_aware_work_partition_tt",
     # Intrinsics
     "intrin",
 ]
