@@ -359,6 +359,49 @@ Legacy passes `infer_default_tt_schedule` and `tt_tiles_to_core_map` remain avai
 
 **Rationale:** TT cores are persistent - they stay resident and iterate over work. This enables better data reuse and reduces launch overhead.
 
+### Tile-Level vs Intra-Tile Parallelism
+
+TileLang supports two levels of parallelism that map differently on TT hardware:
+
+#### 1. Tile-Level Parallelism (blockIdx → Persistent Cores)
+
+**TileLang Syntax:**
+```python
+with T.Kernel(8, 8) as (bx, by):  # 8×8 grid of tiles
+    C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
+```
+
+**TT Mapping:**
+- `blockIdx.x/y/z` variables → Persistent core loops
+- Each core processes multiple tiles sequentially
+- Handled by `GridToPersistentTT` pass
+
+**User Perspective:** Users don't care how tile operations are internally implemented - they specify tile-level operations using built-in intrinsics (T.copy, T.gemm, etc.), and the backend handles the details.
+
+#### 2. Intra-Tile Parallelism (threadIdx → SFPU/SIMD)
+
+**TileLang Syntax:**
+```python
+with T.Kernel(4, 4) as (bx, by):
+    for i, j in T.Parallel(32, 32):  # SIMD within each 32×32 tile
+        C[bx*32 + i, by*32 + j] = A[bx*32 + i, by*32 + j] + B[bx*32 + i, by*32 + j]
+```
+
+**TT Mapping (Planned):**
+- `threadIdx.x/y/z` variables → SFPU (SIMD Floating Point Unit) operations
+- Element-wise ops within a tile execute as SIMD
+- Will be handled by `LowerToSFPU` pass (not yet implemented)
+
+**User Perspective:** Users specify SIMD parallelism at the threadIdx level using T.Parallel(), enabling fine-grained element-wise operations within tiles. The backend will map these to SFPU operations.
+
+**Current Status:**
+- ✅ Tile-level parallelism (blockIdx) → Fully implemented
+- 🔴 Intra-tile parallelism (threadIdx) → `LowerToSFPU` pass errors out (placeholder)
+
+**Architectural Separation:**
+- **GridToPersistentTT**: Handles only blockIdx → persistent loop (tile-level)
+- **LowerToSFPU**: Will handle threadIdx → SFPU ops (intra-tile, future)
+
 ### 3-Kernel Architecture
 
 **Why 3 Kernels?**
