@@ -69,10 +69,7 @@ def _read_core_ranges(attrs) -> List[CoreRange]:
     """Read core ranges from attributes, handling both new and legacy formats."""
     if TT_CORE_RANGES in attrs:
         arr = attrs[TT_CORE_RANGES]
-        return [
-            CoreRange(tuple(_as_py(x["start"])), tuple(_as_py(x["extent"])))
-            for x in arr
-        ]
+        return [CoreRange(tuple(_as_py(x["start"])), tuple(_as_py(x["extent"]))) for x in arr]
     if TT_CORE_RANGE in attrs:
         x = attrs[TT_CORE_RANGE]
         return [CoreRange(tuple(_as_py(x["start"])), tuple(_as_py(x["extent"])))]
@@ -108,14 +105,10 @@ def extract_runtime_plan(func: "tir.PrimFunc") -> Dict[str, Any]:
     # Extract layout descriptors
     layouts = _as_py(attrs.get(TT_LAYOUT_DESC, {}))
 
-    return plan_dict(
-        core_grid=grid, core_ranges=ranges, work_partition=work, layouts=layouts
-    )
+    return plan_dict(core_grid=grid, core_ranges=ranges, work_partition=work, layouts=layouts)
 
 
-def emit_tt_plan(
-    func: "tir.PrimFunc", out_path: str = "tt.plan.json"
-) -> Dict[str, Any]:
+def emit_tt_plan(func: "tir.PrimFunc", out_path: str = "tt.plan.json") -> Dict[str, Any]:
     """
     Emit a tt.plan.json file from a PrimFunc's attributes.
     This serves as the single source of truth for host/device coordination.

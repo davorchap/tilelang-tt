@@ -107,11 +107,7 @@ class InferTTLayout:
             if func.attrs is None or TT_CORE_GRID not in func.attrs:
                 # First check if there are tl.grid_x/tl.grid_y attributes (from test setup)
                 grid_x, grid_y = 1, 1
-                if (
-                    func.attrs
-                    and "tl.grid_x" in func.attrs
-                    and "tl.grid_y" in func.attrs
-                ):
+                if (func.attrs and "tl.grid_x" in func.attrs and "tl.grid_y" in func.attrs):
                     # Extract from tl.grid_x/tl.grid_y attributes
                     grid_x_attr = func.attrs["tl.grid_x"]
                     grid_y_attr = func.attrs["tl.grid_y"]
@@ -119,24 +115,17 @@ class InferTTLayout:
                     # Handle IntImm or int values
                     grid_x = (
                         int(grid_x_attr.value)
-                        if hasattr(grid_x_attr, "value")
-                        else int(grid_x_attr)
-                    )
+                        if hasattr(grid_x_attr, "value") else int(grid_x_attr))
                     grid_y = (
                         int(grid_y_attr.value)
-                        if hasattr(grid_y_attr, "value")
-                        else int(grid_y_attr)
-                    )
+                        if hasattr(grid_y_attr, "value") else int(grid_y_attr))
                     logger.debug(
-                        f"Found grid dimensions from tl.grid_x/y attributes: ({grid_x}, {grid_y})"
-                    )
+                        f"Found grid dimensions from tl.grid_x/y attributes: ({grid_x}, {grid_y})")
                 else:
                     # Otherwise extract from IR structure (T.Kernel)
                     grid_x, grid_y = self._extract_grid_dimensions(func)
                     if grid_x > 1 or grid_y > 1:
-                        logger.debug(
-                            f"Extracted grid dimensions from IR: ({grid_x}, {grid_y})"
-                        )
+                        logger.debug(f"Extracted grid dimensions from IR: ({grid_x}, {grid_y})")
 
                 # Set the core grid if we have valid dimensions
                 if grid_x >= 1 and grid_y >= 1:

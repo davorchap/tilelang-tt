@@ -90,20 +90,18 @@ def create_fully_annotated_module(grid_x, grid_y, num_cores=64):
         if i < num_tiles:
             # Convert list elements to IntImm for FFI
             tiles_per_core.append(
-                [tvm.tir.IntImm("int32", start_id), tvm.tir.IntImm("int32", count)]
-            )
+                [tvm.tir.IntImm("int32", start_id),
+                 tvm.tir.IntImm("int32", count)])
 
-    func = func.with_attrs(
-        {
-            "global_symbol": "main",
-            "tt_grid_x": tvm.tir.IntImm("int32", grid_x),
-            "tt_grid_y": tvm.tir.IntImm("int32", grid_y),
-            "tt_grid_z": tvm.tir.IntImm("int32", 1),
-            "tt_num_tiles": tvm.tir.IntImm("int32", num_tiles),
-            "tt_num_cores": tvm.tir.IntImm("int32", num_cores),
-            "tt_tiles_per_core": tiles_per_core,
-        }
-    )
+    func = func.with_attrs({
+        "global_symbol": "main",
+        "tt_grid_x": tvm.tir.IntImm("int32", grid_x),
+        "tt_grid_y": tvm.tir.IntImm("int32", grid_y),
+        "tt_grid_z": tvm.tir.IntImm("int32", 1),
+        "tt_num_tiles": tvm.tir.IntImm("int32", num_tiles),
+        "tt_num_cores": tvm.tir.IntImm("int32", num_cores),
+        "tt_tiles_per_core": tiles_per_core,
+    })
 
     return tvm.IRModule({"main": func})
 
@@ -133,12 +131,8 @@ def test_gemm_256x256_full_pipeline():
     # Verify TT defaults attributes
     assert "tt_schedule_policy" in func.attrs, "TT defaults: Missing schedule policy"
     assert "tt_schedule_order" in func.attrs, "TT defaults: Missing schedule order"
-    assert (
-        func.attrs["tt_schedule_policy"] == "contiguous"
-    ), "TT defaults: Incorrect policy"
-    assert (
-        func.attrs["tt_schedule_order"] == "row_major"
-    ), "TT defaults: Incorrect order"
+    assert (func.attrs["tt_schedule_policy"] == "contiguous"), "TT defaults: Incorrect policy"
+    assert (func.attrs["tt_schedule_order"] == "row_major"), "TT defaults: Incorrect order"
 
     # Step 3: Apply metadata inference passes (schedule + sharding inference)
     mod = tt.apply_tt_metadata_passes(mod)
@@ -146,9 +140,7 @@ def test_gemm_256x256_full_pipeline():
 
     # Verify metadata inference schedule metadata
     assert "tt.core_grid" in func.attrs, "Metadata inference: Missing core_grid"
-    assert (
-        "tt.work_partition" in func.attrs
-    ), "Metadata inference: Missing work_partition"
+    assert ("tt.work_partition" in func.attrs), "Metadata inference: Missing work_partition"
     assert "tt.layout_desc" in func.attrs, "Metadata inference: Missing layout_desc"
 
     core_grid = func.attrs["tt.core_grid"]
@@ -162,9 +154,7 @@ def test_gemm_256x256_full_pipeline():
     assert grid_y == 8, f"Metadata inference: Expected grid_y=8, got {grid_y}"
 
     # Check work partition has assignments
-    assert (
-        len(work_partition) > 0
-    ), "Metadata inference: Work partition should have assignments"
+    assert (len(work_partition) > 0), "Metadata inference: Work partition should have assignments"
 
     # Verify layout descriptors
     assert "A" in layout_desc, "Metadata inference: Missing buffer A layout"
@@ -187,12 +177,8 @@ def test_gemm_256x256_full_pipeline():
     assert "void MAIN()" in compute_cpp, "Artifact generation: Missing MAIN function"
 
     # Check runtime arguments (IR-driven uses get_arg_val pattern)
-    assert (
-        "get_arg_val<uint32_t>(0)" in compute_cpp
-    ), "Artifact generation: Missing runtime arg 0"
-    assert (
-        "get_arg_val<uint32_t>(1)" in compute_cpp
-    ), "Artifact generation: Missing runtime arg 1"
+    assert ("get_arg_val<uint32_t>(0)" in compute_cpp), "Artifact generation: Missing runtime arg 0"
+    assert ("get_arg_val<uint32_t>(1)" in compute_cpp), "Artifact generation: Missing runtime arg 1"
     # Note: Runtime arg indices depend on metadata; just verify some args are present
     assert "tt_start_tile" in compute_cpp, "Artifact generation: Missing tt_start_tile"
     assert "tt_tile_count" in compute_cpp, "Artifact generation: Missing tt_tile_count"

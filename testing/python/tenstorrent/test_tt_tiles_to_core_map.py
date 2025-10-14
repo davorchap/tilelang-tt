@@ -10,8 +10,7 @@ from tvm import tir
 
 # Skip the entire module - legacy tests not relevant to new architecture
 pytestmark = pytest.mark.skip(
-    reason="Legacy TTTilesToCoreMap tests - not relevant to new architecture"
-)
+    reason="Legacy TTTilesToCoreMap tests - not relevant to new architecture")
 
 
 def create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8):
@@ -37,9 +36,7 @@ def create_mock_func_with_tiles_per_core(grid_x=8, grid_y=8):
     for core_id in range(num_cores):
         start_tile = core_id * tiles_per_core_value
         count = tiles_per_core_value
-        tiles_per_core.append(
-            [tvm.tir.IntImm("int32", start_tile), tvm.tir.IntImm("int32", count)]
-        )
+        tiles_per_core.append([tvm.tir.IntImm("int32", start_tile), tvm.tir.IntImm("int32", count)])
 
     # Stamp metadata
     func = func.with_attr("tt_tiles_per_core", tiles_per_core)
@@ -66,9 +63,7 @@ def test_tt_tiles_to_core_map_basic():
     # Verify core ranges attribute exists
     assert func.attrs is not None, "Function should have attributes"
     assert "tt_core_ranges" in func.attrs, "Should have tt_core_ranges attribute"
-    assert (
-        "tt_core_runtime_args" in func.attrs
-    ), "Should have tt_core_runtime_args attribute"
+    assert ("tt_core_runtime_args" in func.attrs), "Should have tt_core_runtime_args attribute"
 
     core_ranges = func.attrs["tt_core_ranges"]
     core_runtime_args = func.attrs["tt_core_runtime_args"]
@@ -76,8 +71,7 @@ def test_tt_tiles_to_core_map_basic():
     # Should have 64 core ranges (one per core with assigned tiles)
     assert len(core_ranges) == 64, f"Expected 64 core ranges, got {len(core_ranges)}"
     assert (
-        len(core_runtime_args) == 64
-    ), f"Expected 64 runtime arg sets, got {len(core_runtime_args)}"
+        len(core_runtime_args) == 64), f"Expected 64 runtime arg sets, got {len(core_runtime_args)}"
 
 
 def test_tt_tiles_to_core_map_coordinates():
@@ -137,9 +131,7 @@ def test_tt_tiles_to_core_map_runtime_args():
     # Check runtime args format
     for core_id in range(64):
         args = core_runtime_args[core_id]
-        assert (
-            len(args) == 2
-        ), "Runtime args should have 2 elements: [start_tile, num_tiles]"
+        assert (len(args) == 2), "Runtime args should have 2 elements: [start_tile, num_tiles]"
 
         start_tile = int(args[0])
         num_tiles = int(args[1])
@@ -164,9 +156,8 @@ def test_tt_tiles_to_core_map_skip_without_metadata():
     func = mod["main"]
 
     # Should NOT add core ranges
-    assert (
-        func.attrs is None or "tt_core_ranges" not in func.attrs
-    ), "Should not add core ranges without metadata inference stage metadata"
+    assert (func.attrs is None or "tt_core_ranges" not in func.attrs
+           ), "Should not add core ranges without metadata inference stage metadata"
 
 
 def test_tt_tiles_to_core_map_consistency_with_metadata():
@@ -197,9 +188,7 @@ def test_tt_tiles_to_core_map_consistency_with_metadata():
         range_start_tile = int(core_range[4])
         range_count = int(core_range[5])
 
-        assert (
-            range_start_tile == original_start
-        ), f"Core {core_id} range start_tile mismatch"
+        assert (range_start_tile == original_start), f"Core {core_id} range start_tile mismatch"
         assert range_count == original_count, f"Core {core_id} range count mismatch"
 
         # Check core_runtime_args
@@ -208,11 +197,8 @@ def test_tt_tiles_to_core_map_consistency_with_metadata():
         args_count = int(runtime_args[1])
 
         assert (
-            args_start_tile == original_start
-        ), f"Core {core_id} runtime args start_tile mismatch"
-        assert (
-            args_count == original_count
-        ), f"Core {core_id} runtime args count mismatch"
+            args_start_tile == original_start), f"Core {core_id} runtime args start_tile mismatch"
+        assert (args_count == original_count), f"Core {core_id} runtime args count mismatch"
 
 
 def test_tt_tiles_to_core_map_integration_with_metadata():

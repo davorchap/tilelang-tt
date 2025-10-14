@@ -146,14 +146,12 @@ def validate_module_for_tt(mod: IRModule) -> List[str]:
             for param in func.params:
                 buffer = func.buffer_map.get(param, None)
                 if buffer and buffer.dtype not in [
-                    "float16",
-                    "float32",
-                    "int8",
-                    "uint8",
-                    "int32",
+                        "float16",
+                        "float32",
+                        "int8",
+                        "uint8",
+                        "int32",
                 ]:
-                    errors.append(
-                        f"Buffer {buffer.name} has unsupported dtype {buffer.dtype}"
-                    )
+                    errors.append(f"Buffer {buffer.name} has unsupported dtype {buffer.dtype}")
 
     return errors

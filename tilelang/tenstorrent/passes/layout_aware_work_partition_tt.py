@@ -46,12 +46,8 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
                 if pg and pt:
                     detected_grid = [int(pg[0]), int(pg[1])]
                     detected_tiles = [int(pt[0]), int(pt[1])]
-            if (
-                layout_kind == "sharded"
-                and memory_kind == "L1"
-                and detected_grid
-                and detected_tiles
-            ):
+            if (layout_kind == "sharded" and memory_kind == "L1" and detected_grid and
+                    detected_tiles):
                 has_l1_shard = True
 
         schedule_raw = get_attr(attrs, "tt.user_schedule")
@@ -75,9 +71,7 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
 
         if partition_mode == "local_shard":
             if detected_grid is None or detected_tiles is None:
-                raise ValueError(
-                    "layout-aware partitioning requires sharded buffer metadata"
-                )
+                raise ValueError("layout-aware partitioning requires sharded buffer metadata")
             shard_grid = detected_grid
             local_tiles = detected_tiles
 
@@ -138,8 +132,7 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
 
                 core_ranges.append([x, y, x, y, start, count])
                 core_runtime_args.append(
-                    [start, count, Mt, 1, Nt, Sm, Sn, Gy, Gx, shard_sy, shard_sx]
-                )
+                    [start, count, Mt, 1, Nt, Sm, Sn, Gy, Gx, shard_sy, shard_sx])
             else:
                 core_ranges.append([x, y, x, y, start, count])
                 core_runtime_args.append([start, count, Mt, 1, Nt])
@@ -151,9 +144,7 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
         new_func = new_func.with_attr("tt.runtime_arg_names", runtime_arg_names)
         new_func = new_func.with_attr("tt.runtime_constants", runtime_constants_ffi)
 
-        core_ranges_ffi = [
-            convert_dict_for_ffi({"vals": r})["vals"] for r in core_ranges
-        ]
+        core_ranges_ffi = [convert_dict_for_ffi({"vals": r})["vals"] for r in core_ranges]
         core_runtime_args_ffi = [
             convert_dict_for_ffi({"vals": r})["vals"] for r in core_runtime_args
         ]
@@ -163,8 +154,7 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
         return new_func
 
     pass_obj = tvm.tir.transform.prim_func_pass(
-        transform, opt_level=0, name="tl.LayoutAwareWorkPartitionTT"
-    )
+        transform, opt_level=0, name="tl.LayoutAwareWorkPartitionTT")
     return pass_obj(mod)
 
 

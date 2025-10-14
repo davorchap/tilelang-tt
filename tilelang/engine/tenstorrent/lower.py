@@ -98,9 +98,7 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     pass_ctx = tilelang.transform.get_pass_context()
     from tilelang.engine.phase import allow_vectorize
 
-    mod = tilelang.transform.VectorizeLoop(
-        enable_vectorize=allow_vectorize(pass_ctx=pass_ctx)
-    )(mod)
+    mod = tilelang.transform.VectorizeLoop(enable_vectorize=allow_vectorize(pass_ctx=pass_ctx))(mod)
 
     # Rewrite storage allocations for better memory usage
     # Should work with TT's circular buffer model
@@ -216,10 +214,8 @@ def lower(
     # Validate that we're actually targeting Tenstorrent
     target_kind = get_target_kind(target)
     if target_kind != TENSTORRENT_TARGET:
-        raise ValueError(
-            f"Tenstorrent lowering called with invalid target: {target_kind}. "
-            f"Expected: {TENSTORRENT_TARGET}"
-        )
+        raise ValueError(f"Tenstorrent lowering called with invalid target: {target_kind}. "
+                         f"Expected: {TENSTORRENT_TARGET}")
 
     # Convert target to Target object if it's a string and create composite target
     # This matches CUDA backend behavior and provides proper target context for passes

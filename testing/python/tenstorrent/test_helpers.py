@@ -6,7 +6,6 @@ implementation to the new Python implementation.
 """
 
 
-
 def use_new_pipeline(mod, **kwargs):
     """
     Helper to run the new pipeline on a module.

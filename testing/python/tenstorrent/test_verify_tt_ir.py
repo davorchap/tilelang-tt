@@ -11,9 +11,7 @@ import tvm
 from tvm import tir
 
 # Skip the entire module
-pytestmark = pytest.mark.skip(
-    reason="VerifyTTIR pass not implemented in new architecture"
-)
+pytestmark = pytest.mark.skip(reason="VerifyTTIR pass not implemented in new architecture")
 
 
 def create_func_with_complete_metadata():
@@ -38,8 +36,8 @@ def create_func_with_complete_metadata():
     func = func.with_attr("tt_num_tiles", tvm.tir.IntImm("int32", 64))
     func = func.with_attr("tt_num_cores", tvm.tir.IntImm("int32", 64))
     func = func.with_attr(
-        "tt_tiles_per_core", [[tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 1)]]
-    )
+        "tt_tiles_per_core",
+        [[tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 1)]])
 
     # persistent transform stage metadata
     func = func.with_attr("tt_persistent_loop", tvm.tir.IntImm("int32", 1))
@@ -56,7 +54,8 @@ def create_func_with_complete_metadata():
                 tvm.tir.IntImm("int32", 8),
                 tvm.tir.IntImm("int32", 1),
             ],
-            "assignments": [[tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 1)]],
+            "assignments": [[tvm.tir.IntImm("int32", 0),
+                             tvm.tir.IntImm("int32", 1)]],
         },
     )
 
@@ -66,8 +65,14 @@ def create_func_with_complete_metadata():
     func = func.with_attr(
         "tt_runtime_args",
         {
-            "start_tile": {"name": "tt_start_tile", "dtype": "int32"},
-            "tile_count": {"name": "tt_tile_count", "dtype": "int32"},
+            "start_tile": {
+                "name": "tt_start_tile",
+                "dtype": "int32"
+            },
+            "tile_count": {
+                "name": "tt_tile_count",
+                "dtype": "int32"
+            },
             "grid_shape": [
                 tvm.tir.IntImm("int32", 8),
                 tvm.tir.IntImm("int32", 8),
@@ -77,12 +82,14 @@ def create_func_with_complete_metadata():
             "param_order": ["tt_start_tile", "tt_tile_count"],
             "iteration_ndims": tvm.tir.IntImm("int32", 2),
             "iteration_symbols": ["bx", "by"],
-            "grid_tiles": [tvm.tir.IntImm("int32", 8), tvm.tir.IntImm("int32", 8)],
+            "grid_tiles": [tvm.tir.IntImm("int32", 8),
+                           tvm.tir.IntImm("int32", 8)],
             "local_shape_tiles": [
                 tvm.tir.IntImm("int32", 8),
                 tvm.tir.IntImm("int32", 8),
             ],
-            "shard_grid": [tvm.tir.IntImm("int32", 1), tvm.tir.IntImm("int32", 1)],
+            "shard_grid": [tvm.tir.IntImm("int32", 1),
+                           tvm.tir.IntImm("int32", 1)],
         },
     )
 
@@ -141,8 +148,8 @@ def create_func_with_large_grid():
     func = func.with_attr("tt_num_tiles", tvm.tir.IntImm("int32", 10000))
     func = func.with_attr("tt_num_cores", tvm.tir.IntImm("int32", 64))
     func = func.with_attr(
-        "tt_tiles_per_core", [[tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 1)]]
-    )
+        "tt_tiles_per_core",
+        [[tvm.tir.IntImm("int32", 0), tvm.tir.IntImm("int32", 1)]])
 
     return func
 
@@ -194,8 +201,7 @@ def test_verify_tt_ir_detects_missing_defaults():
     # Should detect missing TT defaults attributes
     assert "tt_ir_validated" in func.attrs, "Should have validation result"
     assert not bool(
-        func.attrs["tt_ir_validated"]
-    ), "Validation should fail with missing TT defaults"
+        func.attrs["tt_ir_validated"]), "Validation should fail with missing TT defaults"
     assert int(func.attrs["tt_validation_error_count"]) > 0, "Should have errors"
 
 
@@ -211,8 +217,7 @@ def test_verify_tt_ir_detects_missing_inference():
 
     # Should detect missing metadata inference attributes
     assert not bool(
-        func.attrs["tt_ir_validated"]
-    ), "Validation should fail with missing metadata inference"
+        func.attrs["tt_ir_validated"]), "Validation should fail with missing metadata inference"
     assert int(func.attrs["tt_validation_error_count"]) > 0, "Should have errors"
 
 
@@ -248,9 +253,8 @@ def test_verify_tt_ir_skip_non_tt_functions():
     func = mod["main"]
 
     # Should NOT add validation metadata for non-TT functions
-    assert (
-        func.attrs is None or "tt_ir_validated" not in func.attrs
-    ), "Should not validate non-TT functions"
+    assert (func.attrs is None or
+            "tt_ir_validated" not in func.attrs), "Should not validate non-TT functions"
 
 
 def test_verify_tt_ir_integration_with_full_pipeline():
@@ -301,9 +305,7 @@ def test_verify_tt_ir_integration_with_full_pipeline():
 
     # Verify all metadata exists
     assert "tt_schedule_policy" in func.attrs, "Should have TT defaults"
-    assert (
-        "tt_tiles_per_core" in func.attrs
-    ), "Should have metadata inference schedule metadata"
+    assert ("tt_tiles_per_core" in func.attrs), "Should have metadata inference schedule metadata"
     assert "tt_ir_validated" in func.attrs, "Should have VerifyTTIR output"
 
     # Validation should pass for complete pipeline
@@ -320,11 +322,10 @@ def test_verify_tt_ir_core_range_validation():
     # Add malformed core_ranges (wrong size)
     func = func.with_attr(
         "tt_core_ranges",
-        [
-            [
-                tvm.tir.IntImm("int32", 0),
-                tvm.tir.IntImm("int32", 0),
-            ]  # Only 2 elements, should be 6
+        [[
+            tvm.tir.IntImm("int32", 0),
+            tvm.tir.IntImm("int32", 0),
+        ]  # Only 2 elements, should be 6
         ],
     )
 
@@ -349,9 +350,15 @@ def test_verify_tt_ir_circular_buffer_count_mismatch():
     func = func.with_attr(
         "tt_circular_buffers",
         [
-            {"cb_id": tvm.tir.IntImm("int32", 0)},
-            {"cb_id": tvm.tir.IntImm("int32", 1)},
-            {"cb_id": tvm.tir.IntImm("int32", 2)},
+            {
+                "cb_id": tvm.tir.IntImm("int32", 0)
+            },
+            {
+                "cb_id": tvm.tir.IntImm("int32", 1)
+            },
+            {
+                "cb_id": tvm.tir.IntImm("int32", 2)
+            },
         ],
     )  # Only 3 CBs, but tt_num_cbs says 5
 

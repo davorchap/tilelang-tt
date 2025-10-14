@@ -39,10 +39,7 @@ def with_core_ranges(func, ranges: Iterable[CoreRange]):
     """Attach tt.core_ranges=[...]. Also mirrors single-range key for back-compat if len==1."""
     if tvm is None:
         return func
-    arr = [
-        tvm.runtime.convert({"start": list(r.start), "extent": list(r.extent)})
-        for r in ranges
-    ]
+    arr = [tvm.runtime.convert({"start": list(r.start), "extent": list(r.extent)}) for r in ranges]
     func = func.with_attr(TT_CORE_RANGES, tvm.runtime.convert(arr))
     if len(arr) == 1:
         func = func.with_attr(TT_CORE_RANGE, arr[0])

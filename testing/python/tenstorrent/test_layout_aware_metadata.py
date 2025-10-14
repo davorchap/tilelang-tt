@@ -1,6 +1,5 @@
 """Tests for layout-aware metadata passes."""
 
-
 from tilelang import tvm
 import tilelang.language as T
 
@@ -16,11 +15,12 @@ from tilelang.tenstorrent.passes import (
 
 
 def _build_simple_module():
+
     @T.prim_func
     def matmul(
-        A: T.Buffer((256, 256), "float16"),
-        B: T.Buffer((256, 256), "float16"),
-        C: T.Buffer((256, 256), "float16"),
+            A: T.Buffer((256, 256), "float16"),
+            B: T.Buffer((256, 256), "float16"),
+            C: T.Buffer((256, 256), "float16"),
     ):
         with T.Kernel(8, 8) as (bx, by):
             T.evaluate(0)
@@ -30,6 +30,7 @@ def _build_simple_module():
 
 
 class TestLayoutAwareMetadata:
+
     def test_pipeline_generates_buffer_and_cb_metadata(self):
         mod = _build_simple_module()
         mod = apply_tt_defaults(mod)
@@ -60,10 +61,9 @@ class TestLayoutAwareMetadata:
         assert len(work_partition) > 0, "Expected work partition to be non-empty"
 
     def test_user_annotation_overrides_defaults(self):
+
         @T.prim_func
-        def annotated(
-            A: T.Buffer((128, 128), "bfloat16"), B: T.Buffer((128, 128), "bfloat16")
-        ):
+        def annotated(A: T.Buffer((128, 128), "bfloat16"), B: T.Buffer((128, 128), "bfloat16")):
             with T.Kernel(4, 4) as (bx, by):
                 T.evaluate(0)
 
@@ -97,6 +97,7 @@ class TestLayoutAwareMetadata:
         # Note: exact structure depends on how annotations are preserved
 
     def test_sharded_layout_projects_axes(self):
+
         @T.prim_func
         def sharded(A: T.Buffer((128, 256), "float16")):
             with T.Kernel(4, 8) as (bx, by):
@@ -130,6 +131,7 @@ class TestLayoutAwareMetadata:
         # Note: sharded layout handling is part of the new metadata system
 
     def test_l1_shard_requires_tile_alignment(self):
+
         @T.prim_func
         def kernel(A: T.Buffer((64, 64), "float16")):
             with T.Kernel(2, 2) as (bx, by):

@@ -565,11 +565,16 @@ std::string EmitTTPlanJSON(const PrimFunc &func) {
     auto num_tiles = func->attrs.GetAttr<Integer>("tt_num_tiles");
     auto num_cores = func->attrs.GetAttr<Integer>("tt_num_cores");
 
-    if (grid_x.defined()) grid_x_val = grid_x.value()->value;
-    if (grid_y.defined()) grid_y_val = grid_y.value()->value;
-    if (grid_z.defined()) grid_z_val = grid_z.value()->value;
-    if (num_tiles.defined()) num_tiles_val = num_tiles.value()->value;
-    if (num_cores.defined()) num_cores_val = num_cores.value()->value;
+    if (grid_x.defined())
+      grid_x_val = grid_x.value()->value;
+    if (grid_y.defined())
+      grid_y_val = grid_y.value()->value;
+    if (grid_z.defined())
+      grid_z_val = grid_z.value()->value;
+    if (num_tiles.defined())
+      num_tiles_val = num_tiles.value()->value;
+    if (num_cores.defined())
+      num_cores_val = num_cores.value()->value;
   }
 
   auto tiles_per_core =

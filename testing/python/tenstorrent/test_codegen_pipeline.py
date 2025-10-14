@@ -36,21 +36,17 @@ def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
         start_id = i % num_tiles  # Simplified assignment
         count = 1
         # Convert list elements to IntImm for FFI
-        tiles_per_core.append(
-            [tvm.tir.IntImm("int32", start_id), tvm.tir.IntImm("int32", count)]
-        )
+        tiles_per_core.append([tvm.tir.IntImm("int32", start_id), tvm.tir.IntImm("int32", count)])
 
-    func = func.with_attrs(
-        {
-            "global_symbol": "main",
-            "tt_grid_x": tvm.tir.IntImm("int32", grid_x),
-            "tt_grid_y": tvm.tir.IntImm("int32", grid_y),
-            "tt_grid_z": tvm.tir.IntImm("int32", 1),
-            "tt_num_tiles": tvm.tir.IntImm("int32", num_tiles),
-            "tt_num_cores": tvm.tir.IntImm("int32", num_cores),
-            "tt_tiles_per_core": tiles_per_core,
-        }
-    )
+    func = func.with_attrs({
+        "global_symbol": "main",
+        "tt_grid_x": tvm.tir.IntImm("int32", grid_x),
+        "tt_grid_y": tvm.tir.IntImm("int32", grid_y),
+        "tt_grid_z": tvm.tir.IntImm("int32", 1),
+        "tt_num_tiles": tvm.tir.IntImm("int32", num_tiles),
+        "tt_num_cores": tvm.tir.IntImm("int32", num_cores),
+        "tt_tiles_per_core": tiles_per_core,
+    })
 
     # Create IRModule
     mod = tvm.IRModule({"main": func})
@@ -78,9 +74,7 @@ def test_emit_tt_artifacts_basic():
     compute_cpp = artifacts["compute.cpp"]
 
     # Check IR-driven marker
-    assert (
-        "// Generated TT Compute Kernel (IR-Driven)" in compute_cpp
-    ), "IR-driven marker missing"
+    assert ("// Generated TT Compute Kernel (IR-Driven)" in compute_cpp), "IR-driven marker missing"
 
     # Check structure
     assert "void MAIN()" in compute_cpp, "MAIN function missing"
@@ -169,9 +163,7 @@ def test_emit_tt_artifacts_scheduling_metadata():
 
     # Verify contiguous assignment: first core gets tile 0
     assert first_assignment["start_tile"] == 0, "First core should start at tile 0"
-    assert (
-        first_assignment["count"] == 1
-    ), "Each core should get 1 tile for 64-tile grid"
+    assert (first_assignment["count"] == 1), "Each core should get 1 tile for 64-tile grid"
 
     print("✓ Test 3 passed: Scheduling metadata verification")
 

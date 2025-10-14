@@ -43,9 +43,7 @@ class TestGridToPersistentTT:
         """Test basic grid-to-persistent transformation on simple kernel."""
 
         @T.prim_func
-        def simple_kernel(
-            A: T.Buffer((256, 256), "float16"), C: T.Buffer((256, 256), "float16")
-        ):
+        def simple_kernel(A: T.Buffer((256, 256), "float16"), C: T.Buffer((256, 256), "float16")):
             with T.Kernel(T.ceildiv(256, 32), T.ceildiv(256, 32)) as (bx, by):
                 # Stub kernel body
                 pass
@@ -60,9 +58,7 @@ class TestGridToPersistentTT:
 
         # Verify the pass marked the function as transformed
         func = mod["main"]
-        assert (
-            "tt.persistent_kernel" in func.attrs
-        ), "Missing tt.persistent_kernel attribute"
+        assert ("tt.persistent_kernel" in func.attrs), "Missing tt.persistent_kernel attribute"
 
         # The new architecture doesn't add the detailed runtime_args metadata
         # It focuses on the IR transformation itself
@@ -86,6 +82,7 @@ class TestGridToPersistentTT:
         assert "tt.persistent_kernel" in func.attrs
 
     def test_grid_to_persistent_local_shard(self):
+
         @T.prim_func
         def shard_kernel(A: T.Buffer((128, 256), "float16")):
             with T.Kernel(2, 4) as (bx, by):
@@ -171,9 +168,9 @@ class TestPipelineIntegration:
 
         @T.prim_func
         def gemm(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16"),
+                A: T.Buffer((256, 256), "float16"),
+                B: T.Buffer((256, 256), "float16"),
+                C: T.Buffer((256, 256), "float16"),
         ):
             with T.Kernel(T.ceildiv(256, 32), T.ceildiv(256, 32)) as (bx, by):
                 # Stub kernel body
