@@ -82,11 +82,10 @@ def main():
     mod = tt.apply_tt_defaults(mod)
     print("✓ Applied TT defaults")
 
-    mod = tt.apply_tt_metadata_passes(mod)
-    print("✓ Applied metadata inference passes")
-
-    mod = tt.apply_tt_transform_passes(mod)
-    print("✓ Applied transform passes")
+    # Build and run the TT pipeline
+    pipeline = tt.build_tt_pipeline()
+    mod = tt.run_pipeline(mod, pipeline)
+    print("✓ Applied TT pipeline transforms")
 
     artifacts = tt.emit_tt_artifacts(mod)
     print("✓ Generated TT artifacts")
