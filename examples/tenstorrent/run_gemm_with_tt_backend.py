@@ -64,9 +64,9 @@ def run_original_with_tt_backend():
     # Show the runtime plan
     plan = json.loads(artifacts["tt.plan.json"])
     print("\n✓ Runtime Plan:")
-    print(f"  - Core grid: {plan['core_grid'][0]}x{plan['core_grid'][1]}")
-    print(f"  - Core ranges: {plan['core_ranges']}")
-    print(f"  - Work partitions: {len(plan['work_partition'])} cores assigned")
+    print(f"  - Core grid: {plan['grid']['x']}x{plan['grid']['y']}")
+    print(f"  - Core ranges: {plan['cores']}")
+    print(f"  - Work partitions: {len(plan['schedule'])} cores assigned")
 
     # Show a snippet of the compute kernel
     print("\n✓ Compute Kernel (snippet):")
@@ -134,7 +134,7 @@ def run_tt_optimized_version():
         plan = json.loads(artifacts["tt.plan.json"])
 
         print(f"\n✓ {M}x{N}x{K} kernel:")
-        print(f"  - Grid: {plan['core_grid'][0]}x{plan['core_grid'][1]} cores")
+        print(f"  - Grid: {plan['grid']['x']}x{plan['grid']['y']} cores")
         print(f"  - Total tiles: {(M//32) * (N//32)} output tiles")
         print(f"  - K tiles: {K//32} per output")
 

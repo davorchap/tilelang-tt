@@ -6,6 +6,7 @@ on:
       - 'tilelang/engine/tenstorrent/**'
       - 'tilelang/tenstorrent/**'
       - 'testing/python/tenstorrent/**'
+      - 'examples/tenstorrent/**'
       - 'tilelang/utils/target.py'
       - '.github/workflows/tenstorrent-ci.yml'
   push:
@@ -179,6 +180,12 @@ jobs:
           export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
           cd testing/python
           pytest tenstorrent/ -v --tb=short
+
+      - name: Run Tenstorrent GEMM examples tests
+        run: |
+          export LD_LIBRARY_PATH=$(pwd)/build/tvm:$LD_LIBRARY_PATH
+          cd testing/python/tenstorrent
+          pytest test_examples_run.py -v --tb=short
 
       - name: Save TVM build cache
         uses: actions/cache/save@v4
