@@ -9,8 +9,9 @@ from tilelang import env
 from tilelang.engine.param import CompiledArtifact, KernelParam
 from tilelang.jit.adapter import (BaseKernelAdapter, CtypesKernelAdapter, CythonKernelAdapter,
                                   NVRTCKernelAdapter, TorchDLPackKernelAdapter)
+from tilelang.jit.adapter.tt_adapter import TTKernelAdapter
 from tilelang.profiler import Profiler, TensorSupplyType
-from tilelang.utils.target import AVALIABLE_TARGETS, determine_target
+from tilelang.utils.target import AVALIABLE_TARGETS, determine_target, TENSTORRENT_TARGET
 import logging
 
 logger = logging.getLogger(__name__)
@@ -231,6 +232,24 @@ class JITKernel(object):
 
         self.artifact = artifact
 
+        # Check if this is a TT target - use TT-specific adapter
+        target_kind = target.kind.name if hasattr(target, 'kind') else str(target)
+        if target_kind == "tenstorrent" or str(target) == TENSTORRENT_TARGET:
+            # Use TT-specific adapter that doesn't need compilation
+            adapter = TTKernelAdapter(
+                params=artifact.params,
+                result_idx=out_idx,
+                target=target,
+                func_or_mod=tilelang_func,
+                host_mod=artifact.host_mod,
+                device_mod=artifact.device_mod,
+                kernel_global_source=artifact.kernel_source,
+                verbose=verbose,
+                pass_configs=pass_configs,
+                compile_flags=compile_flags,
+            )
+            return adapter
+
         # Create an adapter based on the specified execution backend.
         if execution_backend == "dlpack":
             # Use TorchDLPackKernelAdapter for interoperability with PyTorch via DLPack.
@@ -296,6 +315,21 @@ class JITKernel(object):
             compile_flags: Optional[List[str]] = None) -> BaseKernelAdapter:
         target = self.target
         execution_backend = self.execution_backend
+
+        # Check if this is a TT target - use TT-specific adapter
+        target_kind = target.kind.name if hasattr(target, 'kind') else str(target)
+        if target_kind == "tenstorrent" or str(target) == TENSTORRENT_TARGET:
+            # TT kernels loaded from database
+            adapter = TTKernelAdapter.from_database(
+                params=params,
+                result_idx=result_idx,
+                target=target,
+                func_or_mod=func_or_mod,
+                kernel_global_source=kernel_global_source,
+                pass_configs=pass_configs,
+                compile_flags=compile_flags,
+            )
+            return adapter
 
         # Create an adapter based on the specified execution backend.
         if execution_backend == "dlpack":

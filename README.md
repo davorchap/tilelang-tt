@@ -46,8 +46,121 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 ---
 
+## Tenstorrent GEMM Examples
+
+### Quick Start: Running GEMM on Tenstorrent
+
+The Tenstorrent backend allows any TileLang GEMM to run on TT hardware with just 2 lines of changes:
+
+```python
+# 1. Import the target
+from tilelang.utils.target import TENSTORRENT_TARGET
+
+# 2. Add target parameter to decorator
+@tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
+def matmul(...):
+    # Your existing kernel code - no changes needed!
+```
+
+### Tenstorrent GEMM Examples (`examples/tenstorrent/`)
+
+#### 1. **`example_gemm_tt_minimal.py`** - Minimal Changes Demo
+- **Purpose**: Shows the minimal 2-line change needed to run any GEMM on TT
+- **What it does**: Takes the standard GEMM example and runs it on TT backend
+- **Run**: `python examples/tenstorrent/example_gemm_tt_minimal.py`
+- **Output**: Shows where TT artifacts are generated and cached
+- **Key learning**: Any TileLang kernel can target TT with just a target parameter
+
+#### 2. **`example_gemm_tt.py`** - TT-Optimized GEMM
+- **Purpose**: GEMM specifically optimized for Tenstorrent architecture
+- **Features**: Uses 32x32 tiles (TT's native tile size), optimized for persistent kernel model
+- **Run**: `python examples/tenstorrent/example_gemm_tt.py`
+- **Key concepts**: TT-specific optimizations, L1 circular buffers
+
+#### 3. **`run_gemm_with_tt_backend.py`** - Comprehensive Demo
+- **Purpose**: Full demonstration of TT backend capabilities
+- **Features**: Shows all generated artifacts, execution plan, and core mappings
+- **Run**: `python examples/tenstorrent/run_gemm_with_tt_backend.py`
+- **Output**: Detailed view of reader/compute/writer kernels and runtime plan
+
+#### 4. **Documentation: `HOWTO_RUN_GEMM_WITH_TT.md`**
+- Step-by-step guide for converting any GEMM to TT
+- Explains the artifact generation process
+- Shows where files are generated and cached
+
+### What Gets Generated for TT?
+
+When you run a GEMM with the TT backend, it generates:
+
+1. **`reader.cpp`** - Kernel that reads tiles from DRAM to L1
+2. **`compute.cpp`** - Kernel that performs the matrix multiplication
+3. **`writer.cpp`** - Kernel that writes results back to DRAM
+4. **`main.cpp`** - Host program that coordinates execution
+5. **`tt.plan.json`** - Runtime execution plan with core assignments
+
+These artifacts are:
+- Cached in `~/.tilelang/cache/` for reuse
+- Include TIR passes when `TT_DUMP_IR=1` is set
+- Ready for compilation with TT-Metalium SDK
+
+### Running Examples with Different Backends
+
+#### For CUDA (Default):
+```python
+@tilelang.jit(out_idx=[-1])
+def matmul(...):
+    # Your kernel code
+```
+
+#### For Tenstorrent:
+```python
+from tilelang.utils.target import TENSTORRENT_TARGET
+
+@tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
+def matmul(...):
+    # Same kernel code!
+```
+
+### Key Differences Between Backends
+
+| Feature | CUDA Backend | Tenstorrent Backend |
+|---------|--------------|---------------------|
+| **Parallelism** | Thread-level (warps) | Tile-level (32x32) |
+| **Memory** | Shared memory | L1 circular buffers |
+| **Execution** | Ephemeral kernels | Persistent kernels |
+| **Tile Size** | Flexible | Fixed 32x32 |
+| **Output** | PTX/CUDA binary | C++ artifacts (reader/compute/writer) |
+| **Hardware** | NVIDIA GPUs | Tenstorrent AI processors |
+
+### Quick Start Examples
+
+#### Minimal CUDA GEMM:
+```python
+import tilelang
+import tilelang.language as T
+
+@tilelang.jit(out_idx=[-1])
+def gemm(M, N, K):
+    # Your implementation
+```
+
+#### Same code for Tenstorrent:
+```python
+import tilelang
+import tilelang.language as T
+from tilelang.utils.target import TENSTORRENT_TARGET
+
+@tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
+def gemm(M, N, K):
+    # Exact same implementation!
+```
+
+
+---
+
 ## Table of Contents
 
+- [GEMM Examples Guide](#gemm-examples-guide)
 - [Motivation](#motivation)
 - [Background: Persistent Kernels & Tiles on Tenstorrent](#background-persistent-kernels--tiles-on-tenstorrent)
 - [Key Idea: Grid‑to‑Persistent Mapping](#key-idea-grid-to-persistent-mapping)

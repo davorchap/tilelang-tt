@@ -113,20 +113,28 @@ class LowerTTTileIntrinsics:
                         else:
                             visit(node.body)
                     elif isinstance(node, tir.Evaluate):
-                        if (isinstance(node.value, tir.Call) and hasattr(node.value.op, "name") and
-                                "tl_gemm" in node.value.op.name):
-                            # Direct tl.tl_gemm call without pragma wrapper
-                            num_matmuls += 1
-                            has_tensorize = True
-                            pattern = {
-                                "source": "tl.gemm",
-                                "accumulate": True,
-                                "loop_vars": [],
-                                "cb_in0": 0,
-                                "cb_in1": 1,
-                                "cb_out": 16,
-                            }
-                            patterns.append(pattern)
+                        if isinstance(node.value, tir.Call):
+                            # Check for various forms of gemm intrinsic
+                            op_name = ""
+                            if hasattr(node.value.op, "name"):
+                                op_name = node.value.op.name
+                            elif isinstance(node.value.op, tvm.ir.Op):
+                                op_name = str(node.value.op)
+
+                            # Match T.gemm, tl_gemm, or tir.tl_gemm_impl
+                            if any(x in op_name for x in ["gemm", "tl_gemm", "tir.tl_gemm_impl"]):
+                                # Found a gemm intrinsic
+                                num_matmuls += 1
+                                has_tensorize = True
+                                pattern = {
+                                    "source": "tl.gemm",
+                                    "accumulate": True,
+                                    "loop_vars": [],
+                                    "cb_in0": 0,
+                                    "cb_in1": 1,
+                                    "cb_out": 16,
+                                }
+                                patterns.append(pattern)
                     elif isinstance(node, tir.For):
                         visit(node.body)
                     elif isinstance(node, tir.IfThenElse):
@@ -145,18 +153,9 @@ class LowerTTTileIntrinsics:
 
             matmul_patterns = count_matmuls(func.body)
 
-            # Transform the IR if there are matmuls
+            # Don't transform the IR - just add metadata
+            # The actual lowering to TT intrinsics happens during codegen
             if num_matmuls > 0:
-                # Here we would normally transform the IR to emit TT intrinsics
-                # For now, keep the original body but add metadata
-                transformed_body = self._transform_matmuls(func.body)
-                func = tir.PrimFunc(
-                    func.params,
-                    transformed_body,
-                    func.ret_type,
-                    func.buffer_map,
-                    func.attrs,
-                )
 
                 # Add metadata
                 func = func.with_attr("tt_num_matmuls", num_matmuls)
@@ -202,10 +201,18 @@ class LowerTTTileIntrinsics:
                             self.transform(stmt.body),
                         )
                 elif isinstance(stmt, tir.Evaluate):
-                    if (isinstance(stmt.value, tir.Call) and hasattr(stmt.value.op, "name") and
-                            "tl_gemm" in stmt.value.op.name):
-                        # Replace direct tl.tl_gemm with TT sequence
-                        return self._create_tt_matmul_sequence(stmt)
+                    if isinstance(stmt.value, tir.Call):
+                        # Check for various forms of gemm intrinsic
+                        op_name = ""
+                        if hasattr(stmt.value.op, "name"):
+                            op_name = stmt.value.op.name
+                        elif isinstance(stmt.value.op, tvm.ir.Op):
+                            op_name = str(stmt.value.op)
+
+                        # Match T.gemm, tl_gemm, or tir.tl_gemm_impl
+                        if any(x in op_name for x in ["gemm", "tl_gemm", "tir.tl_gemm_impl"]):
+                            # Replace with TT intrinsic sequence
+                            return self._create_tt_matmul_sequence(stmt)
                     return stmt
                 elif isinstance(stmt, tir.For):
                     return tir.For(

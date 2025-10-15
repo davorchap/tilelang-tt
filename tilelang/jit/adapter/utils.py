@@ -60,6 +60,10 @@ def is_cpu_target(target: Target) -> bool:
     return target.kind.name in ["c"]
 
 
+def is_tenstorrent_target(target: Target) -> bool:
+    return target.kind.name == "tenstorrent"
+
+
 def get_annotated_mod(
     func_or_mod: Union[tir.PrimFunc, tvm.IRModule],
     target: Union[str, Target] = "auto",

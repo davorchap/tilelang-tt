@@ -13,35 +13,49 @@ from tvm.target import Target
 import tilelang
 from tilelang import tvm as tvm
 from tilelang.engine.param import CompiledArtifact, KernelParam
-from tilelang.engine.phase import LowerAndLegalize
 from tilelang.tenstorrent import apply_tt_defaults
 from tilelang.tenstorrent.passes import run_pipeline
 
 
 def LowerAndLegalizeTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
-    """Frontend lowering phase - shared with CUDA backend.
+    """Frontend lowering phase adapted for TT backend.
 
-    This calls the shared LowerAndLegalize pipeline which applies:
-    - LetInline
-    - AddWrapperForSingleBufStore
-    - InjectAssumes
-    - Simplify
-    - LayoutReducer
-    - LayoutInference
-    - LowerTileOp
-    - LowerL2Persistent
-    - LegalizeVectorizedLoop
-    - LegalizeSafeMemoryAccess
-    - LoopVectorizeDynamic
+    This is a simplified version of LowerAndLegalize that skips
+    CUDA-specific passes that are incompatible with the Tenstorrent target.
 
     Args:
         mod: The TVM IRModule to lower
         target: The target (Tenstorrent)
 
     Returns:
-        Lowered and legalized IRModule
+        Lowered and legalized IRModule suitable for TT
     """
-    return LowerAndLegalize(mod, target)
+    # Bind the target device information to the module
+    mod = tvm.tir.transform.BindTarget(target)(mod)
+
+    # Inline let expressions and statements
+    mod = tilelang.transform.LetInline()(mod)
+
+    # Add wrapper for single buf store
+    mod = tilelang.transform.AddWrapperForSingleBufStore()(mod)
+
+    # Simplify the IR expressions
+    mod = tvm.tir.transform.Simplify()(mod)
+
+    # Skip these CUDA-specific passes that don't support TT:
+    # - InjectAssumes (CUDA memory model assumptions)
+    # - LayoutReducer (CUDA-specific reducer layouts)
+    # - LayoutInference (throws error for T.gemm with TT target)
+    # - LowerTileOp (CUDA tile operations)
+    # - LowerL2Persistent (CUDA L2 cache persistence)
+    # - LegalizeVectorizedLoop (CUDA vectorization patterns)
+    # - LegalizeSafeMemoryAccess (CUDA memory safety)
+    # - LoopVectorizeDynamic (CUDA dynamic vectorization)
+
+    # The TT backend handles tile operations and layout
+    # through its metadata-driven pipeline in OptimizeForTargetTT
+
+    return mod
 
 
 def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
@@ -70,6 +84,11 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     if hasattr(target, "attrs") and "device" in target.attrs:
         target_device = target.attrs["device"]
 
+    # Check environment variable for IR dumping
+    import os
+    dump_ir = os.environ.get("TT_DUMP_IR", "0") == "1"
+    ir_dump_dir = os.environ.get("TT_IR_DUMP_DIR", "tt_pass_ir")
+
     # Run the new metadata-driven pipeline
     mod = run_pipeline(
         mod,
@@ -79,6 +98,8 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
         enable_double_buffer=True,
         enable_prefetch=True,
         verbose=False,
+        dump_ir=dump_ir,
+        ir_dump_dir=ir_dump_dir,
     )
 
     # === Common Optimizations (Shared with CUDA) ===
@@ -100,9 +121,10 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
 
     mod = tilelang.transform.VectorizeLoop(enable_vectorize=allow_vectorize(pass_ctx=pass_ctx))(mod)
 
-    # Rewrite storage allocations for better memory usage
-    # Should work with TT's circular buffer model
-    mod = tilelang.transform.StorageRewrite()(mod)
+    # Skip StorageRewrite for TT backend - it conflicts with persistent kernel model
+    # and causes "buffer occurred before its declaration" errors with T.alloc_fragment
+    # TT manages its own memory through L1 circular buffers
+    # mod = tilelang.transform.StorageRewrite()(mod)
 
     # Unroll loops for better performance
     mod = tvm.tir.transform.UnrollLoop()(mod)
@@ -256,6 +278,18 @@ def lower(
     import tilelang.tenstorrent as tt
 
     artifacts = tt.emit_tt_artifacts(device_mod)
+
+    # If IR dumping was enabled, also include the IR files in artifacts
+    import os
+    if os.environ.get("TT_DUMP_IR", "0") == "1":
+        ir_dump_dir = os.environ.get("TT_IR_DUMP_DIR", "tt_pass_ir")
+        if os.path.exists(ir_dump_dir):
+            # Add each IR file to artifacts with .tir extension
+            for ir_file in sorted(os.listdir(ir_dump_dir)):
+                if ir_file.endswith(".tir"):
+                    ir_path = os.path.join(ir_dump_dir, ir_file)
+                    with open(ir_path, "r") as f:
+                        artifacts[ir_file] = f.read()
 
     # Convert artifacts dict to JSON string for kernel_source field
     import json
