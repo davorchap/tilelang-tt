@@ -45,11 +45,34 @@ class KernelSlice:
     runtime_args: List[str]  # Runtime arguments needed
 
 
-class KernelSplitter(tir.stmt_functor.StmtMutator):
+class KernelSplitter:
     """Mutator to extract statements for a specific kernel role"""
 
     def __init__(self, role: KernelRole, dfg_metadata: Dict[str, Any]):
-        super().__init__()
+    def visit(self, stmt):
+        """Custom visitor implementation"""
+        if tir is None:
+            return stmt
+
+        def visitor_func(op):
+            # Handle different statement types
+            if isinstance(op, tir.Evaluate):
+                return self.visit_evaluate(op)
+            elif isinstance(op, tir.Allocate):
+                return self.visit_allocate(op) if hasattr(self, 'visit_allocate') else op
+            elif isinstance(op, tir.For):
+                return self.visit_for(op) if hasattr(self, 'visit_for') else op
+            elif isinstance(op, tir.IfThenElse):
+                return self.visit_if_then_else(op) if hasattr(self, 'visit_if_then_else') else op
+            elif isinstance(op, tir.BufferStore):
+                return self.visit_buffer_store(op) if hasattr(self, 'visit_buffer_store') else op
+            elif isinstance(op, tir.BufferLoad):
+                return self.visit_buffer_load(op) if hasattr(self, 'visit_buffer_load') else op
+            return op
+
+        from tvm.tir.stmt_functor import post_order_visit
+        return post_order_visit(stmt, visitor_func)
+
         self.role = role
         self.dfg = dfg_metadata
         self.statements = []
@@ -74,7 +97,7 @@ class KernelSplitter(tir.stmt_functor.StmtMutator):
             else:
                 return None  # Filter out
 
-        return super().visit_evaluate(op)
+        return # super().visit_evaluate(op) - no parent class
 
     def visit_allocate(self, op):
         """Visit allocate nodes (CB allocations)"""
@@ -95,7 +118,7 @@ class KernelSplitter(tir.stmt_functor.StmtMutator):
 
         # Check if this loop is relevant to current role
         if self._loop_belongs_to_role(op):
-            return super().visit_for(op)
+            return # super().visit_for(op) - no parent class
         else:
             # Skip the loop but process its body
             return self.visit(op.body)

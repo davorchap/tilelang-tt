@@ -33,11 +33,34 @@ class DSTPattern(Enum):
     REDUCTION = "reduction"  # Other reduction patterns
 
 
-class ComputePatternAnalyzer(tir.stmt_functor.StmtVisitor):
+class ComputePatternAnalyzer:
     """Analyze compute patterns to determine DST management strategy"""
 
     def __init__(self):
-        super().__init__()
+    def visit(self, stmt):
+        """Custom visitor implementation"""
+        if tir is None:
+            return stmt
+
+        def visitor_func(op):
+            # Handle different statement types
+            if isinstance(op, tir.Evaluate):
+                return self.visit_evaluate(op)
+            elif isinstance(op, tir.Allocate):
+                return self.visit_allocate(op) if hasattr(self, 'visit_allocate') else op
+            elif isinstance(op, tir.For):
+                return self.visit_for(op) if hasattr(self, 'visit_for') else op
+            elif isinstance(op, tir.IfThenElse):
+                return self.visit_if_then_else(op) if hasattr(self, 'visit_if_then_else') else op
+            elif isinstance(op, tir.BufferStore):
+                return self.visit_buffer_store(op) if hasattr(self, 'visit_buffer_store') else op
+            elif isinstance(op, tir.BufferLoad):
+                return self.visit_buffer_load(op) if hasattr(self, 'visit_buffer_load') else op
+            return op
+
+        from tvm.tir.stmt_functor import post_order_visit
+        return post_order_visit(stmt, visitor_func)
+
         self.has_k_loop = False
         self.has_accumulation = False
         self.compute_ops = []
@@ -63,7 +86,7 @@ class ComputePatternAnalyzer(tir.stmt_functor.StmtVisitor):
                     "type": "reduction"
                 })
 
-        super().visit_for(op)
+        # super().visit_for(op) - no parent class
         self.current_loop_var = prev_loop_var
 
     def visit_evaluate(self, op):
@@ -101,7 +124,7 @@ class ComputePatternAnalyzer(tir.stmt_functor.StmtVisitor):
                         elif "out" in cb_name:
                             self.cb_usage["outputs"].add(cb_name)
 
-        super().visit_evaluate(op)
+        # super().visit_evaluate(op) - no parent class
 
     def _is_accumulate_arg(self, arg) -> bool:
         """Check if argument indicates accumulation"""
@@ -132,11 +155,34 @@ class ComputePatternAnalyzer(tir.stmt_functor.StmtVisitor):
         return None
 
 
-class DSTProtocolInserter(tir.stmt_functor.StmtMutator):
+class DSTProtocolInserter:
     """Insert DST lifecycle management around compute operations"""
 
     def __init__(self, dst_pattern: DSTPattern, cb_info: Dict[str, Any]):
-        super().__init__()
+    def visit(self, stmt):
+        """Custom visitor implementation"""
+        if tir is None:
+            return stmt
+
+        def visitor_func(op):
+            # Handle different statement types
+            if isinstance(op, tir.Evaluate):
+                return self.visit_evaluate(op)
+            elif isinstance(op, tir.Allocate):
+                return self.visit_allocate(op) if hasattr(self, 'visit_allocate') else op
+            elif isinstance(op, tir.For):
+                return self.visit_for(op) if hasattr(self, 'visit_for') else op
+            elif isinstance(op, tir.IfThenElse):
+                return self.visit_if_then_else(op) if hasattr(self, 'visit_if_then_else') else op
+            elif isinstance(op, tir.BufferStore):
+                return self.visit_buffer_store(op) if hasattr(self, 'visit_buffer_store') else op
+            elif isinstance(op, tir.BufferLoad):
+                return self.visit_buffer_load(op) if hasattr(self, 'visit_buffer_load') else op
+            return op
+
+        from tvm.tir.stmt_functor import post_order_visit
+        return post_order_visit(stmt, visitor_func)
+
         self.dst_pattern = dst_pattern
         self.cb_info = cb_info
         self.dst_wrapped = False
@@ -153,7 +199,7 @@ class DSTProtocolInserter(tir.stmt_functor.StmtMutator):
                 self.dst_wrapped = True
                 return wrapped_body
 
-        return super().visit_for(op)
+        return # super().visit_for(op) - no parent class
 
     def visit_seq_stmt(self, op):
         """Handle sequence of statements for single-tile pattern"""
@@ -185,7 +231,7 @@ class DSTProtocolInserter(tir.stmt_functor.StmtMutator):
                 self.dst_wrapped = True
                 return wrapped
 
-        return super().visit_evaluate(op)
+        return # super().visit_evaluate(op) - no parent class
 
     def _wrap_accumulation_loop(self, loop_stmt) -> tir.Stmt:
         """Wrap K-loop with DST accumulation protocol"""
@@ -300,10 +346,9 @@ class DSTProtocolInserter(tir.stmt_functor.StmtMutator):
     def _contains_compute(self, stmt) -> bool:
         """Check if statement contains compute operations"""
 
-        class ComputeChecker(tir.stmt_functor.StmtVisitor):
+class ComputeChecker:
 
             def __init__(self):
-                super().__init__()
                 self.has_compute = False
 
             def visit_evaluate(self, op):

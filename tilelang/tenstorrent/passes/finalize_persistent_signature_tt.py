@@ -273,10 +273,8 @@ class FinalizePersistentSignatureTT:
         }
 
         # Check for GEMM/reduction patterns
-        class Analyzer(tir.stmt_functor.StmtVisitor):
-
+        class Analyzer:
             def __init__(self, analysis):
-                super().__init__()
                 self.analysis = analysis
 
             def visit_for(self, op):
@@ -284,7 +282,6 @@ class FinalizePersistentSignatureTT:
                     var_name = op.loop_var.name.lower()
                     if 'k' in var_name or 'reduction' in var_name:
                         self.analysis["has_reduction"] = True
-                super().visit_for(op)
 
             def visit_evaluate(self, op):
                 if hasattr(op, 'value') and hasattr(op.value, 'op'):
@@ -293,7 +290,23 @@ class FinalizePersistentSignatureTT:
                         self.analysis["has_gemm"] = True
                     if any(x in op_name for x in ["compute", "fpu", "sfpu"]):
                         self.analysis["compute_ops"].append(op_name)
-                super().visit_evaluate(op)
+
+            def visit(self, stmt):
+                """Custom visitor implementation"""
+                if tir is None:
+                    return stmt
+
+                def visitor_func(op):
+                    # Handle different statement types
+                    if isinstance(op, tir.Evaluate):
+                        self.visit_evaluate(op)
+                    elif isinstance(op, tir.For):
+                        self.visit_for(op)
+                    return op
+
+                from tvm.tir.stmt_functor import post_order_visit
+                post_order_visit(stmt, visitor_func)
+                return stmt
 
         analyzer = Analyzer(analysis)
         analyzer.visit(func.body)

@@ -33,12 +33,35 @@ class ProtocolType(Enum):
     CB_SYNC = "cb_sync"  # CB synchronization
 
 
-class CBProtocolInserter(tir.stmt_functor.StmtMutator):
+class CBProtocolInserter:
     """Mutator to replace abstract ops with protocol sequences"""
 
     def __init__(self, kernel_role: str, tensor_accessors: Dict[str, Dict[str, Any]],
+    def visit(self, stmt):
+        """Custom visitor implementation"""
+        if tir is None:
+            return stmt
+
+        def visitor_func(op):
+            # Handle different statement types
+            if isinstance(op, tir.Evaluate):
+                return self.visit_evaluate(op)
+            elif isinstance(op, tir.Allocate):
+                return self.visit_allocate(op) if hasattr(self, 'visit_allocate') else op
+            elif isinstance(op, tir.For):
+                return self.visit_for(op) if hasattr(self, 'visit_for') else op
+            elif isinstance(op, tir.IfThenElse):
+                return self.visit_if_then_else(op) if hasattr(self, 'visit_if_then_else') else op
+            elif isinstance(op, tir.BufferStore):
+                return self.visit_buffer_store(op) if hasattr(self, 'visit_buffer_store') else op
+            elif isinstance(op, tir.BufferLoad):
+                return self.visit_buffer_load(op) if hasattr(self, 'visit_buffer_load') else op
+            return op
+
+        from tvm.tir.stmt_functor import post_order_visit
+        return post_order_visit(stmt, visitor_func)
+
                  cb_indices: Dict[str, int]):
-        super().__init__()
         self.kernel_role = kernel_role
         self.tensor_accessors = tensor_accessors
         self.cb_indices = cb_indices
@@ -59,9 +82,9 @@ class CBProtocolInserter(tir.stmt_functor.StmtMutator):
                 return self._lower_write_from_cb(call)
             else:
                 # Keep other operations as-is
-                return super().visit_evaluate(op)
+                return tir.Evaluate(call)
 
-        return super().visit_evaluate(op)
+        return tir.Evaluate(op.value) if hasattr(op, 'value') else op
 
     def visit_for(self, op):
         """Track pipeline loops for protocol generation"""
@@ -71,11 +94,15 @@ class CBProtocolInserter(tir.stmt_functor.StmtMutator):
 
         if is_pipeline:
             self.in_pipeline_loop = True
-            result = super().visit_for(op)
+            # Process the loop body with the flag set
+            new_body = self.visit(op.body) if hasattr(op, 'body') else op.body
             self.in_pipeline_loop = False
-            return result
+            # Return modified loop
+            return tir.For(op.loop_var, op.min, op.extent, op.kind, new_body) if hasattr(op, 'loop_var') else op
         else:
-            return super().visit_for(op)
+            # Process normally
+            new_body = self.visit(op.body) if hasattr(op, 'body') else op.body
+            return tir.For(op.loop_var, op.min, op.extent, op.kind, new_body) if hasattr(op, 'loop_var') else op
 
     def _lower_read_to_cb(self, call) -> List[tir.Stmt]:
         """Lower tt.read_to_cb to NOC read protocol"""

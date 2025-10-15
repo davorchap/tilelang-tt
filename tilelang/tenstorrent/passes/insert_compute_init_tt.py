@@ -37,11 +37,34 @@ class ComputeOpType(Enum):
     UNKNOWN = "unknown"
 
 
-class ComputeOpAnalyzer(tir.stmt_functor.StmtVisitor):
+class ComputeOpAnalyzer:
     """Visitor to analyze compute operations in the kernel"""
 
     def __init__(self):
-        super().__init__()
+    def visit(self, stmt):
+        """Custom visitor implementation"""
+        if tir is None:
+            return stmt
+
+        def visitor_func(op):
+            # Handle different statement types
+            if isinstance(op, tir.Evaluate):
+                return self.visit_evaluate(op)
+            elif isinstance(op, tir.Allocate):
+                return self.visit_allocate(op) if hasattr(self, 'visit_allocate') else op
+            elif isinstance(op, tir.For):
+                return self.visit_for(op) if hasattr(self, 'visit_for') else op
+            elif isinstance(op, tir.IfThenElse):
+                return self.visit_if_then_else(op) if hasattr(self, 'visit_if_then_else') else op
+            elif isinstance(op, tir.BufferStore):
+                return self.visit_buffer_store(op) if hasattr(self, 'visit_buffer_store') else op
+            elif isinstance(op, tir.BufferLoad):
+                return self.visit_buffer_load(op) if hasattr(self, 'visit_buffer_load') else op
+            return op
+
+        from tvm.tir.stmt_functor import post_order_visit
+        return post_order_visit(stmt, visitor_func)
+
         self.compute_ops = []
         self.cb_names = set()
         self.has_k_loop = False
@@ -70,7 +93,7 @@ class ComputeOpAnalyzer(tir.stmt_functor.StmtVisitor):
                     if cb_name:
                         self.cb_names.add(cb_name)
 
-        super().visit_evaluate(op)
+        # super().visit_evaluate(op) - no parent class
 
     def visit_for(self, op):
         """Track loop nesting and K-loops"""
@@ -83,7 +106,7 @@ class ComputeOpAnalyzer(tir.stmt_functor.StmtVisitor):
             if 'k' in var_name or 'reduction' in var_name:
                 self.has_k_loop = True
 
-        super().visit_for(op)
+        # super().visit_for(op) - no parent class
         self.loop_depth -= 1
 
     def _classify_compute_op(self, op_name: str) -> ComputeOpType:
@@ -120,11 +143,34 @@ class ComputeOpAnalyzer(tir.stmt_functor.StmtVisitor):
         return None
 
 
-class ComputeInitInserter(tir.stmt_functor.StmtMutator):
+class ComputeInitInserter:
     """Mutator to insert compute engine initialization"""
 
     def __init__(self, init_info: Dict[str, Any]):
-        super().__init__()
+    def visit(self, stmt):
+        """Custom visitor implementation"""
+        if tir is None:
+            return stmt
+
+        def visitor_func(op):
+            # Handle different statement types
+            if isinstance(op, tir.Evaluate):
+                return self.visit_evaluate(op)
+            elif isinstance(op, tir.Allocate):
+                return self.visit_allocate(op) if hasattr(self, 'visit_allocate') else op
+            elif isinstance(op, tir.For):
+                return self.visit_for(op) if hasattr(self, 'visit_for') else op
+            elif isinstance(op, tir.IfThenElse):
+                return self.visit_if_then_else(op) if hasattr(self, 'visit_if_then_else') else op
+            elif isinstance(op, tir.BufferStore):
+                return self.visit_buffer_store(op) if hasattr(self, 'visit_buffer_store') else op
+            elif isinstance(op, tir.BufferLoad):
+                return self.visit_buffer_load(op) if hasattr(self, 'visit_buffer_load') else op
+            return op
+
+        from tvm.tir.stmt_functor import post_order_visit
+        return post_order_visit(stmt, visitor_func)
+
         self.init_info = init_info
         self.init_inserted = False
         self.at_function_start = True
@@ -161,7 +207,7 @@ class ComputeInitInserter(tir.stmt_functor.StmtMutator):
                 return tir.SeqStmt(init_stmts + [op])
 
         self.at_function_start = False
-        return super().visit_evaluate(op)
+        return # super().visit_evaluate(op) - no parent class
 
     def visit_for(self, op):
         """Visit for loop - insert init before if at start"""
@@ -174,10 +220,10 @@ class ComputeInitInserter(tir.stmt_functor.StmtMutator):
                 self.init_inserted = True
                 self.at_function_start = False
                 # Return sequence of init followed by loop
-                return tir.SeqStmt(init_stmts + [super().visit_for(op)])
+                return tir.SeqStmt(init_stmts + [# super().visit_for(op) - no parent class])
 
         self.at_function_start = False
-        return super().visit_for(op)
+        return # super().visit_for(op) - no parent class
 
     def _create_init_statements(self) -> List[tir.Stmt]:
         """Create initialization statements based on compute type"""
