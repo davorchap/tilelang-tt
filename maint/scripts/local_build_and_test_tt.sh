@@ -314,6 +314,16 @@ if [ "$SKIP_TESTS" = false ]; then
         echo -e "${YELLOW}Some tests failed (this may be expected if backend is incomplete)${NC}"
     fi
     cd ../..
+
+    # Run Tenstorrent GEMM examples tests
+    echo -e "${YELLOW}Running Tenstorrent GEMM examples tests...${NC}"
+    cd testing/python/tenstorrent
+    if pytest test_examples_run.py -v --tb=short; then
+        echo -e "${GREEN}All example tests passed${NC}"
+    else
+        echo -e "${YELLOW}Some example tests failed (check if examples are runnable)${NC}"
+    fi
+    cd ../../..
 else
     echo -e "${YELLOW}[5/5] Skipping tests${NC}"
 fi
