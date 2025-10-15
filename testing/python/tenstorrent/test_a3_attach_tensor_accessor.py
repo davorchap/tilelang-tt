@@ -368,7 +368,8 @@ class TestAttachTensorAccessorTT:
 
         # Check access patterns count
         assert "access_patterns" in summary
-        assert summary["access_patterns"]["input"] == 2  # A and B
+        assert summary["access_patterns"]["input"] == 1  # A
+        assert summary["access_patterns"]["weight"] == 1  # B (matches "b" in weight patterns)
         assert summary["access_patterns"]["output"] == 1  # C
 
         # Check stride modes count
