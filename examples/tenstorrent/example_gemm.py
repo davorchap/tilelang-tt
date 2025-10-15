@@ -82,9 +82,8 @@ def main():
     mod = tt.apply_tt_defaults(mod)
     print("✓ Applied TT defaults")
 
-    # Build and run the TT pipeline
-    pipeline = tt.build_tt_pipeline()
-    mod = tt.run_pipeline(mod, pipeline)
+    # Run the TT pipeline with default settings
+    mod = tt.run_pipeline(mod, verbose=True)
     print("✓ Applied TT pipeline transforms")
 
     artifacts = tt.emit_tt_artifacts(mod)
