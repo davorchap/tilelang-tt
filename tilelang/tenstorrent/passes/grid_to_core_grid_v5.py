@@ -35,16 +35,43 @@ def GridToCoreGrid_v5(func, mod, ctx):
         print("Warning: No TT metadata found, skipping GridToCoreGrid")
         return func
 
-    class GridTransformer(stmt_functor.IRMutator):
+    class GridTransformer:
 
         def __init__(self, metadata):
-            super().__init__()
             self.metadata = metadata
             self.core_grid = metadata.get("core_grid", [8, 8])
             self.partition_mode = metadata.get("partition_mode", "global")
             self.grid_tiles = metadata.get("grid_tiles", [])
             self.work_partition = metadata.get("work_partition", {})
             self.runtime_args = metadata.get("runtime_args", [])
+
+
+        def visit(self, stmt):
+            """Generic visit method that dispatches to specific visit methods"""
+            if stmt is None:
+                return None
+
+            # Dispatch to specific visit methods based on node type
+            if isinstance(stmt, tir.For):
+                return self.visit_for(stmt)
+            elif isinstance(stmt, tir.BufferStore):
+                return self.visit_buffer_store(stmt)
+            elif isinstance(stmt, tir.BufferLoad):
+                return self.visit_buffer_load(stmt)
+            elif isinstance(stmt, tir.SeqStmt):
+                new_seq = []
+                for s in stmt.seq:
+                    new_s = self.visit(s)
+                    if new_s is not None:
+                        new_seq.append(new_s)
+                return tir.SeqStmt(new_seq) if new_seq else None
+            elif hasattr(stmt, "body"):
+                new_body = self.visit(stmt.body)
+                if new_body != stmt.body:
+                    return stmt.with_body(new_body) if hasattr(stmt, 'with_body') else stmt
+                return stmt
+            else:
+                return stmt
 
             # Track transformation state
             self.in_kernel = False
@@ -64,7 +91,8 @@ def GridToCoreGrid_v5(func, mod, ctx):
                 # Return the transformed body directly (remove T.Kernel wrapper)
                 return self.visit(transformed_body)
 
-            return super().visit_attr(op)
+            # Continue visiting (was super().visit_attr)
+            return self.visit(op.body) if hasattr(op, "body") else op
 
         def visit_for(self, op):
             """Transform grid loops to core launch"""
@@ -74,7 +102,8 @@ def GridToCoreGrid_v5(func, mod, ctx):
                 # Replace with core launch
                 return self._create_core_launch(op)
 
-            return super().visit_for(op)
+            
+            return self.visit(op.body) if hasattr(op, "body") else op
 
         def _is_kernel_attr(self, attr_node):
             """Check if this is a T.Kernel attribute"""
@@ -216,10 +245,9 @@ def GridToCoreGrid_v5(func, mod, ctx):
         def _replace_grid_indices(self, body):
             """Replace grid indices with core-based computation"""
 
-            class IndexReplacer(stmt_functor.IRMutator):
+            class IndexReplacer:
 
                 def __init__(self, kernel_vars):
-                    super().__init__()
                     self.kernel_vars = kernel_vars
 
                 def visit_var(self, op):
@@ -292,10 +320,9 @@ def validate_core_launch(func):
     - Proper runtime arg access
     """
 
-    class CoreLaunchChecker(stmt_functor.StmtVisitor):
+    class CoreLaunchChecker:
 
         def __init__(self):
-            super().__init__()
             self.has_launch_core = False
             self.has_kernel_block = False
             self.launch_calls = []
@@ -306,13 +333,13 @@ def validate_core_launch(func):
                 if "launch_core" in call_name:
                     self.has_launch_core = True
                     self.launch_calls.append(call_name)
-            super().visit_evaluate(op)
+            # Continue visiting evaluate
 
         def visit_attr(self, op):
             if hasattr(op, 'attr_key'):
                 if "kernel" in str(op.attr_key).lower():
                     self.has_kernel_block = True
-            super().visit_attr(op)
+            # Continue visiting attr
 
     checker = CoreLaunchChecker()
     checker.visit(func.body)

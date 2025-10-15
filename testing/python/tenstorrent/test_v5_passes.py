@@ -36,8 +36,9 @@ class TestLowerSharedToCB:
                 A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
                 T.evaluate(0)  # Dummy body
 
-        func = Before["func"]
-        transformed = LowerSharedToCB_v5(func, Before, None)
+        # Apply the pass using TVM's pass infrastructure
+        transformed_mod = LowerSharedToCB_v5(Before)
+        transformed = transformed_mod["func"]
 
         # Check that shared allocation is replaced with CB allocation
         assert "tt.conceptual_cbs" in transformed.attrs
@@ -59,8 +60,9 @@ class TestLowerSharedToCB:
                 # Simulating copy pattern
                 T.evaluate(T.call_extern("void", "tir.copy", A[0:32, 0:32], A_shared))
 
-        func = Before["func"]
-        transformed = LowerSharedToCB_v5(func, Before, None)
+        # Apply the pass using TVM's pass infrastructure
+        transformed_mod = LowerSharedToCB_v5(Before)
+        transformed = transformed_mod["func"]
 
         # Should have conceptual CBs
         assert "tt.conceptual_cbs" in transformed.attrs
@@ -80,8 +82,9 @@ class TestLowerSharedToCB:
                 B_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
                 T.evaluate(0)
 
-        func = Before["func"]
-        transformed = LowerSharedToCB_v5(func, Before, None)
+        # Apply the pass using TVM's pass infrastructure
+        transformed_mod = LowerSharedToCB_v5(Before)
+        transformed = transformed_mod["func"]
 
         cbs = transformed.attrs["tt.conceptual_cbs"]
         assert len(cbs) == 2
@@ -99,8 +102,9 @@ class TestLowerSharedToCB:
                 A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
                 T.evaluate(0)
 
-        func = Before["func"]
-        transformed = LowerSharedToCB_v5(func, Before, None)
+        # Apply the pass using TVM's pass infrastructure
+        transformed_mod = LowerSharedToCB_v5(Before)
+        transformed = transformed_mod["func"]
 
         # Convert to string and check for protocol calls
         func_str = str(transformed.script())
@@ -146,7 +150,10 @@ class TestLowerTTTileIntrinsics:
                 }
             })
 
-        transformed = LowerTTTileIntrinsics_v5(func, Before, None)
+        # Apply the pass
+        Before["func"] = func
+        transformed_mod = LowerTTTileIntrinsics_v5(Before)
+        transformed = transformed_mod["func"]
 
         # Should have tt.mm.mma intrinsic
         func_str = str(transformed.script())
@@ -183,7 +190,10 @@ class TestLowerTTTileIntrinsics:
                 }
             })
 
-        transformed = LowerTTTileIntrinsics_v5(func, Before, None)
+        # Apply the pass
+        Before["func"] = func
+        transformed_mod = LowerTTTileIntrinsics_v5(Before)
+        transformed = transformed_mod["func"]
 
         # Should have tt.fpu.add intrinsic
         func_str = str(transformed.script())
@@ -218,7 +228,10 @@ class TestLowerTTTileIntrinsics:
                 }
             })
 
-        transformed = LowerTTTileIntrinsics_v5(func, Before, None)
+        # Apply the pass
+        Before["func"] = func
+        transformed_mod = LowerTTTileIntrinsics_v5(Before)
+        transformed = transformed_mod["func"]
 
         # Should work without relying on _tile suffix
         validate_no_heuristics(transformed)
@@ -249,7 +262,10 @@ class TestLowerTTTileIntrinsics:
                 }
             })
 
-        transformed = LowerTTTileIntrinsics_v5(func, Before, None)
+        # Apply the pass
+        Before["func"] = func
+        transformed_mod = LowerTTTileIntrinsics_v5(Before)
+        transformed = transformed_mod["func"]
 
         func_str = str(transformed.script())
 
@@ -283,7 +299,10 @@ class TestGridToCoreGrid:
         func = func.with_attr("tt.grid_tiles", [8, 8])
         func = func.with_attr("tt.runtime_args", ["start_id", "count", "Mt", "Nt"])
 
-        transformed = GridToCoreGrid_v5(func, Before, None)
+        # Apply the pass
+        Before["func"] = func
+        transformed_mod = GridToCoreGrid_v5(Before)
+        transformed = transformed_mod["func"]
 
         # Check for core launch
         assert "tt.core_map_x" in transformed.attrs
@@ -315,7 +334,10 @@ class TestGridToCoreGrid:
         func = func.with_attr("tt.work_partition",
                               {f"core_{y}_{x}": [[y, x]] for y in range(8) for x in range(8)})
 
-        transformed = GridToCoreGrid_v5(func, Before, None)
+        # Apply the pass
+        Before["func"] = func
+        transformed_mod = GridToCoreGrid_v5(Before)
+        transformed = transformed_mod["func"]
 
         # Should have global mode runtime args
         func_str = str(transformed.script())
@@ -344,7 +366,10 @@ class TestGridToCoreGrid:
         func = func.with_attr("tt.runtime_args",
                               ["start_id", "count", "Mt", "Nt", "Sm", "Sn", "Gy", "Gx", "sy", "sx"])
 
-        transformed = GridToCoreGrid_v5(func, Before, None)
+        # Apply the pass
+        Before["func"] = func
+        transformed_mod = GridToCoreGrid_v5(Before)
+        transformed = transformed_mod["func"]
 
         # Should handle shard-specific args
         func_str = str(transformed.script())
@@ -417,13 +442,22 @@ class TestPassIntegration:
 
         # Apply passes in sequence
         # B2: Grid transformation
-        func = GridToCoreGrid_v5(func, Original, None)
+        # Apply B2 pass
+        Original["gemm"] = func
+        result_mod = GridToCoreGrid_v5(Original)
+        func = result_mod["gemm"]
 
         # C1: Shared to CB
-        func = LowerSharedToCB_v5(func, Original, None)
+        # Apply C1 pass
+        result_mod["gemm"] = func
+        result_mod = LowerSharedToCB_v5(result_mod)
+        func = result_mod["gemm"]
 
         # C2: Tile intrinsics
-        func = LowerTTTileIntrinsics_v5(func, Original, None)
+        # Apply C2 pass
+        result_mod["gemm"] = func
+        result_mod = LowerTTTileIntrinsics_v5(result_mod)
+        func = result_mod["gemm"]
 
         # Validate final result
         assert "tt.conceptual_cbs" in func.attrs

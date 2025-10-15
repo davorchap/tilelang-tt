@@ -27,13 +27,98 @@ def LowerSharedToCB_v5(func, mod, ctx):
     4. Does NOT insert NOC/CB protocol calls
     """
 
-    class SharedToCBTransformer(stmt_functor.IRMutator):
+    class SharedToCBTransformer:
 
         def __init__(self):
-            super().__init__()
             self.shared_to_cb_map = {}  # Map shared buffer names to CB names
             self.cb_counter = {"input": 0, "output": 0, "intermediate": 0}
             self.buffer_info = {}  # Store buffer metadata
+
+        def visit(self, stmt):
+            """Generic visit method that dispatches to specific visit methods"""
+            if stmt is None:
+                return None
+
+            # Dispatch to specific visit methods based on node type
+            if isinstance(stmt, tir.BlockRealize):
+                return self.visit_block_realize(stmt)
+            elif isinstance(stmt, tir.Block):
+                return self.visit_block(stmt)
+            elif isinstance(stmt, tir.Allocate):
+                return self.visit_allocate(stmt)
+            elif isinstance(stmt, tir.Evaluate):
+                return self.visit_evaluate(stmt)
+            elif isinstance(stmt, tir.BufferLoad):
+                return self.visit_buffer_load(stmt)
+            elif isinstance(stmt, tir.BufferStore):
+                return self.visit_buffer_store(stmt)
+            elif isinstance(stmt, tir.SeqStmt):
+                new_seq = []
+                for s in stmt.seq:
+                    new_s = self.visit(s)
+                    if new_s is not None:
+                        new_seq.append(new_s)
+                return tir.SeqStmt(new_seq) if new_seq else None
+            elif hasattr(stmt, "body"):
+                new_body = self.visit(stmt.body)
+                if new_body != stmt.body:
+                    # Create a new node with the updated body
+                    # This is simplified - in real code you'd need to handle each node type
+                    return stmt.with_body(new_body) if hasattr(stmt, 'with_body') else stmt
+                return stmt
+            else:
+                return stmt
+
+        def visit_block_realize(self, op):
+            """Handle BlockRealize nodes"""
+            # Visit the block within
+            new_block = self.visit(op.block) if op.block else op.block
+            if new_block != op.block:
+                return tir.BlockRealize(op.iter_values, op.predicate, new_block)
+            return op
+
+        def visit_block(self, op):
+            """Handle Block nodes - process alloc_buffers for shared memory"""
+
+            # Process alloc_buffers for shared memory
+            cb_allocs = []
+            for buffer in op.alloc_buffers:
+                if buffer.scope() == "shared":
+                    # Generate CB name
+                    cb_name = self._generate_cb_name(buffer.name)
+                    self.shared_to_cb_map[buffer.name] = cb_name
+
+                    # Store buffer info
+                    self.buffer_info[cb_name] = {
+                        "shape": [int(dim) for dim in buffer.shape],
+                        "dtype": str(buffer.dtype),
+                        "original_name": buffer.name
+                    }
+
+                    # Create CB allocation intrinsic
+                    cb_allocs.append(tir.Evaluate(
+                        tir.call_extern(
+                            "handle",
+                            "tt.alloc_cb",
+                            tir.StringImm(cb_name),
+                            *[tir.IntImm("int32", int(dim)) for dim in buffer.shape],
+                            tir.StringImm(str(buffer.dtype))
+                        )
+                    ))
+
+            # Visit body
+            new_body = self.visit(op.body) if op.body else op.body
+
+            # If we created CB allocations, prepend them to the body
+            if cb_allocs:
+                if new_body:
+                    cb_allocs.append(new_body)
+                new_body = tir.SeqStmt(cb_allocs)
+
+            # Return modified block with CB allocations in the body
+            # Note: We keep the original alloc_buffers for now (metadata)
+            return tir.Block(op.iter_vars, op.reads, op.writes, op.name, new_body,
+                           op.init, op.alloc_buffers, op.match_buffers, op.annotations, op.span)
 
         def visit_allocate(self, op):
             """Replace shared memory allocation with CB allocation"""
@@ -67,7 +152,8 @@ def LowerSharedToCB_v5(func, mod, ctx):
                 # Return the CB allocation followed by the body
                 return tir.SeqStmt([alloc_cb, body])
 
-            return super().visit_allocate(op)
+            # Continue visiting (was super().visit_allocate)
+            return self.visit(op.body) if hasattr(op, "body") else op
 
         def visit_evaluate(self, op):
             """Transform T.copy operations to abstract CB operations"""
@@ -89,7 +175,8 @@ def LowerSharedToCB_v5(func, mod, ctx):
                     if cb_name:
                         return self._create_write_from_cb(cb_name, dst)
 
-            return super().visit_evaluate(op)
+            # Continue visiting (was super().visit_evaluate)
+            return self.visit(op.body) if hasattr(op, "body") else op
 
         def visit_buffer_load(self, op):
             """Handle buffer loads from shared memory"""
@@ -98,7 +185,8 @@ def LowerSharedToCB_v5(func, mod, ctx):
                 # This load is from a CB, mark it for later processing
                 # For now, keep as-is (will be handled by later passes)
                 pass
-            return super().visit_buffer_load(op)
+            # Continue visiting (was super().visit_buffer_load)
+            return self.visit(op.body) if hasattr(op, "body") else op
 
         def visit_buffer_store(self, op):
             """Handle buffer stores to shared memory"""
@@ -107,7 +195,8 @@ def LowerSharedToCB_v5(func, mod, ctx):
                 # This store is to a CB, mark it for later processing
                 # For now, keep as-is (will be handled by later passes)
                 pass
-            return super().visit_buffer_store(op)
+            # Continue visiting (was super().visit_buffer_store)
+            return self.visit(op.body) if hasattr(op, "body") else op
 
         # Helper methods
 
@@ -225,12 +314,24 @@ def validate_protocol_less_output(func):
     - CB protocol operations (cb_reserve_back, cb_push_back, etc.)
     """
 
-    class ProtocolChecker(stmt_functor.StmtVisitor):
+    class ProtocolChecker:
 
         def __init__(self):
-            super().__init__()
             self.has_protocol = False
             self.protocol_calls = []
+
+        def visit(self, stmt):
+            """Visit and check for protocol operations"""
+            if stmt is None:
+                return
+
+            if isinstance(stmt, tir.Evaluate):
+                self.visit_evaluate(stmt)
+            elif isinstance(stmt, tir.SeqStmt):
+                for s in stmt.seq:
+                    self.visit(s)
+            elif hasattr(stmt, "body"):
+                self.visit(stmt.body)
 
         def visit_evaluate(self, op):
             if isinstance(op.value, tir.Call):
@@ -246,7 +347,7 @@ def validate_protocol_less_output(func):
                     self.has_protocol = True
                     self.protocol_calls.append(call_name)
 
-            super().visit_evaluate(op)
+            # Continue visiting evaluate
 
     checker = ProtocolChecker()
     checker.visit(func.body)

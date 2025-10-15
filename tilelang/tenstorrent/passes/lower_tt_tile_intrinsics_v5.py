@@ -30,13 +30,40 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
     4. Does NOT insert DST management or engine init
     """
 
-    class TileIntrinsicLowerer(stmt_functor.IRMutator):
+    class TileIntrinsicLowerer:
 
         def __init__(self, cb_metadata):
-            super().__init__()
             self.cb_metadata = cb_metadata or {}
             self.loop_stack = []  # Track loop nesting
             self.compute_patterns = []  # Detected patterns
+
+
+        def visit(self, stmt):
+            """Generic visit method that dispatches to specific visit methods"""
+            if stmt is None:
+                return None
+
+            # Dispatch to specific visit methods based on node type
+            if isinstance(stmt, tir.For):
+                return self.visit_for(stmt)
+            elif isinstance(stmt, tir.Evaluate):
+                return self.visit_evaluate(stmt)
+            elif isinstance(stmt, tir.BufferStore):
+                return self.visit_buffer_store(stmt)
+            elif isinstance(stmt, tir.SeqStmt):
+                new_seq = []
+                for s in stmt.seq:
+                    new_s = self.visit(s)
+                    if new_s is not None:
+                        new_seq.append(new_s)
+                return tir.SeqStmt(new_seq) if new_seq else None
+            elif hasattr(stmt, "body"):
+                new_body = self.visit(stmt.body)
+                if new_body != stmt.body:
+                    return stmt.with_body(new_body) if hasattr(stmt, 'with_body') else stmt
+                return stmt
+            else:
+                return stmt
 
         def visit_for(self, op):
             """Track loop context for pattern detection"""
@@ -76,7 +103,8 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             elif self._is_sfpu_op(op):
                 return self._lower_sfpu(op)
 
-            return super().visit_evaluate(op)
+            # Continue visiting (was super().visit_evaluate)
+            return self.visit(op.body) if hasattr(op, "body") else op
 
         def visit_buffer_store(self, op):
             """Detect compute patterns in buffer stores"""
@@ -89,7 +117,8 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             elif self._is_binary_operation(op):
                 return self._lower_binary_operation(op)
 
-            return super().visit_buffer_store(op)
+            # Continue visiting (was super().visit_buffer_store)
+            return self.visit(op.body) if hasattr(op, "body") else op
 
         # Pattern detection methods (no heuristics!)
 
@@ -147,19 +176,24 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             # Check if loop variable is used in accumulation
             loop_var = for_node.loop_var
 
-            class ReductionChecker(stmt_functor.StmtVisitor):
-
+            class ReductionChecker:
                 def __init__(self, var):
-                    super().__init__()
                     self.var = var
                     self.has_reduction = False
+
+                def visit(self, stmt):
+                    """Visit method for ReductionChecker"""
+                    if isinstance(stmt, tir.BufferStore):
+                        self.visit_buffer_store(stmt)
+                    elif hasattr(stmt, "body"):
+                        self.visit(stmt.body)
 
                 def visit_buffer_store(self, op):
                     # Check for accumulation pattern
                     if isinstance(op.value, tir.Add):
                         if self._uses_var(op.value, self.var):
                             self.has_reduction = True
-                    super().visit_buffer_store(op)
+                    # Continue visiting buffer_store
 
                 def _uses_var(self, expr, var):
                     """Check if expression uses the variable"""
@@ -267,7 +301,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                         tir.IntImm("int32", 0),  # dst
                         tir.IntImm("bool", accumulate)))
 
-            return super().visit_buffer_store(buffer_store)
+            return buffer_store
 
         def _lower_binary_operation(self, buffer_store):
             """Lower binary operations"""
@@ -293,7 +327,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                         tir.IntImm("int32", 0)  # dst
                     ))
 
-            return super().visit_buffer_store(buffer_store)
+            return buffer_store
 
         # Helper methods
 
@@ -352,12 +386,20 @@ def validate_no_heuristics(func):
     - Hard-coded CB IDs
     """
 
-    class HeuristicChecker(stmt_functor.StmtVisitor):
-
+    class HeuristicChecker:
         def __init__(self):
-            super().__init__()
             self.has_heuristics = False
             self.issues = []
+
+        def visit(self, stmt):
+            """Visit and check for heuristics"""
+            if isinstance(stmt, tir.Evaluate):
+                self.visit_evaluate(stmt)
+            elif isinstance(stmt, tir.SeqStmt):
+                for s in stmt.seq:
+                    self.visit(s)
+            elif hasattr(stmt, "body"):
+                self.visit(stmt.body)
 
         def visit_evaluate(self, op):
             if isinstance(op.value, tir.Call):
@@ -369,7 +411,7 @@ def validate_no_heuristics(func):
                             self.has_heuristics = True
                             self.issues.append(f"Hard-coded CB ID: {arg.value}")
 
-            super().visit_evaluate(op)
+            # Continue visiting evaluate
 
     checker = HeuristicChecker()
     checker.visit(func.body)
