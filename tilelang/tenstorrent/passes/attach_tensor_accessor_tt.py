@@ -192,6 +192,10 @@ class AttachTensorAccessorTT:
         tile_shape = layout.get("tile_shape", [32, 32])
         dtype = layout.get("dtype", "bf16")
 
+        # Ensure tile_shape elements are integers
+        if isinstance(tile_shape, (list, tuple)):
+            tile_shape = [int(x) if not isinstance(x, int) else x for x in tile_shape]
+
         # Calculate tile size in bytes
         bytes_per_elem = self._get_dtype_bytes(dtype)
         tile_elements = tile_shape[0] * tile_shape[1]
