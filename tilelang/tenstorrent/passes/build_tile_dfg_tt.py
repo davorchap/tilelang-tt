@@ -11,7 +11,7 @@ Output: tt.tile_dfg containing nodes, edges, and role assignments
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Set, Optional, Tuple
+from typing import Dict, Any, List, Set, Optional
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
@@ -29,19 +29,19 @@ logger = logging.getLogger(__name__)
 
 class NodeType(Enum):
     """Types of nodes in the dataflow graph"""
-    BUFFER = "buffer"      # External buffer (DRAM/L1)
-    CB = "cb"             # Circular buffer
-    COMPUTE = "compute"   # Compute operation
-    READ = "read"         # Read operation (buffer -> CB)
-    WRITE = "write"       # Write operation (CB -> buffer)
+    BUFFER = "buffer"  # External buffer (DRAM/L1)
+    CB = "cb"  # Circular buffer
+    COMPUTE = "compute"  # Compute operation
+    READ = "read"  # Read operation (buffer -> CB)
+    WRITE = "write"  # Write operation (CB -> buffer)
 
 
 class EdgeType(Enum):
     """Types of edges in the dataflow graph"""
-    DATA_READ = "data_read"      # Buffer -> CB via read
-    DATA_WRITE = "data_write"    # CB -> Buffer via write
+    DATA_READ = "data_read"  # Buffer -> CB via read
+    DATA_WRITE = "data_write"  # CB -> Buffer via write
     COMPUTE_INPUT = "compute_in"  # CB -> Compute
-    COMPUTE_OUTPUT = "compute_out" # Compute -> CB
+    COMPUTE_OUTPUT = "compute_out"  # Compute -> CB
 
 
 @dataclass
@@ -111,8 +111,7 @@ class TileDFGBuilder(tir.stmt_functor.StmtVisitor):
                         "shape": shape,
                         "dtype": dtype,
                         "index": self._assign_cb_index(cb_name)
-                    }
-                )
+                    })
                 self.nodes[cb_name] = node
                 self.cb_allocations[cb_name] = node.attrs
 
@@ -135,8 +134,7 @@ class TileDFGBuilder(tir.stmt_functor.StmtVisitor):
                             id=buffer_name,
                             type=NodeType.BUFFER,
                             attrs={"memory": "DRAM"},  # Default, updated from metadata
-                            kernel_role="reader"
-                        )
+                            kernel_role="reader")
 
                     # Create read node
                     read_id = f"read_{buffer_name}_to_{cb_name}"
@@ -145,21 +143,13 @@ class TileDFGBuilder(tir.stmt_functor.StmtVisitor):
                         type=NodeType.READ,
                         inputs=[buffer_name],
                         outputs=[cb_name],
-                        kernel_role="reader"
-                    )
+                        kernel_role="reader")
                     self.nodes[read_id] = read_node
 
                     # Create edges
-                    self.edges.append(DFGEdge(
-                        src=buffer_name,
-                        dst=read_id,
-                        type=EdgeType.DATA_READ
-                    ))
-                    self.edges.append(DFGEdge(
-                        src=read_id,
-                        dst=cb_name,
-                        type=EdgeType.DATA_READ
-                    ))
+                    self.edges.append(
+                        DFGEdge(src=buffer_name, dst=read_id, type=EdgeType.DATA_READ))
+                    self.edges.append(DFGEdge(src=read_id, dst=cb_name, type=EdgeType.DATA_READ))
 
                     # Mark CB as having reader role
                     if cb_name in self.nodes:
@@ -184,8 +174,7 @@ class TileDFGBuilder(tir.stmt_functor.StmtVisitor):
                             id=buffer_name,
                             type=NodeType.BUFFER,
                             attrs={"memory": "DRAM"},
-                            kernel_role="writer"
-                        )
+                            kernel_role="writer")
 
                     # Create write node
                     write_id = f"write_{cb_name}_to_{buffer_name}"
@@ -194,21 +183,13 @@ class TileDFGBuilder(tir.stmt_functor.StmtVisitor):
                         type=NodeType.WRITE,
                         inputs=[cb_name],
                         outputs=[buffer_name],
-                        kernel_role="writer"
-                    )
+                        kernel_role="writer")
                     self.nodes[write_id] = write_node
 
                     # Create edges
-                    self.edges.append(DFGEdge(
-                        src=cb_name,
-                        dst=write_id,
-                        type=EdgeType.DATA_WRITE
-                    ))
-                    self.edges.append(DFGEdge(
-                        src=write_id,
-                        dst=buffer_name,
-                        type=EdgeType.DATA_WRITE
-                    ))
+                    self.edges.append(DFGEdge(src=cb_name, dst=write_id, type=EdgeType.DATA_WRITE))
+                    self.edges.append(
+                        DFGEdge(src=write_id, dst=buffer_name, type=EdgeType.DATA_WRITE))
 
                     # Mark CB as having writer role
                     if cb_name in self.nodes:
@@ -253,27 +234,26 @@ class TileDFGBuilder(tir.stmt_functor.StmtVisitor):
             },
             inputs=input_cbs,
             outputs=[output_cb] if output_cb else [],
-            kernel_role="compute"
-        )
+            kernel_role="compute")
         self.nodes[compute_id] = compute_node
 
         # Create edges from input CBs to compute
         for cb in input_cbs:
-            self.edges.append(DFGEdge(
-                src=cb,
-                dst=compute_id,
-                type=EdgeType.COMPUTE_INPUT,
-                attrs={"compute_op": compute_type}
-            ))
+            self.edges.append(
+                DFGEdge(
+                    src=cb,
+                    dst=compute_id,
+                    type=EdgeType.COMPUTE_INPUT,
+                    attrs={"compute_op": compute_type}))
 
         # Create edge from compute to output CB
         if output_cb:
-            self.edges.append(DFGEdge(
-                src=compute_id,
-                dst=output_cb,
-                type=EdgeType.COMPUTE_OUTPUT,
-                attrs={"compute_op": compute_type}
-            ))
+            self.edges.append(
+                DFGEdge(
+                    src=compute_id,
+                    dst=output_cb,
+                    type=EdgeType.COMPUTE_OUTPUT,
+                    attrs={"compute_op": compute_type}))
 
         logger.debug(f"Added compute: {compute_id} ({compute_type}) with inputs {input_cbs}")
 
@@ -426,7 +406,8 @@ class BuildTileDFGTT:
         cb_assignment = self._generate_cb_assignment(builder)
         func = func.with_attr("tt.cb_assignment", tvm.runtime.convert(cb_assignment))
 
-        logger.info(f"Built dataflow graph with {len(builder.nodes)} nodes and {len(builder.edges)} edges")
+        logger.info(
+            f"Built dataflow graph with {len(builder.nodes)} nodes and {len(builder.edges)} edges")
 
         return func
 
@@ -468,10 +449,14 @@ class BuildTileDFGTT:
             "cb_allocations": builder.cb_allocations,
             "cb_reuse": cb_reuse,
             "stats": {
-                "num_nodes": len(builder.nodes),
-                "num_edges": len(builder.edges),
-                "num_cbs": len(builder.cb_allocations),
-                "num_compute_ops": sum(1 for n in builder.nodes.values() if n.type == NodeType.COMPUTE)
+                "num_nodes":
+                    len(builder.nodes),
+                "num_edges":
+                    len(builder.edges),
+                "num_cbs":
+                    len(builder.cb_allocations),
+                "num_compute_ops":
+                    sum(1 for n in builder.nodes.values() if n.type == NodeType.COMPUTE)
             }
         }
 
@@ -480,11 +465,7 @@ class BuildTileDFGTT:
     def _identify_kernel_roles(self, builder: TileDFGBuilder) -> Dict[str, List[str]]:
         """Identify which nodes belong to which kernel role."""
 
-        roles = {
-            "reader": [],
-            "compute": [],
-            "writer": []
-        }
+        roles = {"reader": [], "compute": [], "writer": []}
 
         for node_id, node in builder.nodes.items():
             if node.kernel_role == "reader":
@@ -509,20 +490,30 @@ class BuildTileDFGTT:
 
         cb_reuse = {}
 
-        for cb_name, cb_info in builder.cb_allocations.items():
+        for cb_name, _cb_info in builder.cb_allocations.items():
             # Count how many times each CB is read/written
-            read_count = sum(1 for e in builder.edges if e.dst == cb_name and e.type == EdgeType.DATA_READ)
-            write_count = sum(1 for e in builder.edges if e.src == cb_name and e.type == EdgeType.DATA_WRITE)
-            compute_in = sum(1 for e in builder.edges if e.src == cb_name and e.type == EdgeType.COMPUTE_INPUT)
-            compute_out = sum(1 for e in builder.edges if e.dst == cb_name and e.type == EdgeType.COMPUTE_OUTPUT)
+            read_count = sum(
+                1 for e in builder.edges if e.dst == cb_name and e.type == EdgeType.DATA_READ)
+            write_count = sum(
+                1 for e in builder.edges if e.src == cb_name and e.type == EdgeType.DATA_WRITE)
+            compute_in = sum(
+                1 for e in builder.edges if e.src == cb_name and e.type == EdgeType.COMPUTE_INPUT)
+            compute_out = sum(
+                1 for e in builder.edges if e.dst == cb_name and e.type == EdgeType.COMPUTE_OUTPUT)
 
             cb_reuse[cb_name] = {
-                "read_count": read_count,
-                "write_count": write_count,
-                "compute_input_count": compute_in,
-                "compute_output_count": compute_out,
-                "total_uses": read_count + write_count + compute_in + compute_out,
-                "is_intermediate": read_count == 0 and write_count == 0 and compute_in + compute_out > 0
+                "read_count":
+                    read_count,
+                "write_count":
+                    write_count,
+                "compute_input_count":
+                    compute_in,
+                "compute_output_count":
+                    compute_out,
+                "total_uses":
+                    read_count + write_count + compute_in + compute_out,
+                "is_intermediate":
+                    read_count == 0 and write_count == 0 and compute_in + compute_out > 0
             }
 
         return cb_reuse
@@ -566,12 +557,10 @@ if __name__ == "__main__":
     # Create test module with protocol-less IR
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm_protocol_less(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_protocol_less(A: T.Buffer((256, 256), "float16"), B: T.Buffer(
+            (256, 256), "float16"), C: T.Buffer((256, 256), "float16")):
             # Simulate output from C1/C2
             T.evaluate(T.call_extern("tt.alloc_cb", "cb_in0", [128, 32], "bf16"))
             T.evaluate(T.call_extern("tt.alloc_cb", "cb_in1", [32, 128], "bf16"))

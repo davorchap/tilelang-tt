@@ -79,9 +79,8 @@ class LayoutAwareWorkPartitionTT_v5:
         grid_tiles = self._calculate_grid_tiles(func, buffer_layouts)
 
         # Generate work partition
-        work_partition, core_ranges = self._generate_work_partition(
-            partition_mode, core_grid, grid_tiles, shard_info
-        )
+        work_partition, core_ranges = self._generate_work_partition(partition_mode, core_grid,
+                                                                    grid_tiles, shard_info)
 
         # Generate runtime arguments
         runtime_args = self._generate_runtime_args(partition_mode, shard_info)
@@ -117,7 +116,8 @@ class LayoutAwareWorkPartitionTT_v5:
 
         return layouts
 
-    def _determine_partition_mode(self, buffer_layouts: Dict[str, Dict[str, Any]]) -> Tuple[str, Optional[Dict]]:
+    def _determine_partition_mode(
+            self, buffer_layouts: Dict[str, Dict[str, Any]]) -> Tuple[str, Optional[Dict]]:
         """
         Determine partition mode based on buffer layouts.
 
@@ -164,7 +164,7 @@ class LayoutAwareWorkPartitionTT_v5:
         return self.default_core_grid
 
     def _calculate_grid_tiles(self, func: "tir.PrimFunc",
-                             buffer_layouts: Dict[str, Dict[str, Any]]) -> List[int]:
+                              buffer_layouts: Dict[str, Dict[str, Any]]) -> List[int]:
         """Calculate global grid tile dimensions."""
 
         # Try to infer from output buffer shape
@@ -188,7 +188,8 @@ class LayoutAwareWorkPartitionTT_v5:
         return [8, 8]  # Default 8x8 tiles
 
     def _generate_work_partition(self, partition_mode: str, core_grid: List[int],
-                                grid_tiles: List[int], shard_info: Optional[Dict]) -> Tuple[Dict, List]:
+                                 grid_tiles: List[int],
+                                 shard_info: Optional[Dict]) -> Tuple[Dict, List]:
         """
         Generate work partition assignments and core ranges.
 
@@ -209,11 +210,11 @@ class LayoutAwareWorkPartitionTT_v5:
             shard_grid = shard_info["grid"]
             local_tiles = shard_info["local_tiles"]
             sm, sn = local_tiles
-            local_tile_count = sm * sn
+            sm * sn
 
             for cy in range(grid_y):
                 for cx in range(grid_x):
-                    core_id = cy * grid_x + cx
+                    cy * grid_x + cx
                     core_key = f"core_{cy}_{cx}"
 
                     if cy < shard_grid[0] and cx < shard_grid[1]:
@@ -260,26 +261,26 @@ class LayoutAwareWorkPartitionTT_v5:
         if partition_mode == "local_shard":
             # Local shard mode needs additional shard parameters
             return [
-                "start_id",      # Starting tile ID
-                "count",         # Number of tiles
-                "Mt",            # Global M tiles
-                "Kt",            # K tiles (for GEMM)
-                "Nt",            # Global N tiles
-                "Sm",            # Shard M tiles
-                "Sn",            # Shard N tiles
-                "Gy",            # Shard grid Y
-                "Gx",            # Shard grid X
-                "sy",            # Shard coordinate Y
-                "sx"             # Shard coordinate X
+                "start_id",  # Starting tile ID
+                "count",  # Number of tiles
+                "Mt",  # Global M tiles
+                "Kt",  # K tiles (for GEMM)
+                "Nt",  # Global N tiles
+                "Sm",  # Shard M tiles
+                "Sn",  # Shard N tiles
+                "Gy",  # Shard grid Y
+                "Gx",  # Shard grid X
+                "sy",  # Shard coordinate Y
+                "sx"  # Shard coordinate X
             ]
         else:
             # Global mode - simpler runtime args
             return [
-                "start_id",      # Starting tile ID
-                "count",         # Number of tiles
-                "Mt",            # Global M tiles
-                "Kt",            # K tiles (for GEMM)
-                "Nt"             # Global N tiles
+                "start_id",  # Starting tile ID
+                "count",  # Number of tiles
+                "Mt",  # Global M tiles
+                "Kt",  # K tiles (for GEMM)
+                "Nt"  # Global N tiles
             ]
 
     def _convert_to_dict(self, attr_value: Any) -> Dict[str, Any]:
@@ -328,12 +329,10 @@ if __name__ == "__main__":
     # Create test module
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                 C: T.Buffer((256, 256), "float16")):
             for i, j in T.grid(256, 256):
                 C[i, j] = A[i, j] + B[i, j]
 
@@ -378,18 +377,19 @@ if __name__ == "__main__":
     print("\n=== Test 2: Local Shard Mode ===")
 
     func2 = TestModule["gemm"]
-    func2 = func2.with_attr("tt.buffer.C", {
-        "memory": "L1",
-        "layout": "sharded",
-        "tile_shape": [32, 32],
-        "dtype": "bf16",
-        "nd_shard": {
-            "axes": ["M", "N"],
-            "grid": [2, 4],
-            "projected_grid": [2, 4],
-            "projected_shard_tiles": [4, 2]
-        }
-    })
+    func2 = func2.with_attr(
+        "tt.buffer.C", {
+            "memory": "L1",
+            "layout": "sharded",
+            "tile_shape": [32, 32],
+            "dtype": "bf16",
+            "nd_shard": {
+                "axes": ["M", "N"],
+                "grid": [2, 4],
+                "projected_grid": [2, 4],
+                "projected_shard_tiles": [4, 2]
+            }
+        })
 
     TestModule["gemm"] = func2
 

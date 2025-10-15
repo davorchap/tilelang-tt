@@ -7,7 +7,7 @@ Purpose: Generate kernel code by traversing actual TIR instead of templates.
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any
 import logging
 
 from .tir_visitor import TIRToMetaliumVisitor
@@ -174,9 +174,9 @@ class EnhancedComputeKernelGenerator(EnhancedKernelGenerator):
 
     def _analyze_compute_ops(self) -> set:
         """Analyze compute operations to determine includes"""
-        includes = set()
 
         class OpAnalyzer(tir.stmt_functor.StmtVisitor):
+
             def __init__(self):
                 super().__init__()
                 self.ops_found = set()
@@ -186,7 +186,8 @@ class EnhancedComputeKernelGenerator(EnhancedKernelGenerator):
                     op_name = op.value.op.name
                     if "mm" in op_name or "matmul" in op_name:
                         self.ops_found.add("matmul")
-                    elif "fpu" in op_name and any(x in op_name for x in ["add", "mul", "sub", "div"]):
+                    elif "fpu" in op_name and any(
+                            x in op_name for x in ["add", "mul", "sub", "div"]):
                         self.ops_found.add("binary")
                     elif "sfpu" in op_name:
                         self.ops_found.add("unary")

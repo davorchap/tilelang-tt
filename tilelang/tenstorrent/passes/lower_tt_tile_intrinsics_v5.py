@@ -16,7 +16,6 @@ Output: TIR with protocol-less tt.mm.mma, tt.fpu.add, tt.sfpu.unary operations
 import tvm
 from tvm import tir
 from tvm.tir import stmt_functor
-from typing import Dict, List, Optional, Tuple, Any
 
 
 @tvm.tir.transform.prim_func_pass(opt_level=0)
@@ -32,6 +31,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
     """
 
     class TileIntrinsicLowerer(stmt_functor.IRMutator):
+
         def __init__(self, cb_metadata):
             super().__init__()
             self.cb_metadata = cb_metadata or {}
@@ -148,6 +148,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             loop_var = for_node.loop_var
 
             class ReductionChecker(stmt_functor.StmtVisitor):
+
                 def __init__(self, var):
                     super().__init__()
                     self.var = var
@@ -179,7 +180,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             # Extract CB arguments (should be conceptual CBs from C1)
             cb_a = self._get_cb_for_arg(args[0])
             cb_b = self._get_cb_for_arg(args[1])
-            cb_c = self._get_cb_for_arg(args[2]) if len(args) > 2 else None
+            self._get_cb_for_arg(args[2]) if len(args) > 2 else None
 
             # Determine if this is accumulating
             accumulate = self._in_reduction_loop()
@@ -193,9 +194,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                     tir.StringImm(cb_a),
                     tir.StringImm(cb_b),
                     tir.IntImm("int32", 0),  # dst register (always 0 for now)
-                    tir.IntImm("bool", accumulate)
-                )
-            )
+                    tir.IntImm("bool", accumulate)))
 
         def _lower_elementwise(self, evaluate_node):
             """Lower element-wise operations to tt.fpu intrinsics"""
@@ -224,8 +223,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                     tir.StringImm(cb_a),
                     tir.StringImm(cb_b),
                     tir.IntImm("int32", 0)  # dst register
-                )
-            )
+                ))
 
         def _lower_sfpu(self, evaluate_node):
             """Lower SFPU operations to tt.sfpu intrinsics"""
@@ -243,8 +241,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                     tir.StringImm(op_name),
                     tir.StringImm(cb_in),
                     tir.IntImm("int32", 0)  # dst register
-                )
-            )
+                ))
 
         def _lower_matmul_accumulation(self, buffer_store):
             """Lower matmul accumulation pattern"""
@@ -268,9 +265,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                         tir.StringImm(cb_a),
                         tir.StringImm(cb_b),
                         tir.IntImm("int32", 0),  # dst
-                        tir.IntImm("bool", accumulate)
-                    )
-                )
+                        tir.IntImm("bool", accumulate)))
 
             return super().visit_buffer_store(buffer_store)
 
@@ -278,12 +273,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             """Lower binary operations"""
             value = buffer_store.value
 
-            op_map = {
-                tir.Add: "add",
-                tir.Sub: "subtract",
-                tir.Mul: "multiply",
-                tir.Div: "divide"
-            }
+            op_map = {tir.Add: "add", tir.Sub: "subtract", tir.Mul: "multiply", tir.Div: "divide"}
 
             op_type = type(value)
             if op_type in op_map:
@@ -301,8 +291,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                         tir.StringImm(cb_a),
                         tir.StringImm(cb_b),
                         tir.IntImm("int32", 0)  # dst
-                    )
-                )
+                    ))
 
             return super().visit_buffer_store(buffer_store)
 
@@ -329,21 +318,13 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
 
         def _in_reduction_loop(self):
             """Check if we're currently in a reduction loop"""
-            for loop in self.loop_stack:
-                # Check loop metadata or analysis results
-                if loop.get("is_reduction", False):
-                    return True
-            return False
+            return any(loop.get("is_reduction", False) for loop in self.loop_stack)
 
         def _annotate_k_loop(self, body):
             """Annotate body as being in a K-loop for later passes"""
             # Add annotation for DST management pass
             return tir.AttrStmt(
-                tir.StringImm("tt.k_loop"),
-                "pragma_scope",
-                tir.IntImm("int32", 1),
-                body
-            )
+                tir.StringImm("tt.k_loop"), "pragma_scope", tir.IntImm("int32", 1), body)
 
     # Get CB metadata from previous pass
     cb_metadata = func.attrs.get("tt.conceptual_cbs", {})
@@ -372,6 +353,7 @@ def validate_no_heuristics(func):
     """
 
     class HeuristicChecker(stmt_functor.StmtVisitor):
+
         def __init__(self):
             super().__init__()
             self.has_heuristics = False
@@ -406,23 +388,18 @@ if __name__ == "__main__":
     # Create a test function with high-level operations
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm_example(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_example(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                         C: T.Buffer((256, 256), "float16")):
             # Assume CBs already allocated by C1 pass
-            for k in T.serial(8):
+            for _k in T.serial(8):
                 # High-level GEMM that needs lowering
                 T.evaluate(T.gemm(A, B, C))
 
         @T.prim_func
-        def elementwise_example(
-            X: T.Buffer((256, 256), "float16"),
-            Y: T.Buffer((256, 256), "float16"),
-            Z: T.Buffer((256, 256), "float16")
-        ):
+        def elementwise_example(X: T.Buffer((256, 256), "float16"), Y: T.Buffer(
+            (256, 256), "float16"), Z: T.Buffer((256, 256), "float16")):
             # Element-wise operations
             T.evaluate(T.add(X, Y, Z))
 
@@ -430,11 +407,18 @@ if __name__ == "__main__":
     func = TestModule["gemm_example"]
 
     # Simulate CB metadata from C1
-    func = func.with_attr("tt.conceptual_cbs", {
-        "cb_in0": {"original_buffer": "A"},
-        "cb_in1": {"original_buffer": "B"},
-        "cb_out0": {"original_buffer": "C"}
-    })
+    func = func.with_attr(
+        "tt.conceptual_cbs", {
+            "cb_in0": {
+                "original_buffer": "A"
+            },
+            "cb_in1": {
+                "original_buffer": "B"
+            },
+            "cb_out0": {
+                "original_buffer": "C"
+            }
+        })
 
     transformed = LowerTTTileIntrinsics_v5(func, TestModule, None)
 

@@ -8,13 +8,13 @@ Tests the three updated passes for protocol-less design:
 
 import pytest
 import tvm
-from tvm import tir
 from tvm.script import tir as T
 import tvm.script
 
 # Import the new passes
 import sys
 import os
+
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../../tilelang/tenstorrent/passes"))
 
 from lower_shared_to_cb_v5 import LowerSharedToCB_v5, validate_protocol_less_output
@@ -30,9 +30,10 @@ class TestLowerSharedToCB:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
+                T.alloc_buffer((32, 32), "float16", scope="shared")
                 T.evaluate(0)  # Dummy body
 
         func = Before["func"]
@@ -50,11 +51,9 @@ class TestLowerSharedToCB:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def func(A: T.Buffer((256, 256), "float16"), C: T.Buffer((256, 256), "float16")):
                 A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
                 # This would be T.copy in real TIR
                 # Simulating copy pattern
@@ -74,13 +73,11 @@ class TestLowerSharedToCB:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16")
-            ):
-                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
-                B_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
+            def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16")):
+                T.alloc_buffer((32, 32), "float16", scope="shared")
+                T.alloc_buffer((32, 32), "float16", scope="shared")
                 T.evaluate(0)
 
         func = Before["func"]
@@ -96,9 +93,10 @@ class TestLowerSharedToCB:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
+                T.alloc_buffer((32, 32), "float16", scope="shared")
                 T.evaluate(0)
 
         func = Before["func"]
@@ -109,9 +107,8 @@ class TestLowerSharedToCB:
 
         # Should NOT contain these protocol operations
         protocol_ops = [
-            "noc_async_read", "noc_async_write",
-            "cb_reserve_back", "cb_push_back",
-            "cb_wait_front", "cb_pop_front"
+            "noc_async_read", "noc_async_write", "cb_reserve_back", "cb_push_back", "cb_wait_front",
+            "cb_pop_front"
         ]
 
         for op in protocol_ops:
@@ -126,23 +123,28 @@ class TestLowerTTTileIntrinsics:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 # Simulate T.gemm call
                 T.evaluate(T.call_extern("void", "T.gemm", A, B, C))
 
         func = Before["func"]
 
         # Add CB metadata as if C1 pass ran
-        func = func.with_attr("tt.conceptual_cbs", {
-            "cb_in0": {"original_buffer": "A"},
-            "cb_in1": {"original_buffer": "B"},
-            "cb_out0": {"original_buffer": "C"}
-        })
+        func = func.with_attr(
+            "tt.conceptual_cbs", {
+                "cb_in0": {
+                    "original_buffer": "A"
+                },
+                "cb_in1": {
+                    "original_buffer": "B"
+                },
+                "cb_out0": {
+                    "original_buffer": "C"
+                }
+            })
 
         transformed = LowerTTTileIntrinsics_v5(func, Before, None)
 
@@ -158,23 +160,28 @@ class TestLowerTTTileIntrinsics:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
-            def func(
-                X: T.Buffer((256, 256), "float16"),
-                Y: T.Buffer((256, 256), "float16"),
-                Z: T.Buffer((256, 256), "float16")
-            ):
+            def func(X: T.Buffer((256, 256), "float16"), Y: T.Buffer((256, 256), "float16"),
+                     Z: T.Buffer((256, 256), "float16")):
                 # Simulate element-wise add
                 T.evaluate(T.call_extern("void", "T.add", X, Y, Z))
 
         func = Before["func"]
 
         # Add CB metadata
-        func = func.with_attr("tt.conceptual_cbs", {
-            "cb_in0": {"original_buffer": "X"},
-            "cb_in1": {"original_buffer": "Y"},
-            "cb_out0": {"original_buffer": "Z"}
-        })
+        func = func.with_attr(
+            "tt.conceptual_cbs", {
+                "cb_in0": {
+                    "original_buffer": "X"
+                },
+                "cb_in1": {
+                    "original_buffer": "Y"
+                },
+                "cb_out0": {
+                    "original_buffer": "Z"
+                }
+            })
 
         transformed = LowerTTTileIntrinsics_v5(func, Before, None)
 
@@ -187,22 +194,29 @@ class TestLowerTTTileIntrinsics:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(
-                A_tile: T.Buffer((32, 32), "float16"),  # Has _tile suffix
-                B_tile: T.Buffer((32, 32), "float16"),  # Has _tile suffix
-                C: T.Buffer((32, 32), "float16")
-            ):
+                    A_tile: T.Buffer((32, 32), "float16"),  # Has _tile suffix
+                    B_tile: T.Buffer((32, 32), "float16"),  # Has _tile suffix
+                    C: T.Buffer((32, 32), "float16")):
                 T.evaluate(T.call_extern("void", "T.gemm", A_tile, B_tile, C))
 
         func = Before["func"]
 
         # Add proper CB metadata (not based on names)
-        func = func.with_attr("tt.conceptual_cbs", {
-            "cb_in0": {"original_buffer": "A_tile"},
-            "cb_in1": {"original_buffer": "B_tile"},
-            "cb_out0": {"original_buffer": "C"}
-        })
+        func = func.with_attr(
+            "tt.conceptual_cbs", {
+                "cb_in0": {
+                    "original_buffer": "A_tile"
+                },
+                "cb_in1": {
+                    "original_buffer": "B_tile"
+                },
+                "cb_out0": {
+                    "original_buffer": "C"
+                }
+            })
 
         transformed = LowerTTTileIntrinsics_v5(func, Before, None)
 
@@ -214,21 +228,26 @@ class TestLowerTTTileIntrinsics:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
-                for k in T.serial(8):
+            def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
+                for _k in T.serial(8):
                     T.evaluate(T.call_extern("void", "T.gemm", A, B, C))
 
         func = Before["func"]
-        func = func.with_attr("tt.conceptual_cbs", {
-            "cb_in0": {"original_buffer": "A"},
-            "cb_in1": {"original_buffer": "B"},
-            "cb_out0": {"original_buffer": "C"}
-        })
+        func = func.with_attr(
+            "tt.conceptual_cbs", {
+                "cb_in0": {
+                    "original_buffer": "A"
+                },
+                "cb_in1": {
+                    "original_buffer": "B"
+                },
+                "cb_out0": {
+                    "original_buffer": "C"
+                }
+            })
 
         transformed = LowerTTTileIntrinsics_v5(func, Before, None)
 
@@ -249,6 +268,7 @@ class TestGridToCoreGrid:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -268,7 +288,7 @@ class TestGridToCoreGrid:
         # Check for core launch
         assert "tt.core_map_x" in transformed.attrs
         assert "tt.core_map_y" in transformed.attrs
-        assert transformed.attrs["tt.transformed_to_core"] == True
+        assert transformed.attrs["tt.transformed_to_core"] is True
 
         # Validate structure
         validate_core_launch(transformed)
@@ -278,11 +298,12 @@ class TestGridToCoreGrid:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(C: T.Buffer((256, 256), "float16")):
                 for bx in T.thread_binding(8, thread="blockIdx.x"):
                     for by in T.thread_binding(8, thread="blockIdx.y"):
-                        C[by*32:(by+1)*32, bx*32:(bx+1)*32] = 0.0
+                        C[by * 32:(by + 1) * 32, bx * 32:(bx + 1) * 32] = 0.0
 
         func = Before["func"]
 
@@ -291,9 +312,8 @@ class TestGridToCoreGrid:
         func = func.with_attr("tt.partition_mode", "global")
         func = func.with_attr("tt.grid_tiles", [8, 8])
         func = func.with_attr("tt.runtime_args", ["start_id", "count", "Mt", "Nt"])
-        func = func.with_attr("tt.work_partition", {
-            f"core_{y}_{x}": [[y, x]] for y in range(8) for x in range(8)
-        })
+        func = func.with_attr("tt.work_partition",
+                              {f"core_{y}_{x}": [[y, x]] for y in range(8) for x in range(8)})
 
         transformed = GridToCoreGrid_v5(func, Before, None)
 
@@ -306,11 +326,12 @@ class TestGridToCoreGrid:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 for bx in T.thread_binding(4, thread="blockIdx.x"):
                     for by in T.thread_binding(4, thread="blockIdx.y"):
-                        A[by*64:(by+1)*64, bx*64:(bx+1)*64] = 0.0
+                        A[by * 64:(by + 1) * 64, bx * 64:(bx + 1) * 64] = 0.0
 
         func = Before["func"]
 
@@ -320,10 +341,8 @@ class TestGridToCoreGrid:
         func = func.with_attr("tt.grid_tiles", [4, 4])
         func = func.with_attr("tt.shard_grid", [2, 2])
         func = func.with_attr("tt.local_shape_tiles", [2, 2])
-        func = func.with_attr("tt.runtime_args", [
-            "start_id", "count", "Mt", "Nt",
-            "Sm", "Sn", "Gy", "Gx", "sy", "sx"
-        ])
+        func = func.with_attr("tt.runtime_args",
+                              ["start_id", "count", "Mt", "Nt", "Sm", "Sn", "Gy", "Gx", "sy", "sx"])
 
         transformed = GridToCoreGrid_v5(func, Before, None)
 
@@ -336,6 +355,7 @@ class TestGridToCoreGrid:
 
         @tvm.script.ir_module
         class Module:
+
             @T.prim_func
             def func():
                 T.evaluate(0)
@@ -364,12 +384,10 @@ class TestPassIntegration:
 
         @tvm.script.ir_module
         class Original:
+
             @T.prim_func
-            def gemm(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 for bx in T.thread_binding(8, thread="blockIdx.x"):
                     for by in T.thread_binding(8, thread="blockIdx.y"):
                         # Shared memory
@@ -377,15 +395,17 @@ class TestPassIntegration:
                         B_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
 
                         # Copy to shared (simulated)
-                        T.evaluate(T.call_extern("void", "tir.copy",
-                                               A[by*32:(by+1)*32, 0:32], A_shared))
-                        T.evaluate(T.call_extern("void", "tir.copy",
-                                               B[0:32, bx*32:(bx+1)*32], B_shared))
+                        T.evaluate(
+                            T.call_extern("void", "tir.copy", A[by * 32:(by + 1) * 32, 0:32],
+                                          A_shared))
+                        T.evaluate(
+                            T.call_extern("void", "tir.copy", B[0:32, bx * 32:(bx + 1) * 32],
+                                          B_shared))
 
                         # GEMM
-                        T.evaluate(T.call_extern("void", "T.gemm",
-                                               A_shared, B_shared,
-                                               C[by*32:(by+1)*32, bx*32:(bx+1)*32]))
+                        T.evaluate(
+                            T.call_extern("void", "T.gemm", A_shared, B_shared,
+                                          C[by * 32:(by + 1) * 32, bx * 32:(bx + 1) * 32]))
 
         func = Original["gemm"]
 
@@ -411,7 +431,7 @@ class TestPassIntegration:
 
         func_str = str(func.script())
         assert "tt.alloc_cb" in func_str  # Has CB allocations
-        assert "tt.mm.mma" in func_str    # Has tensorized compute
+        assert "tt.mm.mma" in func_str  # Has tensorized compute
         assert "launch_core" in func_str  # Has core launch
 
         # Should be protocol-less

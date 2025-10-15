@@ -11,12 +11,12 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../../tilelang/tenstorrent/passes"))
 
 import tvm
-from tvm import tir
 from tvm.script import tir as T
 import tvm.script
 
 # Import the A3 pass
 from attach_tensor_accessor_tt import AttachTensorAccessorTT
+
 
 def test_basic_accessor_creation():
     """Test that accessors are created for all buffers"""
@@ -24,12 +24,10 @@ def test_basic_accessor_creation():
 
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                 C: T.Buffer((256, 256), "float16")):
             for i, j in T.grid(256, 256):
                 C[i, j] = A[i, j] + B[i, j]
 
@@ -71,7 +69,8 @@ def test_basic_accessor_creation():
     # Check accessor summary
     assert "tt.accessor_summary" in func.attrs, "Missing accessor summary"
     summary = func.attrs["tt.accessor_summary"]
-    assert summary["total_accessors"] == 3, f"Expected 3 accessors, got {summary['total_accessors']}"
+    assert summary[
+        "total_accessors"] == 3, f"Expected 3 accessors, got {summary['total_accessors']}"
 
     print("✓ Basic accessor creation test passed")
 
@@ -82,10 +81,9 @@ def test_accessor_structure():
 
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def func(
-            A: T.Buffer((256, 256), "float16")
-        ):
+        def func(A: T.Buffer((256, 256), "float16")):
             T.evaluate(0)
 
     func = TestModule["func"]
@@ -106,8 +104,10 @@ def test_accessor_structure():
 
     # Check required fields
     assert accessor_a["type"] == "abstract", f"Expected type='abstract', got {accessor_a['type']}"
-    assert accessor_a["buffer_name"] == "A", f"Expected buffer_name='A', got {accessor_a['buffer_name']}"
-    assert accessor_a["layout_ref"] == "tt.buffer.A", f"Expected layout_ref='tt.buffer.A', got {accessor_a['layout_ref']}"
+    assert accessor_a[
+        "buffer_name"] == "A", f"Expected buffer_name='A', got {accessor_a['buffer_name']}"
+    assert accessor_a[
+        "layout_ref"] == "tt.buffer.A", f"Expected layout_ref='tt.buffer.A', got {accessor_a['layout_ref']}"
     assert "stride_mode" in accessor_a, "Missing stride_mode"
     assert "access_pattern" in accessor_a, "Missing access_pattern"
     assert "tile_dims" in accessor_a, "Missing tile_dims"
@@ -116,8 +116,10 @@ def test_accessor_structure():
     assert "layout_type" in accessor_a, "Missing layout_type"
 
     # Check runtime binding fields are null (filled by D2)
-    assert accessor_a["base_offset"] is None, f"base_offset should be None, got {accessor_a['base_offset']}"
-    assert accessor_a["runtime_arg_idx"] is None, f"runtime_arg_idx should be None, got {accessor_a['runtime_arg_idx']}"
+    assert accessor_a[
+        "base_offset"] is None, f"base_offset should be None, got {accessor_a['base_offset']}"
+    assert accessor_a[
+        "runtime_arg_idx"] is None, f"runtime_arg_idx should be None, got {accessor_a['runtime_arg_idx']}"
 
     print("✓ Accessor structure test passed")
 
@@ -128,12 +130,10 @@ def test_stride_mode_determination():
 
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def func(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                 C: T.Buffer((256, 256), "float16")):
             T.evaluate(0)
 
     func = TestModule["func"]
@@ -155,18 +155,19 @@ def test_stride_mode_determination():
     })
 
     # L1 sharded -> sharded
-    func = func.with_attr("tt.buffer.C", {
-        "memory": "L1",
-        "layout": "sharded",
-        "tile_shape": [32, 32],
-        "dtype": "bf16",
-        "nd_shard": {
-            "axes": ["M", "N"],
-            "grid": [2, 4],
-            "projected_grid": [2, 4],
-            "projected_shard_tiles": [4, 2]
-        }
-    })
+    func = func.with_attr(
+        "tt.buffer.C", {
+            "memory": "L1",
+            "layout": "sharded",
+            "tile_shape": [32, 32],
+            "dtype": "bf16",
+            "nd_shard": {
+                "axes": ["M", "N"],
+                "grid": [2, 4],
+                "projected_grid": [2, 4],
+                "projected_shard_tiles": [4, 2]
+            }
+        })
 
     TestModule["func"] = func
 
@@ -191,28 +192,28 @@ def test_sharding_info_extraction():
 
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def func(
-            A: T.Buffer((256, 256), "float16")
-        ):
+        def func(A: T.Buffer((256, 256), "float16")):
             T.evaluate(0)
 
     func = TestModule["func"]
 
     # Add sharded buffer layout
-    func = func.with_attr("tt.buffer.A", {
-        "memory": "L1",
-        "layout": "sharded",
-        "tile_shape": [32, 32],
-        "dtype": "bf16",
-        "nd_shard": {
-            "axes": ["M", "N"],
-            "grid": [2, 4],
-            "projected_grid": [2, 4],
-            "projected_shard_tiles": [4, 2],
-            "order": "row_major"
-        }
-    })
+    func = func.with_attr(
+        "tt.buffer.A", {
+            "memory": "L1",
+            "layout": "sharded",
+            "tile_shape": [32, 32],
+            "dtype": "bf16",
+            "nd_shard": {
+                "axes": ["M", "N"],
+                "grid": [2, 4],
+                "projected_grid": [2, 4],
+                "projected_shard_tiles": [4, 2],
+                "order": "row_major"
+            }
+        })
     TestModule["func"] = func
 
     pass_a3 = AttachTensorAccessorTT()
@@ -226,7 +227,9 @@ def test_sharding_info_extraction():
     assert sharding["enabled"] is True, f"Expected sharding enabled, got {sharding['enabled']}"
     assert sharding["axes"] == ["M", "N"], f"Expected axes=['M', 'N'], got {sharding['axes']}"
     assert sharding["grid"] == [2, 4], f"Expected grid=[2, 4], got {sharding['grid']}"
-    assert sharding["shard_tiles"] == [4, 2], f"Expected shard_tiles=[4, 2], got {sharding['shard_tiles']}"
+    assert sharding["shard_tiles"] == [
+        4, 2
+    ], f"Expected shard_tiles=[4, 2], got {sharding['shard_tiles']}"
     assert sharding["order"] == "row_major", f"Expected order='row_major', got {sharding['order']}"
 
     print("✓ Sharding info extraction test passed")
@@ -238,12 +241,10 @@ def test_full_pipeline():
 
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                 C: T.Buffer((256, 256), "float16")):
             for i, j in T.grid(256, 256):
                 C[i, j] = A[i, j] + B[i, j]
 
@@ -336,12 +337,10 @@ def main():
 
         @tvm.script.ir_module
         class ExampleModule:
+
             @T.prim_func
-            def gemm(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
 
         func = ExampleModule["gemm"]
@@ -357,18 +356,19 @@ def main():
             "tile_shape": [32, 32],
             "dtype": "bf16"
         })
-        func = func.with_attr("tt.buffer.C", {
-            "memory": "L1",
-            "layout": "sharded",
-            "tile_shape": [32, 32],
-            "dtype": "bf16",
-            "nd_shard": {
-                "axes": ["M", "N"],
-                "grid": [2, 4],
-                "projected_grid": [2, 4],
-                "projected_shard_tiles": [4, 2]
-            }
-        })
+        func = func.with_attr(
+            "tt.buffer.C", {
+                "memory": "L1",
+                "layout": "sharded",
+                "tile_shape": [32, 32],
+                "dtype": "bf16",
+                "nd_shard": {
+                    "axes": ["M", "N"],
+                    "grid": [2, 4],
+                    "projected_grid": [2, 4],
+                    "projected_shard_tiles": [4, 2]
+                }
+            })
         ExampleModule["gemm"] = func
 
         pass_a3 = AttachTensorAccessorTT()

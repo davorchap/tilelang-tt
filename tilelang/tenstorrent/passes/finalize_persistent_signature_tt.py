@@ -11,7 +11,7 @@ Output: Kernels with complete tt.runtime_args for persistent execution
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List
 import logging
 
 try:
@@ -87,15 +87,30 @@ class RuntimeArgBuilder:
         # Define canonical ordering
         order = [
             # Buffer addresses first
-            "A_addr", "B_addr", "C_addr", "input_addr", "weight_addr", "output_addr",
+            "A_addr",
+            "B_addr",
+            "C_addr",
+            "input_addr",
+            "weight_addr",
+            "output_addr",
             # Persistent loop params
-            "start_id", "count",
+            "start_id",
+            "count",
             # Dimensions
-            "Mt", "Nt", "Kt",
+            "Mt",
+            "Nt",
+            "Kt",
             # Strides
-            "stride_m", "stride_n", "out_stride",
+            "stride_m",
+            "stride_n",
+            "out_stride",
             # Shard params
-            "Sm", "Sn", "Gy", "Gx", "sy", "sx"
+            "Sm",
+            "Sn",
+            "Gy",
+            "Gx",
+            "sy",
+            "sx"
         ]
 
         # Order existing args according to canonical order
@@ -238,7 +253,8 @@ class FinalizePersistentSignatureTT:
             "count_expr": "count",
             "pattern": "for (int tile_id = start_id; tile_id < start_id + count; tile_id++)"
         }
-        new_func = new_func.with_attr("tt.persistent_config", tvm.runtime.convert(persistent_config))
+        new_func = new_func.with_attr("tt.persistent_config",
+                                      tvm.runtime.convert(persistent_config))
 
         logger.info(f"Finalized {len(final_args)} runtime args for {kernel_role} kernel")
 
@@ -258,6 +274,7 @@ class FinalizePersistentSignatureTT:
 
         # Check for GEMM/reduction patterns
         class Analyzer(tir.stmt_functor.StmtVisitor):
+
             def __init__(self, analysis):
                 super().__init__()
                 self.analysis = analysis
@@ -351,11 +368,9 @@ if __name__ == "__main__":
     # Create test module with split kernels
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm_reader(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_reader(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16")):
             T.evaluate(0)  # Placeholder
 
         @T.prim_func
@@ -364,9 +379,7 @@ if __name__ == "__main__":
                 T.evaluate(T.call_extern("void", "tt.mm.mma", "cb_in0", "cb_in1", 0, kt > 0))
 
         @T.prim_func
-        def gemm_writer(
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_writer(C: T.Buffer((256, 256), "float16")):
             T.evaluate(0)  # Placeholder
 
     # Add kernel metadata

@@ -11,7 +11,7 @@ Output: Validation report (pass/fail with diagnostics)
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Tuple, Set
+from typing import Dict, Any, List, Optional
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 
 class ValidationLevel(Enum):
     """Validation severity levels"""
-    ERROR = "error"      # Must fix - will fail on hardware
+    ERROR = "error"  # Must fix - will fail on hardware
     WARNING = "warning"  # Should fix - may cause issues
-    INFO = "info"        # Informational - optimization opportunity
+    INFO = "info"  # Informational - optimization opportunity
 
 
 @dataclass
@@ -51,8 +51,12 @@ class ValidationReport:
     issues: List[ValidationIssue] = field(default_factory=list)
     stats: Dict[str, Any] = field(default_factory=dict)
 
-    def add_issue(self, level: ValidationLevel, category: str, message: str,
-                  location: Optional[str] = None, suggestion: Optional[str] = None):
+    def add_issue(self,
+                  level: ValidationLevel,
+                  category: str,
+                  message: str,
+                  location: Optional[str] = None,
+                  suggestion: Optional[str] = None):
         """Add a validation issue to the report"""
         self.issues.append(ValidationIssue(level, category, message, location, suggestion))
         if level == ValidationLevel.ERROR:
@@ -87,8 +91,7 @@ class CBValidator:
                     "CB",
                     f"CB index {max_index} exceeds maximum of {self.MAX_CBS}",
                     location=func.name if hasattr(func, 'name') else None,
-                    suggestion=f"Reduce CB usage or reuse indices"
-                )
+                    suggestion="Reduce CB usage or reuse indices")
 
             report.stats["cb_count"] = len(cb_indices)
             report.stats["max_cb_index"] = max_index
@@ -97,7 +100,7 @@ class CBValidator:
         cb_descriptors = self._get_cb_descriptors(func)
         if cb_descriptors:
             total_l1_usage = 0
-            for cb_name, desc in cb_descriptors.items():
+            for _cb_name, desc in cb_descriptors.items():
                 page_size = desc.get("page_size", 0)
                 depth = desc.get("depth", 1)
                 cb_size = page_size * depth
@@ -112,16 +115,14 @@ class CBValidator:
                     "L1",
                     f"L1 usage {total_l1_usage} bytes exceeds capacity {self.MAX_L1_BYTES}",
                     location=func.name if hasattr(func, 'name') else None,
-                    suggestion="Reduce CB depth or tile sizes"
-                )
+                    suggestion="Reduce CB depth or tile sizes")
             elif total_l1_usage > self.MAX_L1_BYTES * 0.8:
                 report.add_issue(
                     ValidationLevel.WARNING,
                     "L1",
                     f"L1 usage {total_l1_usage} bytes is >80% of capacity",
                     location=func.name if hasattr(func, 'name') else None,
-                    suggestion="Consider optimizing CB allocation"
-                )
+                    suggestion="Consider optimizing CB allocation")
 
     def _get_cb_indices(self, func: "tir.PrimFunc") -> Dict[str, int]:
         """Extract CB indices from function attributes"""
@@ -155,7 +156,10 @@ class MetadataValidator:
 
     REQUIRED_ATTRS = {
         "reader": ["tt.kernel_role", "tt.runtime_args", "tt.runtime_args_finalized"],
-        "compute": ["tt.kernel_role", "tt.runtime_args", "tt.compute_init_inserted", "tt.dst_management_inserted"],
+        "compute": [
+            "tt.kernel_role", "tt.runtime_args", "tt.compute_init_inserted",
+            "tt.dst_management_inserted"
+        ],
         "writer": ["tt.kernel_role", "tt.runtime_args", "tt.runtime_args_finalized"],
         "monolithic": ["tt.core_grid", "tt.partition_mode"]
     }
@@ -172,8 +176,7 @@ class MetadataValidator:
                 "Metadata",
                 "No kernel role specified",
                 location=func.name if hasattr(func, 'name') else None,
-                suggestion="Check if kernel splitting was applied"
-            )
+                suggestion="Check if kernel splitting was applied")
             return
 
         # Check required attributes for role
@@ -190,8 +193,7 @@ class MetadataValidator:
                 "Metadata",
                 f"Missing required attributes for {kernel_role}: {missing}",
                 location=func.name if hasattr(func, 'name') else None,
-                suggestion="Ensure all passes have been applied"
-            )
+                suggestion="Ensure all passes have been applied")
 
         # Check runtime args completeness
         if func.attrs and "tt.runtime_args" in func.attrs:
@@ -206,8 +208,7 @@ class MetadataValidator:
                             ValidationLevel.WARNING,
                             "Runtime Args",
                             f"No address arguments found for {kernel_role}",
-                            location=func.name if hasattr(func, 'name') else None
-                        )
+                            location=func.name if hasattr(func, 'name') else None)
 
 
 class ProtocolValidator:
@@ -228,8 +229,7 @@ class ProtocolValidator:
                     "Protocol",
                     f"CB protocol may not be inserted for {kernel_role}",
                     location=func.name if hasattr(func, 'name') else None,
-                    suggestion="Check if D3 (LowerCBIntrinsics) was applied"
-                )
+                    suggestion="Check if D3 (LowerCBIntrinsics) was applied")
 
         if kernel_role == "compute":
             if not func.attrs or "tt.compute_init_inserted" not in func.attrs:
@@ -238,8 +238,7 @@ class ProtocolValidator:
                     "Protocol",
                     "Compute engine init not inserted",
                     location=func.name if hasattr(func, 'name') else None,
-                    suggestion="Apply D4 (InsertComputeInitTT)"
-                )
+                    suggestion="Apply D4 (InsertComputeInitTT)")
 
             if not func.attrs or "tt.dst_management_inserted" not in func.attrs:
                 report.add_issue(
@@ -247,8 +246,7 @@ class ProtocolValidator:
                     "Protocol",
                     "DST management not inserted",
                     location=func.name if hasattr(func, 'name') else None,
-                    suggestion="Apply D5 (InsertDSTManagementTT)"
-                )
+                    suggestion="Apply D5 (InsertDSTManagementTT)")
 
 
 class DTypeValidator:
@@ -272,16 +270,14 @@ class DTypeValidator:
                         "DType",
                         f"Unsupported dtype {dtype_str} for buffer {buffer.name}",
                         location=func.name if hasattr(func, 'name') else None,
-                        suggestion=f"Use one of: {self.SUPPORTED_DTYPES}"
-                    )
+                        suggestion=f"Use one of: {self.SUPPORTED_DTYPES}")
                 elif not any(optimal in dtype_str.lower() for optimal in self.OPTIMAL_DTYPES):
                     report.add_issue(
                         ValidationLevel.INFO,
                         "DType",
                         f"Non-optimal dtype {dtype_str} for buffer {buffer.name}",
                         location=func.name if hasattr(func, 'name') else None,
-                        suggestion=f"Consider using bf16 or fp16 for better performance"
-                    )
+                        suggestion="Consider using bf16 or fp16 for better performance")
 
 
 class StructureValidator:
@@ -306,8 +302,7 @@ class StructureValidator:
                 ValidationLevel.WARNING,
                 "Structure",
                 f"Found monolithic kernels: {kernel_roles['monolithic']}",
-                suggestion="Apply D1 (SplitDeviceKernel) for 3-kernel architecture"
-            )
+                suggestion="Apply D1 (SplitDeviceKernel) for 3-kernel architecture")
 
         # Check for balanced split
         if kernel_roles["reader"] and kernel_roles["compute"] and kernel_roles["writer"]:
@@ -317,8 +312,7 @@ class StructureValidator:
                     ValidationLevel.WARNING,
                     "Structure",
                     "Unbalanced kernel split detected",
-                    suggestion="Each kernel group should have equal count"
-                )
+                    suggestion="Each kernel group should have equal count")
 
 
 class VerifyTTIR:
@@ -382,16 +376,13 @@ class VerifyTTIR:
             report_dict = {
                 "passed": report.passed,
                 "summary": report.get_summary(),
-                "issues": [
-                    {
-                        "level": issue.level.value,
-                        "category": issue.category,
-                        "message": issue.message,
-                        "location": issue.location,
-                        "suggestion": issue.suggestion
-                    }
-                    for issue in report.issues
-                ],
+                "issues": [{
+                    "level": issue.level.value,
+                    "category": issue.category,
+                    "message": issue.message,
+                    "location": issue.location,
+                    "suggestion": issue.suggestion
+                } for issue in report.issues],
                 "stats": report.stats
             }
 
@@ -400,9 +391,11 @@ class VerifyTTIR:
             logger.info(f"Validation report: {report_dict}")
 
         if not report.passed:
-            error_messages = [f"{i.category}: {i.message}" for i in report.issues
-                            if i.level == ValidationLevel.ERROR]
-            raise ValueError(f"TT IR validation failed:\n" + "\n".join(error_messages))
+            error_messages = [
+                f"{i.category}: {i.message}" for i in report.issues
+                if i.level == ValidationLevel.ERROR
+            ]
+            raise ValueError("TT IR validation failed:\n" + "\n".join(error_messages))
 
         return mod
 
@@ -466,10 +459,9 @@ if __name__ == "__main__":
     # Create test module with various issues
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def good_reader(
-            A: T.Buffer((256, 256), "bfloat16")
-        ):
+        def good_reader(A: T.Buffer((256, 256), "bfloat16")):
             T.evaluate(0)
 
         @T.prim_func
@@ -477,9 +469,8 @@ if __name__ == "__main__":
             T.evaluate(0)  # Missing protocol insertion
 
         @T.prim_func
-        def bad_writer(
-            C: T.Buffer((256, 256), "int64")  # Unsupported dtype
-        ):
+        def bad_writer(C: T.Buffer((256, 256), "int64")  # Unsupported dtype
+                      ):
             T.evaluate(0)
 
     # Add metadata

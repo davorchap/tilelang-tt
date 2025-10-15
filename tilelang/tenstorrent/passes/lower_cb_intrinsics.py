@@ -11,7 +11,7 @@ Output: Concrete NOC/CB protocol sequences
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional
 import logging
 from enum import Enum
 
@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 
 class ProtocolType(Enum):
     """Types of protocol sequences"""
-    READ_TILE = "read_tile"      # DRAM -> CB via NOC
-    WRITE_TILE = "write_tile"    # CB -> DRAM via NOC
-    CB_SYNC = "cb_sync"         # CB synchronization
+    READ_TILE = "read_tile"  # DRAM -> CB via NOC
+    WRITE_TILE = "write_tile"  # CB -> DRAM via NOC
+    CB_SYNC = "cb_sync"  # CB synchronization
 
 
 class CBProtocolInserter(tir.stmt_functor.StmtMutator):
@@ -100,9 +100,7 @@ class CBProtocolInserter(tir.stmt_functor.StmtMutator):
         protocol_stmts = []
 
         # 1. Reserve space in CB
-        protocol_stmts.append(
-            tir.Evaluate(tir.call_extern("void", "cb_reserve_back", cb_index, 1))
-        )
+        protocol_stmts.append(tir.Evaluate(tir.call_extern("void", "cb_reserve_back", cb_index, 1)))
 
         # 2. Get write pointer
         write_ptr_var = tir.Var("write_ptr", "handle")
@@ -111,41 +109,33 @@ class CBProtocolInserter(tir.stmt_functor.StmtMutator):
                 write_ptr_var,
                 tir.call_extern("handle", "get_write_ptr", cb_index),
                 tir.Evaluate(0)  # Placeholder body, will be replaced
-            )
-        )
+            ))
 
         # 3. Issue NOC read
         if accessor:
             # Use accessor for address calculation
             tile_id_expr = self._create_tile_id_expr(buffer_slice)
             protocol_stmts.append(
-                tir.Evaluate(tir.call_extern(
-                    "void", "noc_async_read_tile",
-                    tile_id_expr,
-                    accessor.get("runtime_arg_idx", 0),
-                    write_ptr_var
-                ))
-            )
+                tir.Evaluate(
+                    tir.call_extern("void", "noc_async_read_tile", tile_id_expr,
+                                    accessor.get("runtime_arg_idx", 0), write_ptr_var)))
         else:
             # Fallback without accessor
             protocol_stmts.append(
-                tir.Evaluate(tir.call_extern(
-                    "void", "noc_async_read",
-                    buffer_slice,  # Use slice directly
-                    write_ptr_var,
-                    2048  # Default tile size
-                ))
-            )
+                tir.Evaluate(
+                    tir.call_extern(
+                        "void",
+                        "noc_async_read",
+                        buffer_slice,  # Use slice directly
+                        write_ptr_var,
+                        2048  # Default tile size
+                    )))
 
         # 4. Wait for NOC transfer
-        protocol_stmts.append(
-            tir.Evaluate(tir.call_extern("void", "noc_async_read_barrier"))
-        )
+        protocol_stmts.append(tir.Evaluate(tir.call_extern("void", "noc_async_read_barrier")))
 
         # 5. Push to CB
-        protocol_stmts.append(
-            tir.Evaluate(tir.call_extern("void", "cb_push_back", cb_index, 1))
-        )
+        protocol_stmts.append(tir.Evaluate(tir.call_extern("void", "cb_push_back", cb_index, 1)))
 
         # Combine statements
         return self._combine_statements(protocol_stmts)
@@ -173,9 +163,7 @@ class CBProtocolInserter(tir.stmt_functor.StmtMutator):
         protocol_stmts = []
 
         # 1. Wait for data in CB
-        protocol_stmts.append(
-            tir.Evaluate(tir.call_extern("void", "cb_wait_front", cb_index, 1))
-        )
+        protocol_stmts.append(tir.Evaluate(tir.call_extern("void", "cb_wait_front", cb_index, 1)))
 
         # 2. Get read pointer
         read_ptr_var = tir.Var("read_ptr", "handle")
@@ -184,39 +172,31 @@ class CBProtocolInserter(tir.stmt_functor.StmtMutator):
                 read_ptr_var,
                 tir.call_extern("handle", "get_read_ptr", cb_index),
                 tir.Evaluate(0)  # Placeholder
-            )
-        )
+            ))
 
         # 3. Issue NOC write
         if accessor:
             tile_id_expr = self._create_tile_id_expr(buffer_slice)
             protocol_stmts.append(
-                tir.Evaluate(tir.call_extern(
-                    "void", "noc_async_write_tile",
-                    tile_id_expr,
-                    accessor.get("runtime_arg_idx", 0),
-                    read_ptr_var
-                ))
-            )
+                tir.Evaluate(
+                    tir.call_extern("void", "noc_async_write_tile", tile_id_expr,
+                                    accessor.get("runtime_arg_idx", 0), read_ptr_var)))
         else:
             protocol_stmts.append(
-                tir.Evaluate(tir.call_extern(
-                    "void", "noc_async_write",
-                    read_ptr_var,
-                    buffer_slice,
-                    2048  # Default tile size
-                ))
-            )
+                tir.Evaluate(
+                    tir.call_extern(
+                        "void",
+                        "noc_async_write",
+                        read_ptr_var,
+                        buffer_slice,
+                        2048  # Default tile size
+                    )))
 
         # 4. Wait for NOC transfer
-        protocol_stmts.append(
-            tir.Evaluate(tir.call_extern("void", "noc_async_write_barrier"))
-        )
+        protocol_stmts.append(tir.Evaluate(tir.call_extern("void", "noc_async_write_barrier")))
 
         # 5. Pop from CB
-        protocol_stmts.append(
-            tir.Evaluate(tir.call_extern("void", "cb_pop_front", cb_index, 1))
-        )
+        protocol_stmts.append(tir.Evaluate(tir.call_extern("void", "cb_pop_front", cb_index, 1)))
 
         return self._combine_statements(protocol_stmts)
 
@@ -361,8 +341,7 @@ class LowerCBIntrinsics:
             body=new_body,
             ret_type=func.ret_type,
             buffer_map=func.buffer_map,
-            attrs=func.attrs
-        )
+            attrs=func.attrs)
 
         # Mark that protocol has been inserted
         new_func = new_func.with_attr("tt.cb_protocol_inserted", True)
@@ -430,19 +409,15 @@ if __name__ == "__main__":
     # Create test module with reader kernel
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm_reader(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_reader(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16")):
             # Simulate abstract operations from split kernel
             T.evaluate(T.call_extern("void", "tt.read_to_cb", A[0:128, 0:32], "cb_in0"))
             T.evaluate(T.call_extern("void", "tt.read_to_cb", B[0:32, 0:128], "cb_in1"))
 
         @T.prim_func
-        def gemm_writer(
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_writer(C: T.Buffer((256, 256), "float16")):
             # Simulate abstract write operation
             T.evaluate(T.call_extern("void", "tt.write_from_cb", "cb_out", C[0:128, 0:128]))
 

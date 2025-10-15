@@ -5,7 +5,6 @@ Tests the tensor accessor attachment functionality following v5 specification.
 
 import pytest
 import tvm
-from tvm import tir
 from tvm.script import tir as T
 import tvm.script
 import sys
@@ -26,12 +25,10 @@ class TestAttachTensorAccessorTT:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def gemm(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 for i, j in T.grid(256, 256):
                     C[i, j] = A[i, j] + B[i, j]
 
@@ -80,10 +77,9 @@ class TestAttachTensorAccessorTT:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16")
-            ):
+            def func(A: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
 
         func = TestModule["func"]
@@ -122,12 +118,10 @@ class TestAttachTensorAccessorTT:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
 
         func = TestModule["func"]
@@ -149,18 +143,19 @@ class TestAttachTensorAccessorTT:
         })
 
         # L1 sharded -> sharded
-        func = func.with_attr("tt.buffer.C", {
-            "memory": "L1",
-            "layout": "sharded",
-            "tile_shape": [32, 32],
-            "dtype": "bf16",
-            "nd_shard": {
-                "axes": ["M", "N"],
-                "grid": [2, 4],
-                "projected_grid": [2, 4],
-                "projected_shard_tiles": [4, 2]
-            }
-        })
+        func = func.with_attr(
+            "tt.buffer.C", {
+                "memory": "L1",
+                "layout": "sharded",
+                "tile_shape": [32, 32],
+                "dtype": "bf16",
+                "nd_shard": {
+                    "axes": ["M", "N"],
+                    "grid": [2, 4],
+                    "projected_grid": [2, 4],
+                    "projected_shard_tiles": [4, 2]
+                }
+            })
 
         TestModule["func"] = func
 
@@ -178,12 +173,10 @@ class TestAttachTensorAccessorTT:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                input_data: T.Buffer((256, 256), "float16"),
-                weights: T.Buffer((256, 256), "float16"),
-                output: T.Buffer((256, 256), "float16")
-            ):
+            def func(input_data: T.Buffer((256, 256), "float16"), weights: T.Buffer(
+                (256, 256), "float16"), output: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
 
         func = TestModule["func"]
@@ -213,10 +206,10 @@ class TestAttachTensorAccessorTT:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((512, 384), "float16")  # Not evenly divisible
-            ):
+            def func(A: T.Buffer((512, 384), "float16")  # Not evenly divisible
+                    ):
                 T.evaluate(0)
 
         func = TestModule["func"]
@@ -248,28 +241,28 @@ class TestAttachTensorAccessorTT:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16")
-            ):
+            def func(A: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
 
         func = TestModule["func"]
 
         # Add sharded buffer layout
-        func = func.with_attr("tt.buffer.A", {
-            "memory": "L1",
-            "layout": "sharded",
-            "tile_shape": [32, 32],
-            "dtype": "bf16",
-            "nd_shard": {
-                "axes": ["M", "N"],
-                "grid": [2, 4],
-                "projected_grid": [2, 4],
-                "projected_shard_tiles": [4, 2],
-                "order": "row_major"
-            }
-        })
+        func = func.with_attr(
+            "tt.buffer.A", {
+                "memory": "L1",
+                "layout": "sharded",
+                "tile_shape": [32, 32],
+                "dtype": "bf16",
+                "nd_shard": {
+                    "axes": ["M", "N"],
+                    "grid": [2, 4],
+                    "projected_grid": [2, 4],
+                    "projected_shard_tiles": [4, 2],
+                    "order": "row_major"
+                }
+            })
         TestModule["func"] = func
 
         pass_a3 = AttachTensorAccessorTT()
@@ -291,10 +284,9 @@ class TestAttachTensorAccessorTT:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16")
-            ):
+            def func(A: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
 
         # No buffer layouts added
@@ -312,12 +304,10 @@ class TestAttachTensorAccessorTT:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
 
         func = TestModule["func"]
@@ -329,18 +319,19 @@ class TestAttachTensorAccessorTT:
             "tile_shape": [32, 32],
             "dtype": "bf16"
         })
-        func = func.with_attr("tt.buffer.B", {
-            "memory": "L1",
-            "layout": "sharded",
-            "tile_shape": [32, 32],
-            "dtype": "bf16",
-            "nd_shard": {
-                "axes": ["M", "N"],
-                "grid": [2, 2],
-                "projected_grid": [2, 2],
-                "projected_shard_tiles": [4, 4]
-            }
-        })
+        func = func.with_attr(
+            "tt.buffer.B", {
+                "memory": "L1",
+                "layout": "sharded",
+                "tile_shape": [32, 32],
+                "dtype": "bf16",
+                "nd_shard": {
+                    "axes": ["M", "N"],
+                    "grid": [2, 2],
+                    "projected_grid": [2, 2],
+                    "projected_shard_tiles": [4, 4]
+                }
+            })
         func = func.with_attr("tt.buffer.C", {
             "memory": "L1",
             "layout": "interleaved",
@@ -383,12 +374,10 @@ class TestA3Integration:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def gemm(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 for i, j in T.grid(256, 256):
                     C[i, j] = A[i, j] + B[i, j]
 
@@ -437,10 +426,9 @@ class TestA3Integration:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def func(C: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
 
         # Import required passes

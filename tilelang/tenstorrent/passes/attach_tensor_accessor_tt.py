@@ -11,7 +11,7 @@ Output: tt.tensor_accessor attributes for each buffer (abstract, unbound)
 """
 
 from __future__ import annotations
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 import logging
 
 try:
@@ -206,7 +206,7 @@ class AttachTensorAccessorTT:
                 import math
                 tiles_per_dim = [
                     math.ceil(shape[-2] / tile_shape[0]),  # M tiles
-                    math.ceil(shape[-1] / tile_shape[1])   # N tiles
+                    math.ceil(shape[-1] / tile_shape[1])  # N tiles
                 ]
 
         return {
@@ -342,12 +342,10 @@ if __name__ == "__main__":
     # Create test module
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                 C: T.Buffer((256, 256), "float16")):
             for i, j in T.grid(256, 256):
                 C[i, j] = A[i, j] + B[i, j]
 
@@ -368,18 +366,19 @@ if __name__ == "__main__":
         "dtype": "bf16"
     })
 
-    func = func.with_attr("tt.buffer.C", {
-        "memory": "L1",
-        "layout": "sharded",
-        "tile_shape": [32, 32],
-        "dtype": "bf16",
-        "nd_shard": {
-            "axes": ["M", "N"],
-            "grid": [2, 4],
-            "projected_grid": [2, 4],
-            "projected_shard_tiles": [4, 2]
-        }
-    })
+    func = func.with_attr(
+        "tt.buffer.C", {
+            "memory": "L1",
+            "layout": "sharded",
+            "tile_shape": [32, 32],
+            "dtype": "bf16",
+            "nd_shard": {
+                "axes": ["M", "N"],
+                "grid": [2, 4],
+                "projected_grid": [2, 4],
+                "projected_shard_tiles": [4, 2]
+            }
+        })
 
     TestModule["gemm"] = func
 

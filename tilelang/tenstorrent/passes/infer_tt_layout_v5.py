@@ -11,7 +11,7 @@ Output: Buffers with standardized tt.layout_desc attributes
 """
 
 from __future__ import annotations
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 import logging
 
 try:
@@ -112,7 +112,7 @@ class InferTTLayout_v5:
         if grid_x > 0 and grid_y > 0:
             func = func.with_attr("tt.core_grid", [grid_x, grid_y])
 
-        logger.info(f"Attached v5 layout descriptors to function")
+        logger.info("Attached v5 layout descriptors to function")
 
         return func
 
@@ -137,7 +137,8 @@ class InferTTLayout_v5:
 
         return layout
 
-    def _apply_user_annotations(self, layout: Dict[str, Any], annotations: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_user_annotations(self, layout: Dict[str, Any],
+                                annotations: Dict[str, Any]) -> Dict[str, Any]:
         """Apply user annotations to a layout descriptor."""
 
         # Override with user annotations
@@ -202,7 +203,8 @@ class InferTTLayout_v5:
             if layout["layout"] == "sharded":
                 # L1 sharded buffers must have nd_shard specification
                 if "nd_shard" not in layout:
-                    raise ValueError(f"L1 sharded buffer {buffer_name} requires nd_shard specification")
+                    raise ValueError(
+                        f"L1 sharded buffer {buffer_name} requires nd_shard specification")
 
                 # Must be tile-aligned
                 nd_shard = layout["nd_shard"]
@@ -216,7 +218,8 @@ class InferTTLayout_v5:
             page_size = tile_size * dtype_bytes
 
             if page_size > 2048:  # 2KB typical L1 page limit
-                raise ValueError(f"L1 tile size exceeds capacity for {buffer_name}: {page_size} bytes")
+                raise ValueError(
+                    f"L1 tile size exceeds capacity for {buffer_name}: {page_size} bytes")
 
         # Reject halo metadata (not supported in v1)
         if "halo" in layout:
@@ -257,7 +260,7 @@ class InferTTLayout_v5:
                         else:
                             try:
                                 extent_val = int(extent)
-                            except:
+                            except (ValueError, TypeError):
                                 extent_val = 1
 
                         if tag == "blockIdx.x":
@@ -282,7 +285,8 @@ class InferTTLayout_v5:
 
 
 # Module-level pass function for compatibility
-def infer_tt_layout_v5(mod: IRModule, user_annotations: Optional[Dict[str, Any]] = None) -> IRModule:
+def infer_tt_layout_v5(mod: IRModule,
+                       user_annotations: Optional[Dict[str, Any]] = None) -> IRModule:
     """Apply InferTTLayout v5 pass to a module."""
     pass_instance = InferTTLayout_v5(user_annotations)
     return pass_instance(mod)
@@ -296,12 +300,10 @@ if __name__ == "__main__":
     # Create test module
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                 C: T.Buffer((256, 256), "float16")):
             for i, j in T.grid(256, 256):
                 C[i, j] = A[i, j] + B[i, j]
 

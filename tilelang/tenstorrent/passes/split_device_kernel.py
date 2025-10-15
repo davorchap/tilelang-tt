@@ -40,9 +40,9 @@ class KernelSlice:
     """Represents a slice of the original kernel for a specific role"""
     role: KernelRole
     statements: List[Any]  # TIR statements
-    cb_names: Set[str]     # CBs used by this kernel
-    buffer_names: Set[str] # External buffers accessed
-    runtime_args: List[str] # Runtime arguments needed
+    cb_names: Set[str]  # CBs used by this kernel
+    buffer_names: Set[str]  # External buffers accessed
+    runtime_args: List[str]  # Runtime arguments needed
 
 
 class KernelSplitter(tir.stmt_functor.StmtMutator):
@@ -280,7 +280,8 @@ class SplitDeviceKernel:
 
         return tvm.IRModule(new_funcs)
 
-    def _split_function(self, func: "tir.PrimFunc", func_name: str) -> Tuple["tir.PrimFunc", "tir.PrimFunc", "tir.PrimFunc"]:
+    def _split_function(self, func: "tir.PrimFunc",
+                        func_name: str) -> Tuple["tir.PrimFunc", "tir.PrimFunc", "tir.PrimFunc"]:
         """Split a single function into three kernels."""
 
         # Get dataflow graph metadata
@@ -299,20 +300,17 @@ class SplitDeviceKernel:
         writer_slice = self._extract_kernel_slice(func, KernelRole.WRITER, dfg_metadata)
 
         # Create new functions
-        reader_func = self._create_kernel_func(
-            func, reader_slice, KernelRole.READER, func_name, cb_assignment
-        )
-        compute_func = self._create_kernel_func(
-            func, compute_slice, KernelRole.COMPUTE, func_name, cb_assignment
-        )
-        writer_func = self._create_kernel_func(
-            func, writer_slice, KernelRole.WRITER, func_name, cb_assignment
-        )
+        reader_func = self._create_kernel_func(func, reader_slice, KernelRole.READER, func_name,
+                                               cb_assignment)
+        compute_func = self._create_kernel_func(func, compute_slice, KernelRole.COMPUTE, func_name,
+                                                cb_assignment)
+        writer_func = self._create_kernel_func(func, writer_slice, KernelRole.WRITER, func_name,
+                                               cb_assignment)
 
         return reader_func, compute_func, writer_func
 
     def _extract_kernel_slice(self, func: "tir.PrimFunc", role: KernelRole,
-                             dfg_metadata: Dict[str, Any]) -> KernelSlice:
+                              dfg_metadata: Dict[str, Any]) -> KernelSlice:
         """Extract statements for a specific kernel role."""
 
         splitter = KernelSplitter(role, dfg_metadata)
@@ -326,11 +324,11 @@ class SplitDeviceKernel:
             statements=[new_body],
             cb_names=splitter.cb_names,
             buffer_names=splitter.buffer_names,
-            runtime_args=runtime_args
-        )
+            runtime_args=runtime_args)
 
     def _create_kernel_func(self, original_func: "tir.PrimFunc", kernel_slice: KernelSlice,
-                           role: KernelRole, base_name: str, cb_assignment: Dict[str, int]) -> "tir.PrimFunc":
+                            role: KernelRole, base_name: str,
+                            cb_assignment: Dict[str, int]) -> "tir.PrimFunc":
         """Create a new PrimFunc for a specific kernel role."""
 
         # Determine which parameters to keep
@@ -366,8 +364,7 @@ class SplitDeviceKernel:
             body=kernel_slice.statements[0] if kernel_slice.statements else tir.Evaluate(0),
             ret_type=original_func.ret_type,
             buffer_map=buffer_map,
-            attrs=original_func.attrs
-        )
+            attrs=original_func.attrs)
 
         # Update attributes
         new_func = new_func.with_attr("tt.kernel_role", role.value)
@@ -382,8 +379,10 @@ class SplitDeviceKernel:
         new_func = new_func.with_attr("tt.cb_indices", kernel_cb_assignment)
 
         # Copy relevant metadata from original
-        for key in ["tt.core_grid", "tt.core_ranges", "tt.partition_mode",
-                   "tt.grid_tiles", "tt.work_partition"]:
+        for key in [
+                "tt.core_grid", "tt.core_ranges", "tt.partition_mode", "tt.grid_tiles",
+                "tt.work_partition"
+        ]:
             if original_func.attrs and key in original_func.attrs:
                 new_func = new_func.with_attr(key, original_func.attrs[key])
 
@@ -461,12 +460,10 @@ if __name__ == "__main__":
     # Create test module with protocol-less IR and DFG metadata
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                 C: T.Buffer((256, 256), "float16")):
             # Simulate output from C1-C3
             T.evaluate(T.call_extern("tt.alloc_cb", "cb_in0", [128, 32], "bf16"))
             T.evaluate(T.call_extern("tt.alloc_cb", "cb_in1", [32, 128], "bf16"))
@@ -479,32 +476,59 @@ if __name__ == "__main__":
 
     # Add simulated DFG metadata
     func = TestModule["gemm"]
-    func = func.with_attr("tt.tile_dfg", {
-        "nodes": {
-            "A": {"type": "buffer", "kernel_role": "reader"},
-            "B": {"type": "buffer", "kernel_role": "reader"},
-            "C": {"type": "buffer", "kernel_role": "writer"},
-            "cb_in0": {"type": "cb", "kernel_role": "reader/compute"},
-            "cb_in1": {"type": "cb", "kernel_role": "reader/compute"},
-            "cb_out": {"type": "cb", "kernel_role": "compute/writer"},
-            "compute_matmul_0": {"type": "compute", "kernel_role": "compute"}
-        },
-        "kernel_roles": {
-            "reader": ["A", "B", "cb_in0", "cb_in1"],
-            "compute": ["cb_in0", "cb_in1", "cb_out", "compute_matmul_0"],
-            "writer": ["cb_out", "C"]
-        },
-        "cb_reuse": {
-            "cb_in0": {"read_count": 1, "write_count": 0},
-            "cb_in1": {"read_count": 1, "write_count": 0},
-            "cb_out": {"read_count": 0, "write_count": 1}
-        }
-    })
-    func = func.with_attr("tt.cb_assignment", {
-        "cb_in0": 0,
-        "cb_in1": 1,
-        "cb_out": 16
-    })
+    func = func.with_attr(
+        "tt.tile_dfg", {
+            "nodes": {
+                "A": {
+                    "type": "buffer",
+                    "kernel_role": "reader"
+                },
+                "B": {
+                    "type": "buffer",
+                    "kernel_role": "reader"
+                },
+                "C": {
+                    "type": "buffer",
+                    "kernel_role": "writer"
+                },
+                "cb_in0": {
+                    "type": "cb",
+                    "kernel_role": "reader/compute"
+                },
+                "cb_in1": {
+                    "type": "cb",
+                    "kernel_role": "reader/compute"
+                },
+                "cb_out": {
+                    "type": "cb",
+                    "kernel_role": "compute/writer"
+                },
+                "compute_matmul_0": {
+                    "type": "compute",
+                    "kernel_role": "compute"
+                }
+            },
+            "kernel_roles": {
+                "reader": ["A", "B", "cb_in0", "cb_in1"],
+                "compute": ["cb_in0", "cb_in1", "cb_out", "compute_matmul_0"],
+                "writer": ["cb_out", "C"]
+            },
+            "cb_reuse": {
+                "cb_in0": {
+                    "read_count": 1,
+                    "write_count": 0
+                },
+                "cb_in1": {
+                    "read_count": 1,
+                    "write_count": 0
+                },
+                "cb_out": {
+                    "read_count": 0,
+                    "write_count": 1
+                }
+            }
+        })
+    func = func.with_attr("tt.cb_assignment", {"cb_in0": 0, "cb_in1": 1, "cb_out": 16})
     TestModule["gemm"] = func
 
     # Apply D1 pass
@@ -517,7 +541,8 @@ if __name__ == "__main__":
         print(f"\n{name}:")
         if func.attrs and "tt.kernel_role" in func.attrs:
             print(f"  Role: {func.attrs['tt.kernel_role']}")
-            print(f"  Parameters: {[p.name if hasattr(p, 'name') else str(p) for p in func.params]}")
+            print(
+                f"  Parameters: {[p.name if hasattr(p, 'name') else str(p) for p in func.params]}")
             if "tt.runtime_args" in func.attrs:
                 print(f"  Runtime args: {func.attrs['tt.runtime_args']}")
             if "tt.cb_indices" in func.attrs:

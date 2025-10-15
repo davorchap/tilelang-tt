@@ -11,7 +11,7 @@ Output: tt.cb_desc with page_size, depth, data_format
 """
 
 from __future__ import annotations
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import logging
 
 try:
@@ -102,7 +102,8 @@ class PropagateTTLayout_v5:
 
         return layouts
 
-    def _generate_cb_descriptors(self, buffer_layouts: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    def _generate_cb_descriptors(
+            self, buffer_layouts: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
         """Generate CB descriptors from buffer layouts."""
 
         cb_descriptors = {}
@@ -212,21 +213,21 @@ class PropagateTTLayout_v5:
         if "bf16" in dtype_lower or "bfloat16" in dtype_lower:
             return "Float16_b"  # BFloat16
         elif "fp16" in dtype_lower or "float16" in dtype_lower:
-            return "Float16"    # Float16
+            return "Float16"  # Float16
         elif "fp32" in dtype_lower or "float32" in dtype_lower:
-            return "Float32"    # Float32
+            return "Float32"  # Float32
         elif "int8" in dtype_lower:
-            return "Int8"       # Int8
+            return "Int8"  # Int8
         elif "uint8" in dtype_lower:
-            return "UInt8"      # UInt8
+            return "UInt8"  # UInt8
         elif "int16" in dtype_lower:
-            return "Int16"      # Int16
+            return "Int16"  # Int16
         elif "uint16" in dtype_lower:
-            return "UInt16"     # UInt16
+            return "UInt16"  # UInt16
         elif "int32" in dtype_lower:
-            return "Int32"      # Int32
+            return "Int32"  # Int32
         elif "uint32" in dtype_lower:
-            return "UInt32"     # UInt32
+            return "UInt32"  # UInt32
         else:
             # Default to BFloat16
             logger.warning(f"Unknown dtype {dtype}, defaulting to Float16_b")
@@ -239,7 +240,7 @@ class PropagateTTLayout_v5:
         total_l1_bytes = 0
         cb_types = {"input": 0, "output": 0, "intermediate": 0}
 
-        for cb_name, cb_desc in cb_descriptors.items():
+        for _cb_name, cb_desc in cb_descriptors.items():
             # Calculate L1 usage
             l1_usage = cb_desc["page_size"] * cb_desc["depth"]
             total_l1_bytes += l1_usage
@@ -252,7 +253,8 @@ class PropagateTTLayout_v5:
             "total_cbs": total_cbs,
             "total_l1_bytes": total_l1_bytes,
             "cb_counts": cb_types,
-            "fits_in_l1": total_l1_bytes <= 1024 * 1024  # 1MB L1 typical
+            "fits_in_l1":
+                total_l1_bytes <= 1024 * 1024  # 1MB L1 typical
         }
 
         return summary
@@ -306,12 +308,10 @@ if __name__ == "__main__":
     # Create test module with layout attributes (as if A1 ran)
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                 C: T.Buffer((256, 256), "float16")):
             T.evaluate(0)  # Dummy body
 
     # Simulate A1 output
@@ -332,18 +332,19 @@ if __name__ == "__main__":
         "dtype": "bf16"
     })
 
-    func = func.with_attr("tt.buffer.C", {
-        "memory": "L1",
-        "layout": "sharded",
-        "tile_shape": [32, 32],
-        "dtype": "bf16",
-        "nd_shard": {
-            "axes": ["M", "N"],
-            "grid": [2, 4],
-            "projected_grid": [2, 4],
-            "projected_shard_tiles": [4, 2]
-        }
-    })
+    func = func.with_attr(
+        "tt.buffer.C", {
+            "memory": "L1",
+            "layout": "sharded",
+            "tile_shape": [32, 32],
+            "dtype": "bf16",
+            "nd_shard": {
+                "axes": ["M", "N"],
+                "grid": [2, 4],
+                "projected_grid": [2, 4],
+                "projected_shard_tiles": [4, 2]
+            }
+        })
 
     TestModule["gemm"] = func
 

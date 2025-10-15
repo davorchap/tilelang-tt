@@ -13,8 +13,6 @@ Output: TIR with abstract tt.alloc_cb and tt.read_to_cb/write_from_cb operations
 import tvm
 from tvm import tir
 from tvm.tir import stmt_functor
-from typing import Dict, List, Optional, Tuple
-import re
 
 
 @tvm.tir.transform.prim_func_pass(opt_level=0)
@@ -30,6 +28,7 @@ def LowerSharedToCB_v5(func, mod, ctx):
     """
 
     class SharedToCBTransformer(stmt_functor.IRMutator):
+
         def __init__(self):
             super().__init__()
             self.shared_to_cb_map = {}  # Map shared buffer names to CB names
@@ -60,9 +59,7 @@ def LowerSharedToCB_v5(func, mod, ctx):
                         "tt.alloc_cb",
                         tir.StringImm(cb_name),
                         *op.extents,  # Shape
-                        tir.StringImm(str(op.dtype))
-                    )
-                )
+                        tir.StringImm(str(op.dtype))))
 
                 # Visit body with the transformation
                 body = self.visit(op.body)
@@ -124,17 +121,14 @@ def LowerSharedToCB_v5(func, mod, ctx):
             """Generate conceptual CB name based on usage pattern"""
             # Determine CB type based on variable name patterns
             if any(x in original_name.lower() for x in ["input", "a_", "b_", "in"]):
-                cb_type = "input"
                 idx = self.cb_counter["input"]
                 self.cb_counter["input"] += 1
                 return f"cb_in{idx}"
             elif any(x in original_name.lower() for x in ["output", "c_", "out"]):
-                cb_type = "output"
                 idx = self.cb_counter["output"]
                 self.cb_counter["output"] += 1
                 return f"cb_out{idx}"
             else:
-                cb_type = "intermediate"
                 idx = self.cb_counter["intermediate"]
                 self.cb_counter["intermediate"] += 1
                 return f"cb_intermed{idx}"
@@ -187,8 +181,7 @@ def LowerSharedToCB_v5(func, mod, ctx):
                     "tt.read_to_cb",
                     src,  # Source tensor slice
                     tir.StringImm(cb_name)  # Destination CB
-                )
-            )
+                ))
 
         def _create_write_from_cb(self, cb_name, dst):
             """Create abstract write_from_cb operation"""
@@ -198,8 +191,7 @@ def LowerSharedToCB_v5(func, mod, ctx):
                     "tt.write_from_cb",
                     tir.StringImm(cb_name),  # Source CB
                     dst  # Destination tensor slice
-                )
-            )
+                ))
 
     # Apply the transformation
     transformer = SharedToCBTransformer()
@@ -234,6 +226,7 @@ def validate_protocol_less_output(func):
     """
 
     class ProtocolChecker(stmt_functor.StmtVisitor):
+
         def __init__(self):
             super().__init__()
             self.has_protocol = False
@@ -245,10 +238,8 @@ def validate_protocol_less_output(func):
 
                 # Check for protocol operations that shouldn't be here
                 protocol_ops = [
-                    "noc_async_read", "noc_async_write",
-                    "cb_reserve_back", "cb_push_back",
-                    "cb_wait_front", "cb_pop_front",
-                    "get_write_ptr", "get_read_ptr"
+                    "noc_async_read", "noc_async_write", "cb_reserve_back", "cb_push_back",
+                    "cb_wait_front", "cb_pop_front", "get_write_ptr", "get_read_ptr"
                 ]
 
                 if any(proto in call_name for proto in protocol_ops):
@@ -274,12 +265,10 @@ if __name__ == "__main__":
     # Create a test function with shared memory
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm_with_shared(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_with_shared(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                             C: T.Buffer((256, 256), "float16")):
             # Shared memory allocations
             A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
             B_shared = T.alloc_buffer((32, 32), "float16", scope="shared")

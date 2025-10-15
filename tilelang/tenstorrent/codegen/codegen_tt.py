@@ -11,7 +11,7 @@ Output: Dictionary of C++ source files ready for compilation
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List
 import logging
 
 try:
@@ -135,8 +135,10 @@ class KernelGenerator:
         """Extract metadata from function attributes"""
         metadata = {}
         if self.func.attrs:
-            for key in ["tt.runtime_args", "tt.cb_indices", "tt.persistent_config",
-                       "tt.tensor_accessors", "tt.runtime_args_info"]:
+            for key in [
+                    "tt.runtime_args", "tt.cb_indices", "tt.persistent_config",
+                    "tt.tensor_accessors", "tt.runtime_args_info"
+            ]:
                 if key in self.func.attrs:
                     metadata[key] = self.func.attrs[key]
         return metadata
@@ -185,13 +187,10 @@ class ReaderKernelGenerator(KernelGenerator):
     def _generate_runtime_args(self):
         """Generate runtime argument extraction"""
         runtime_args = self.metadata.get("tt.runtime_args", [])
-        arg_info = self.metadata.get("tt.runtime_args_info", {})
+        self.metadata.get("tt.runtime_args_info", {})
 
         for i, arg_name in enumerate(runtime_args):
-            if arg_name.endswith("_addr"):
-                dtype = "uint64_t"
-            else:
-                dtype = "uint32_t"
+            dtype = "uint64_t" if arg_name.endswith("_addr") else "uint32_t"
 
             self.code.writeln(f"const {dtype} {arg_name} = get_arg_val<{dtype}>({i});")
 
@@ -213,9 +212,7 @@ class ReaderKernelGenerator(KernelGenerator):
 
         # Use metadata pattern or default
         loop_pattern = persistent_config.get(
-            "pattern",
-            "for (uint32_t tile_id = start_id; tile_id < start_id + count; tile_id++)"
-        )
+            "pattern", "for (uint32_t tile_id = start_id; tile_id < start_id + count; tile_id++)")
 
         self.code.writeln(loop_pattern + " {")
         self.code.indent()
@@ -368,10 +365,7 @@ class WriterKernelGenerator(KernelGenerator):
         runtime_args = self.metadata.get("tt.runtime_args", [])
 
         for i, arg_name in enumerate(runtime_args):
-            if arg_name.endswith("_addr"):
-                dtype = "uint64_t"
-            else:
-                dtype = "uint32_t"
+            dtype = "uint64_t" if arg_name.endswith("_addr") else "uint32_t"
 
             self.code.writeln(f"const {dtype} {arg_name} = get_arg_val<{dtype}>({i});")
 
@@ -392,9 +386,7 @@ class WriterKernelGenerator(KernelGenerator):
         persistent_config = self.metadata.get("tt.persistent_config", {})
 
         loop_pattern = persistent_config.get(
-            "pattern",
-            "for (uint32_t tile_id = start_id; tile_id < start_id + count; tile_id++)"
-        )
+            "pattern", "for (uint32_t tile_id = start_id; tile_id < start_id + count; tile_id++)")
 
         self.code.writeln(loop_pattern + " {")
         self.code.indent()
@@ -422,7 +414,7 @@ class HostGenerator:
     def _extract_kernels(self) -> Dict[str, "tir.PrimFunc"]:
         """Extract kernels by role"""
         kernels = {}
-        for name, func in self.mod.functions_items():
+        for _name, func in self.mod.functions_items():
             if isinstance(func, tir.PrimFunc):
                 role = func.attrs.get("tt.kernel_role") if func.attrs else None
                 if role:
@@ -529,9 +521,11 @@ class HostGenerator:
         # This would extract actual runtime args from metadata
         # Simplified for now
         self.code.writeln("// TODO: Set actual runtime args from metadata")
-        self.code.writeln("SetRuntimeArgs(program, reader_kernel, core, {A_addr, start_id, count, Mt, Nt});")
+        self.code.writeln(
+            "SetRuntimeArgs(program, reader_kernel, core, {A_addr, start_id, count, Mt, Nt});")
         self.code.writeln("SetRuntimeArgs(program, compute_kernel, core, {Kt});")
-        self.code.writeln("SetRuntimeArgs(program, writer_kernel, core, {C_addr, start_id, count, Mt, Nt});")
+        self.code.writeln(
+            "SetRuntimeArgs(program, writer_kernel, core, {C_addr, start_id, count, Mt, Nt});")
         self.code.writeln()
 
     def _generate_execution(self):

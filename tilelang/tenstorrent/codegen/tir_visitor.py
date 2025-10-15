@@ -7,7 +7,6 @@ Purpose: Traverse TIR and generate C++ code based on actual operations.
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Set
 import logging
 
 try:
@@ -57,7 +56,9 @@ class TIRToMetaliumVisitor:
         extent = self.expr_to_string(op.extent)
 
         # Generate for loop
-        self.code.writeln(f"for (uint32_t {loop_var} = {min_val}; {loop_var} < {min_val} + {extent}; {loop_var}++) {{")
+        self.code.writeln(
+            f"for (uint32_t {loop_var} = {min_val}; {loop_var} < {min_val} + {extent}; {loop_var}++) {{"
+        )
         self.code.indent()
 
         # Track loop variable

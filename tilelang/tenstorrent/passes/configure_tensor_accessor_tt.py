@@ -11,7 +11,7 @@ Output: Updated tt.tensor_accessor with runtime binding (arg indices, sizes)
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List
 import logging
 from enum import Enum
 
@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 
 class AccessorRole(Enum):
     """Role of tensor accessor in kernel"""
-    INPUT = "input"      # Read by reader kernel
-    OUTPUT = "output"    # Written by writer kernel
-    WEIGHT = "weight"    # Read by reader (weights/parameters)
+    INPUT = "input"  # Read by reader kernel
+    OUTPUT = "output"  # Written by writer kernel
+    WEIGHT = "weight"  # Read by reader (weights/parameters)
     INTERMEDIATE = "intermediate"  # Internal to compute
 
 
@@ -96,7 +96,7 @@ class TensorAccessorBinder:
             return AccessorRole.INTERMEDIATE
 
     def _bind_reader_accessor(self, accessor: Dict[str, Any], buffer_name: str,
-                             role: AccessorRole) -> Dict[str, Any]:
+                              role: AccessorRole) -> Dict[str, Any]:
         """Bind accessor for reader kernel"""
 
         # Reader needs buffer address arguments
@@ -259,7 +259,7 @@ class ConfigureTensorAccessorTT:
         return func
 
     def _create_binding_summary(self, attrs: Dict[str, Any], kernel_role: str,
-                               runtime_args: List[str]) -> Dict[str, Any]:
+                                runtime_args: List[str]) -> Dict[str, Any]:
         """Create a summary of accessor bindings."""
 
         summary = {
@@ -350,11 +350,9 @@ if __name__ == "__main__":
     # Create test module with split kernels
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm_reader(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_reader(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16")):
             T.evaluate(0)  # Placeholder
 
         @T.prim_func
@@ -362,49 +360,53 @@ if __name__ == "__main__":
             T.evaluate(0)  # Placeholder
 
         @T.prim_func
-        def gemm_writer(
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_writer(C: T.Buffer((256, 256), "float16")):
             T.evaluate(0)  # Placeholder
 
     # Add kernel roles and runtime args (as if from D1)
     reader_func = TestModule["gemm_reader"]
     reader_func = reader_func.with_attr("tt.kernel_role", "reader")
     reader_func = reader_func.with_attr("tt.runtime_args",
-                                       ["A_addr", "B_addr", "start_id", "count", "Mt", "Kt", "Nt"])
+                                        ["A_addr", "B_addr", "start_id", "count", "Mt", "Kt", "Nt"])
 
     # Add abstract accessors (as if from A3)
-    reader_func = reader_func.with_attr("tt.tensor_accessor.A", {
-        "type": "abstract",
-        "buffer_name": "A",
-        "layout_ref": "tt.buffer.A",
-        "stride_mode": "tiled",
-        "access_pattern": "input",
-        "tile_dims": [32, 32],
-        "tiles_per_dim": [8, 8],
-        "memory": "DRAM",
-        "layout_type": "interleaved",
-        "base_offset": None,
-        "runtime_arg_idx": None,
-        "tile_size_bytes": 2048,
-        "sharding": {"enabled": False}
-    })
+    reader_func = reader_func.with_attr(
+        "tt.tensor_accessor.A", {
+            "type": "abstract",
+            "buffer_name": "A",
+            "layout_ref": "tt.buffer.A",
+            "stride_mode": "tiled",
+            "access_pattern": "input",
+            "tile_dims": [32, 32],
+            "tiles_per_dim": [8, 8],
+            "memory": "DRAM",
+            "layout_type": "interleaved",
+            "base_offset": None,
+            "runtime_arg_idx": None,
+            "tile_size_bytes": 2048,
+            "sharding": {
+                "enabled": False
+            }
+        })
 
-    reader_func = reader_func.with_attr("tt.tensor_accessor.B", {
-        "type": "abstract",
-        "buffer_name": "B",
-        "layout_ref": "tt.buffer.B",
-        "stride_mode": "tiled",
-        "access_pattern": "input",
-        "tile_dims": [32, 32],
-        "tiles_per_dim": [8, 8],
-        "memory": "DRAM",
-        "layout_type": "interleaved",
-        "base_offset": None,
-        "runtime_arg_idx": None,
-        "tile_size_bytes": 2048,
-        "sharding": {"enabled": False}
-    })
+    reader_func = reader_func.with_attr(
+        "tt.tensor_accessor.B", {
+            "type": "abstract",
+            "buffer_name": "B",
+            "layout_ref": "tt.buffer.B",
+            "stride_mode": "tiled",
+            "access_pattern": "input",
+            "tile_dims": [32, 32],
+            "tiles_per_dim": [8, 8],
+            "memory": "DRAM",
+            "layout_type": "interleaved",
+            "base_offset": None,
+            "runtime_arg_idx": None,
+            "tile_size_bytes": 2048,
+            "sharding": {
+                "enabled": False
+            }
+        })
 
     TestModule["gemm_reader"] = reader_func
 
@@ -418,23 +420,26 @@ if __name__ == "__main__":
     writer_func = TestModule["gemm_writer"]
     writer_func = writer_func.with_attr("tt.kernel_role", "writer")
     writer_func = writer_func.with_attr("tt.runtime_args",
-                                       ["C_addr", "start_id", "count", "Mt", "Nt"])
+                                        ["C_addr", "start_id", "count", "Mt", "Nt"])
 
-    writer_func = writer_func.with_attr("tt.tensor_accessor.C", {
-        "type": "abstract",
-        "buffer_name": "C",
-        "layout_ref": "tt.buffer.C",
-        "stride_mode": "tiled",
-        "access_pattern": "output",
-        "tile_dims": [32, 32],
-        "tiles_per_dim": [8, 8],
-        "memory": "DRAM",
-        "layout_type": "interleaved",
-        "base_offset": None,
-        "runtime_arg_idx": None,
-        "tile_size_bytes": 2048,
-        "sharding": {"enabled": False}
-    })
+    writer_func = writer_func.with_attr(
+        "tt.tensor_accessor.C", {
+            "type": "abstract",
+            "buffer_name": "C",
+            "layout_ref": "tt.buffer.C",
+            "stride_mode": "tiled",
+            "access_pattern": "output",
+            "tile_dims": [32, 32],
+            "tiles_per_dim": [8, 8],
+            "memory": "DRAM",
+            "layout_type": "interleaved",
+            "base_offset": None,
+            "runtime_arg_idx": None,
+            "tile_size_bytes": 2048,
+            "sharding": {
+                "enabled": False
+            }
+        })
 
     TestModule["gemm_writer"] = writer_func
 
@@ -463,7 +468,7 @@ if __name__ == "__main__":
             # Check binding summary
             if "tt.accessor_binding_summary" in func.attrs:
                 summary = func.attrs["tt.accessor_binding_summary"]
-                print(f"  Binding Summary:")
+                print("  Binding Summary:")
                 print(f"    Total accessors: {summary['total_accessors']}")
                 print(f"    Bound accessors: {len(summary['bound_accessors'])}")
                 print(f"    Status: {summary['binding_status']}")

@@ -11,7 +11,7 @@ Output: Compute kernel with engine initialization
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Set, Tuple
+from typing import Dict, Any, List, Optional
 import logging
 from enum import Enum
 
@@ -192,7 +192,9 @@ class ComputeInitInserter(tir.stmt_functor.StmtMutator):
 
         if op_type == ComputeOpType.MATMUL:
             init_stmts.append(self._create_matmul_init())
-        elif op_type in [ComputeOpType.BINARY_ADD, ComputeOpType.BINARY_MUL, ComputeOpType.BINARY_SUB]:
+        elif op_type in [
+                ComputeOpType.BINARY_ADD, ComputeOpType.BINARY_MUL, ComputeOpType.BINARY_SUB
+        ]:
             init_stmts.append(self._create_binary_init(op_type))
         elif op_type in [ComputeOpType.UNARY, ComputeOpType.SFPU]:
             init_stmts.append(self._create_sfpu_init(op_type))
@@ -211,8 +213,7 @@ class ComputeInitInserter(tir.stmt_functor.StmtMutator):
         cb_out = self.init_info.get("cb_out", 16)
 
         return tir.Evaluate(
-            tir.call_extern("void", "tt.engine.init_common", cb_in0, cb_in1, cb_out)
-        )
+            tir.call_extern("void", "tt.engine.init_common", cb_in0, cb_in1, cb_out))
 
     def _create_matmul_init(self) -> tir.Stmt:
         """Create matmul-specific initialization"""
@@ -221,9 +222,7 @@ class ComputeInitInserter(tir.stmt_functor.StmtMutator):
         cb_in1 = self.init_info.get("cb_in1", 1)
         cb_out = self.init_info.get("cb_out", 16)
 
-        return tir.Evaluate(
-            tir.call_extern("void", "tt.fpu.matmul_init", cb_in0, cb_in1, cb_out)
-        )
+        return tir.Evaluate(tir.call_extern("void", "tt.fpu.matmul_init", cb_in0, cb_in1, cb_out))
 
     def _create_binary_init(self, op_type: ComputeOpType) -> tir.Stmt:
         """Create binary operation initialization"""
@@ -241,8 +240,7 @@ class ComputeInitInserter(tir.stmt_functor.StmtMutator):
         op_str = op_str_map.get(op_type, "add")
 
         return tir.Evaluate(
-            tir.call_extern("void", "tt.fpu.binary_init", cb_in0, cb_in1, cb_out, op_str)
-        )
+            tir.call_extern("void", "tt.fpu.binary_init", cb_in0, cb_in1, cb_out, op_str))
 
     def _create_sfpu_init(self, op_type: ComputeOpType) -> tir.Stmt:
         """Create SFPU initialization"""
@@ -253,16 +251,12 @@ class ComputeInitInserter(tir.stmt_functor.StmtMutator):
         # Determine SFPU operation
         sfpu_op = self.init_info.get("sfpu_op", "identity")
 
-        return tir.Evaluate(
-            tir.call_extern("void", "tt.sfpu.init", sfpu_op, cb_in, cb_out)
-        )
+        return tir.Evaluate(tir.call_extern("void", "tt.sfpu.init", sfpu_op, cb_in, cb_out))
 
     def _create_transpose_init(self) -> tir.Stmt:
         """Create transpose initialization if needed"""
 
-        return tir.Evaluate(
-            tir.call_extern("void", "tt.pack.transpose_init")
-        )
+        return tir.Evaluate(tir.call_extern("void", "tt.pack.transpose_init"))
 
 
 class InsertComputeInitTT:
@@ -331,14 +325,14 @@ class InsertComputeInitTT:
             body=new_body,
             ret_type=func.ret_type,
             buffer_map=func.buffer_map,
-            attrs=func.attrs
-        )
+            attrs=func.attrs)
 
         # Mark that initialization has been inserted
         new_func = new_func.with_attr("tt.compute_init_inserted", True)
         new_func = new_func.with_attr("tt.compute_init_info", tvm.runtime.convert(init_info))
 
-        logger.info(f"Inserted compute initialization for {init_info['primary_op_type'].value} operation")
+        logger.info(
+            f"Inserted compute initialization for {init_info['primary_op_type'].value} operation")
 
         return new_func
 
@@ -447,6 +441,7 @@ if __name__ == "__main__":
     # Create test module with compute kernel
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
         def gemm_compute():
             # Simulate compute kernel with matmul

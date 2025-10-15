@@ -11,7 +11,7 @@ Output: Compute kernel with full DST lifecycle management
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, Optional
 import logging
 from enum import Enum
 
@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 class DSTPattern(Enum):
     """DST management patterns"""
     ACCUMULATION = "accumulation"  # K-loop pattern (GEMM)
-    SINGLE_TILE = "single_tile"   # Per-tile pattern (eltwise)
-    REDUCTION = "reduction"        # Other reduction patterns
+    SINGLE_TILE = "single_tile"  # Per-tile pattern (eltwise)
+    REDUCTION = "reduction"  # Other reduction patterns
 
 
 class ComputePatternAnalyzer(tir.stmt_functor.StmtVisitor):
@@ -197,15 +197,8 @@ class DSTProtocolInserter(tir.stmt_functor.StmtMutator):
 
         # 2. Modified loop body with CB wait/pop
         modified_body = self._insert_cb_sync_in_loop(loop_stmt.body, is_accumulation=True)
-        modified_loop = tir.For(
-            loop_stmt.loop_var,
-            loop_stmt.min,
-            loop_stmt.extent,
-            loop_stmt.kind,
-            modified_body,
-            loop_stmt.thread_binding,
-            loop_stmt.annotations
-        )
+        modified_loop = tir.For(loop_stmt.loop_var, loop_stmt.min, loop_stmt.extent, loop_stmt.kind,
+                                modified_body, loop_stmt.thread_binding, loop_stmt.annotations)
         stmts.append(modified_loop)
 
         # 3. After loop: commit, wait, pack, release
@@ -308,6 +301,7 @@ class DSTProtocolInserter(tir.stmt_functor.StmtMutator):
         """Check if statement contains compute operations"""
 
         class ComputeChecker(tir.stmt_functor.StmtVisitor):
+
             def __init__(self):
                 super().__init__()
                 self.has_compute = False
@@ -396,8 +390,7 @@ class InsertDSTManagementTT:
             body=new_body,
             ret_type=func.ret_type,
             buffer_map=func.buffer_map,
-            attrs=func.attrs
-        )
+            attrs=func.attrs)
 
         # Mark that DST management has been inserted
         new_func = new_func.with_attr("tt.dst_management_inserted", True)
@@ -420,14 +413,11 @@ class InsertDSTManagementTT:
             # No K-loop -> single-tile pattern (element-wise)
             return DSTPattern.SINGLE_TILE
 
-    def _extract_cb_info(self, func: "tir.PrimFunc", analyzer: ComputePatternAnalyzer) -> Dict[str, Any]:
+    def _extract_cb_info(self, func: "tir.PrimFunc",
+                         analyzer: ComputePatternAnalyzer) -> Dict[str, Any]:
         """Extract CB information for DST management."""
 
-        cb_info = {
-            "cb_in0": 0,
-            "cb_in1": 1,
-            "cb_out": 16
-        }
+        cb_info = {"cb_in0": 0, "cb_in1": 1, "cb_out": 16}
 
         # Get CB indices from function attributes
         if func.attrs and "tt.cb_indices" in func.attrs:
@@ -507,6 +497,7 @@ if __name__ == "__main__":
     # Create test module with compute kernels
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
         def gemm_compute():
             # GEMM with K-loop (accumulation pattern)

@@ -8,7 +8,6 @@ Tests the updated passes:
 
 import pytest
 import tvm
-from tvm import tir
 from tvm.script import tir as T
 import tvm.script
 import sys
@@ -31,12 +30,10 @@ class TestInferTTLayout_v5:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
 
         # Apply A1 pass
@@ -66,6 +63,7 @@ class TestInferTTLayout_v5:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
@@ -97,6 +95,7 @@ class TestInferTTLayout_v5:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
@@ -113,13 +112,14 @@ class TestInferTTLayout_v5:
         pass_a1 = InferTTLayout_v5(user_annot)
 
         with pytest.raises(ValueError, match="L1 sharded.*requires nd_shard"):
-            result = pass_a1(TestModule)
+            pass_a1(TestModule)
 
     def test_halo_rejection(self):
         """Test that halo metadata is rejected"""
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
@@ -135,7 +135,7 @@ class TestInferTTLayout_v5:
         pass_a1 = InferTTLayout_v5(user_annot)
 
         with pytest.raises(ValueError, match="Halo metadata not supported"):
-            result = pass_a1(TestModule)
+            pass_a1(TestModule)
 
 
 class TestPropagateTTLayout_v5:
@@ -146,12 +146,10 @@ class TestPropagateTTLayout_v5:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
 
         func = TestModule["func"]
@@ -191,7 +189,7 @@ class TestPropagateTTLayout_v5:
         assert len(cb_descs) == 3
 
         # Check CB properties
-        for cb_name, cb_desc in cb_descs.items():
+        for _cb_name, cb_desc in cb_descs.items():
             assert "page_size" in cb_desc
             assert "depth" in cb_desc
             assert "data_format" in cb_desc
@@ -208,12 +206,10 @@ class TestPropagateTTLayout_v5:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "bfloat16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float32")
-            ):
+            def func(A: T.Buffer((256, 256), "bfloat16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float32")):
                 T.evaluate(0)
 
         func = TestModule["func"]
@@ -252,14 +248,15 @@ class TestPropagateTTLayout_v5:
             found_formats.add(cb_desc["data_format"])
 
         assert "Float16_b" in found_formats  # bf16
-        assert "Float16" in found_formats     # fp16
-        assert "Float32" in found_formats     # fp32
+        assert "Float16" in found_formats  # fp16
+        assert "Float32" in found_formats  # fp32
 
     def test_cb_summary_generation(self):
         """Test CB summary metadata"""
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
@@ -294,11 +291,9 @@ class TestLayoutAwareWorkPartitionTT_v5:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def func(
-                A: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def func(A: T.Buffer((256, 256), "float16"), C: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
 
         func = TestModule["func"]
@@ -341,6 +336,7 @@ class TestLayoutAwareWorkPartitionTT_v5:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(C: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
@@ -348,18 +344,19 @@ class TestLayoutAwareWorkPartitionTT_v5:
         func = TestModule["func"]
 
         # L1 sharded -> local_shard mode
-        func = func.with_attr("tt.buffer.C", {
-            "memory": "L1",
-            "layout": "sharded",
-            "tile_shape": [32, 32],
-            "dtype": "bf16",
-            "nd_shard": {
-                "axes": ["M", "N"],
-                "grid": [2, 4],
-                "projected_grid": [2, 4],
-                "projected_shard_tiles": [4, 2]
-            }
-        })
+        func = func.with_attr(
+            "tt.buffer.C", {
+                "memory": "L1",
+                "layout": "sharded",
+                "tile_shape": [32, 32],
+                "dtype": "bf16",
+                "nd_shard": {
+                    "axes": ["M", "N"],
+                    "grid": [2, 4],
+                    "projected_grid": [2, 4],
+                    "projected_shard_tiles": [4, 2]
+                }
+            })
         TestModule["func"] = func
 
         pass_b1 = LayoutAwareWorkPartitionTT_v5()
@@ -389,6 +386,7 @@ class TestLayoutAwareWorkPartitionTT_v5:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(C: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)
@@ -427,12 +425,10 @@ class TestPassIntegration_v5:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def gemm(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 for i, j in T.grid(256, 256):
                     C[i, j] = A[i, j] + B[i, j]
 
@@ -476,6 +472,7 @@ class TestPassIntegration_v5:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(C: T.Buffer((256, 256), "float16")):
                 T.evaluate(0)

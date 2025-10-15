@@ -13,7 +13,7 @@ from pathlib import Path
 
 # Try to import pytest but don't fail if not available
 try:
-    import pytest
+    import pytest  # noqa: F401
     PYTEST_AVAILABLE = True
 except ImportError:
     PYTEST_AVAILABLE = False
@@ -119,10 +119,7 @@ def apply_full_pipeline(mod: "tvm.IRModule", skip_verification: bool = False) ->
     codegen = CodegenTT()
     generated_code = codegen.generate(current_mod)
 
-    return {
-        "ir_module": current_mod,
-        "generated_code": generated_code
-    }
+    return {"ir_module": current_mod, "generated_code": generated_code}
 
 
 class TestE2EPipeline:
@@ -134,12 +131,10 @@ class TestE2EPipeline:
         # Create GEMM kernel
         @tvm.script.ir_module
         class GemmModule:
+
             @T.prim_func
-            def gemm(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 T.func_attr({"global_symbol": "gemm"})
                 # Grid of thread blocks
                 for by in T.thread_binding(8, thread="blockIdx.y"):
@@ -165,14 +160,11 @@ class TestE2EPipeline:
                                 for tx in T.thread_binding(8, thread="threadIdx.x"):
                                     for i, j in T.grid(4, 4):
                                         # Tile-level matmul intrinsic
-                                        T.evaluate(T.call_extern(
-                                            "void",
-                                            "tt.tile.matmul",
-                                            A_shared.data, B_shared.data, C.data,
-                                            by * 32 + ty * 4 + i,
-                                            bx * 32 + tx * 4 + j,
-                                            k * 32
-                                        ))
+                                        T.evaluate(
+                                            T.call_extern("void", "tt.tile.matmul", A_shared.data,
+                                                          B_shared.data, C.data,
+                                                          by * 32 + ty * 4 + i,
+                                                          bx * 32 + tx * 4 + j, k * 32))
 
         # Apply full pipeline
         result = apply_full_pipeline(GemmModule)
@@ -223,12 +215,10 @@ class TestE2EPipeline:
         # Create element-wise add kernel
         @tvm.script.ir_module
         class AddModule:
+
             @T.prim_func
-            def add(
-                A: T.Buffer((256, 256), "float16"),
-                B: T.Buffer((256, 256), "float16"),
-                C: T.Buffer((256, 256), "float16")
-            ):
+            def add(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                    C: T.Buffer((256, 256), "float16")):
                 T.func_attr({"global_symbol": "add"})
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -249,13 +239,10 @@ class TestE2EPipeline:
                         for ty in T.thread_binding(8, thread="threadIdx.y"):
                             for tx in T.thread_binding(8, thread="threadIdx.x"):
                                 # Tile-level add intrinsic
-                                T.evaluate(T.call_extern(
-                                    "void",
-                                    "tt.tile.add",
-                                    A_shared.data, B_shared.data, C.data,
-                                    by * 32 + ty * 4,
-                                    bx * 32 + tx * 4
-                                ))
+                                T.evaluate(
+                                    T.call_extern("void", "tt.tile.add", A_shared.data,
+                                                  B_shared.data, C.data, by * 32 + ty * 4,
+                                                  bx * 32 + tx * 4))
 
         # Apply full pipeline
         result = apply_full_pipeline(AddModule)
@@ -276,11 +263,9 @@ class TestE2EPipeline:
         # Create a simple valid kernel
         @tvm.script.ir_module
         class SimpleModule:
+
             @T.prim_func
-            def copy(
-                A: T.Buffer((128, 128), "float16"),
-                B: T.Buffer((128, 128), "float16")
-            ):
+            def copy(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16")):
                 T.func_attr({"global_symbol": "copy"})
                 for i, j in T.grid(128, 128):
                     B[i, j] = A[i, j]
@@ -299,11 +284,9 @@ class TestE2EPipeline:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
-            def compute(
-                A: T.Buffer((64, 64), "float16"),
-                B: T.Buffer((64, 64), "float16")
-            ):
+            def compute(A: T.Buffer((64, 64), "float16"), B: T.Buffer((64, 64), "float16")):
                 for i, j in T.grid(64, 64):
                     B[i, j] = A[i, j] * T.float16(2.0)
 
@@ -313,7 +296,7 @@ class TestE2EPipeline:
 
         # Check that split kernels exist
         kernel_roles = set()
-        for name, func in ir_module.functions_items():
+        for _name, func in ir_module.functions_items():
             if isinstance(func, tir.PrimFunc) and func.attrs:
                 role = func.attrs.get("tt.kernel_role")
                 if role:
@@ -331,6 +314,7 @@ class TestE2EPipeline:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def kernel(A: T.Buffer((32, 32), "float16")):
                 for i, j in T.grid(32, 32):
@@ -370,6 +354,7 @@ class TestCodegenComponents:
         # Create simple TIR
         @tvm.script.ir_module
         class TestMod:
+
             @T.prim_func
             def func():
                 T.evaluate(T.call_extern("void", "cb_reserve_back", 0, 1))
@@ -393,6 +378,7 @@ class TestCodegenComponents:
         # Create dummy functions with roles
         @tvm.script.ir_module
         class TestMod:
+
             @T.prim_func
             def reader_func():
                 T.evaluate(0)
@@ -458,9 +444,7 @@ if __name__ == "__main__":
 
     # Configure logging
     logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+        level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
     # Run tests
     if TVM_AVAILABLE:
