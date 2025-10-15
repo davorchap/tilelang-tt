@@ -3,6 +3,7 @@
 
 import json
 import sys
+
 sys.path.insert(0, '.')
 
 import tilelang
@@ -12,6 +13,7 @@ from tilelang.utils.target import TENSTORRENT_TARGET
 
 @tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
 def kernel(M, N):
+
     @T.prim_func
     def func(A: T.Buffer((M, N), "float16"), B: T.Buffer((M, N), "float16")):
         with T.Kernel(T.ceildiv(N, 32), T.ceildiv(M, 32)) as (bx, by):
@@ -21,6 +23,7 @@ def kernel(M, N):
                     col = bx * 32 + j
                     if row < M and col < N:
                         B[row, col] = A[row, col]
+
     return func
 
 
