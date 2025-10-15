@@ -91,8 +91,7 @@ def test_run_gemm_with_tt_backend():
         text=True,
         cwd=REPO_ROOT,
         timeout=30,  # 30 second timeout
-        env=os.environ.copy()
-    )
+        env=os.environ.copy())
 
     # Check for success
     assert result.returncode == 0, f"run_gemm_with_tt_backend.py failed:\n{result.stderr}"

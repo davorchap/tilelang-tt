@@ -199,7 +199,8 @@ class AttachTensorAccessorTT:
             try:
                 tile_shape = ast.literal_eval(tile_shape)
             except (ValueError, SyntaxError):
-                logger.warning(f"Could not parse tile_shape string: {tile_shape}, using default [32, 32]")
+                logger.warning(
+                    f"Could not parse tile_shape string: {tile_shape}, using default [32, 32]")
                 tile_shape = [32, 32]
 
         # Ensure tile_shape elements are integers

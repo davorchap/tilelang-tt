@@ -80,6 +80,7 @@ class TileDFGBuilder:
 
     def visit(self, stmt):
         """Custom visitor to traverse TIR statements"""
+
         def visit_node(op):
             if isinstance(op, tir.Evaluate):
                 self.visit_evaluate(op)
