@@ -82,9 +82,9 @@ def test_run_gemm_with_tt_backend():
     if not os.path.exists(example_path):
         pytest.skip(f"Example file not found: {example_path}")
 
-    # Run with small matrix size for quick testing
+    # Run the example (it demonstrates multiple approaches)
     result = subprocess.run(
-        [sys.executable, example_path, "--M", "64", "--N", "64", "--K", "64"],
+        [sys.executable, example_path],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
@@ -94,9 +94,10 @@ def test_run_gemm_with_tt_backend():
     # Check for success
     assert result.returncode == 0, f"run_gemm_with_tt_backend.py failed:\n{result.stderr}"
 
-    # Verify output contains expected elements
-    assert "Configuration:" in result.stdout, "Configuration section not found"
-    assert "Generated Artifacts:" in result.stdout, "Artifacts section not found"
+    # Verify output contains key sections from the demonstration
+    assert "Running Original GEMM Example with TT Backend" in result.stdout, "Original example section not found"
+    assert "TT-Optimized GEMM" in result.stdout, "TT-optimized section not found"
+    assert "Generated" in result.stdout and "TT artifacts" in result.stdout, "Artifacts mention not found"
 
 
 def test_new_pipeline_example():
