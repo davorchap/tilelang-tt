@@ -8,11 +8,9 @@ to ensure they compile and run without raising exceptions.
 import sys
 import os
 import subprocess
-import json
 import importlib.util
 
 import pytest
-
 
 # Add examples directory to path
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
@@ -41,12 +39,10 @@ def test_example_gemm_tt():
         pytest.skip(f"Example file not found: {example_path}")
 
     # Run as subprocess to isolate execution
-    result = subprocess.run(
-        [sys.executable, example_path],
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT
-    )
+    result = subprocess.run([sys.executable, example_path],
+                            capture_output=True,
+                            text=True,
+                            cwd=REPO_ROOT)
 
     # Check for success
     assert result.returncode == 0, f"example_gemm_tt.py failed:\n{result.stderr}"
@@ -64,21 +60,20 @@ def test_example_gemm_tt_minimal():
         pytest.skip(f"Example file not found: {example_path}")
 
     # Run as subprocess
-    result = subprocess.run(
-        [sys.executable, example_path],
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT
-    )
+    result = subprocess.run([sys.executable, example_path],
+                            capture_output=True,
+                            text=True,
+                            cwd=REPO_ROOT)
 
     # Check for success
     assert result.returncode == 0, f"example_gemm_tt_minimal.py failed:\n{result.stderr}"
 
     # Verify expected output markers
     assert "Artifacts:" in result.stdout, "Expected 'Artifacts:' section not found"
-    assert any(artifact in result.stdout for artifact in [
-        "reader.cpp", "compute.cpp", "writer.cpp", "main.cpp", "tt.plan.json"
-    ]), "Expected TT artifacts not mentioned in output"
+    assert any(
+        artifact in result.stdout
+        for artifact in ["reader.cpp", "compute.cpp", "writer.cpp", "main.cpp", "tt.plan.json"
+                        ]), "Expected TT artifacts not mentioned in output"
 
 
 def test_run_gemm_with_tt_backend():
@@ -111,13 +106,11 @@ def test_new_pipeline_example():
         pytest.skip(f"Example file not found: {example_path}")
 
     # Run as subprocess
-    result = subprocess.run(
-        [sys.executable, example_path],
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-        timeout=30
-    )
+    result = subprocess.run([sys.executable, example_path],
+                            capture_output=True,
+                            text=True,
+                            cwd=REPO_ROOT,
+                            timeout=30)
 
     # Check for success (allow non-zero exit if it's just missing SDK)
     if "TT_METAL_HOME" in result.stderr or "SDK" in result.stderr:
@@ -133,13 +126,11 @@ def test_example_gemm_basic():
         pytest.skip(f"Example file not found: {example_path}")
 
     # Run as subprocess
-    result = subprocess.run(
-        [sys.executable, example_path],
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-        timeout=30
-    )
+    result = subprocess.run([sys.executable, example_path],
+                            capture_output=True,
+                            text=True,
+                            cwd=REPO_ROOT,
+                            timeout=30)
 
     # Check for success
     assert result.returncode == 0, f"example_gemm.py failed:\n{result.stderr}"
@@ -148,8 +139,7 @@ def test_example_gemm_basic():
 def test_all_examples_have_docstrings():
     """Verify all example files have proper documentation."""
     example_files = [
-        f for f in os.listdir(EXAMPLES_DIR)
-        if f.endswith('.py') and f.startswith('example_')
+        f for f in os.listdir(EXAMPLES_DIR) if f.endswith('.py') and f.startswith('example_')
     ]
 
     for filename in example_files:
@@ -165,8 +155,7 @@ def test_all_examples_have_docstrings():
 def test_examples_import_tilelang():
     """Verify all examples can import tilelang module."""
     example_files = [
-        f for f in os.listdir(EXAMPLES_DIR)
-        if f.endswith('.py') and not f.startswith('_')
+        f for f in os.listdir(EXAMPLES_DIR) if f.endswith('.py') and not f.startswith('_')
     ]
 
     for filename in example_files:
@@ -182,8 +171,7 @@ def test_examples_import_tilelang():
 def test_examples_use_tenstorrent_target():
     """Verify examples use the Tenstorrent target."""
     example_files = [
-        f for f in os.listdir(EXAMPLES_DIR)
-        if f.endswith('.py') and 'gemm' in f.lower()
+        f for f in os.listdir(EXAMPLES_DIR) if f.endswith('.py') and 'gemm' in f.lower()
     ]
 
     for filename in example_files:
