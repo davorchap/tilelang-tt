@@ -33,7 +33,7 @@ class TestLowerSharedToCB:
 
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                T.alloc_buffer((32, 32), "float16", scope="shared")
+                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
                 T.evaluate(0)  # Dummy body
 
         func = Before["func"]
@@ -76,8 +76,8 @@ class TestLowerSharedToCB:
 
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16")):
-                T.alloc_buffer((32, 32), "float16", scope="shared")
-                T.alloc_buffer((32, 32), "float16", scope="shared")
+                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
+                B_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
                 T.evaluate(0)
 
         func = Before["func"]
@@ -96,7 +96,7 @@ class TestLowerSharedToCB:
 
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                T.alloc_buffer((32, 32), "float16", scope="shared")
+                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
                 T.evaluate(0)
 
         func = Before["func"]
