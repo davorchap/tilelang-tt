@@ -13,12 +13,8 @@ import os
 # Add passes directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../../tilelang/tenstorrent/passes"))
 
-from block_transformer import (
-    BlockTransformer,
-    is_shared_buffer,
-    extract_buffer_info,
-    create_cb_intrinsic
-)
+from block_transformer import (BlockTransformer, is_shared_buffer, extract_buffer_info,
+                               create_cb_intrinsic)
 
 
 class TestBlockTransformer:
@@ -29,13 +25,15 @@ class TestBlockTransformer:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
+                T.alloc_buffer((32, 32), "float16", scope="shared")
                 T.evaluate(0)
 
         # Create a simple transformer that counts blocks
         class BlockCounter(BlockTransformer):
+
             def __init__(self):
                 super().__init__()
                 self.block_count = 0
@@ -63,13 +61,15 @@ class TestBlockTransformer:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
-                B_local = T.alloc_buffer((16, 16), "float16", scope="local")
+                T.alloc_buffer((32, 32), "float16", scope="shared")
+                T.alloc_buffer((16, 16), "float16", scope="local")
                 T.evaluate(0)
 
         class SharedBufferCollector(BlockTransformer):
+
             def __init__(self):
                 super().__init__()
                 self.shared_buffers = []
@@ -100,12 +100,14 @@ class TestBlockTransformer:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
+                T.alloc_buffer((32, 32), "float16", scope="shared")
                 T.evaluate(0)
 
         class SharedToCBTransformer(BlockTransformer):
+
             def __init__(self):
                 super().__init__()
                 self.cb_counter = 0
@@ -131,12 +133,7 @@ class TestBlockTransformer:
 
             def create_cb_allocation(self, cb_info):
                 return T.Evaluate(
-                    create_cb_intrinsic(
-                        cb_info['cb_name'],
-                        cb_info['shape'],
-                        cb_info['dtype']
-                    )
-                )
+                    create_cb_intrinsic(cb_info['cb_name'], cb_info['shape'], cb_info['dtype']))
 
         func = TestModule["func"]
         transformer = SharedToCBTransformer()
@@ -154,6 +151,7 @@ class TestBlockTransformer:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 with T.block("compute"):
@@ -162,6 +160,7 @@ class TestBlockTransformer:
                         A_shared[i, j] = A[i, j]
 
         class BodyModifier(BlockTransformer):
+
             def visit_block(self, block):
                 # Process the block normally
                 result = super().visit_block(block)
@@ -185,15 +184,17 @@ class TestBlockTransformer:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 with T.block("outer"):
-                    A_shared = T.alloc_buffer((64, 64), "float16", scope="shared")
+                    T.alloc_buffer((64, 64), "float16", scope="shared")
                     with T.block("inner"):
-                        B_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
+                        T.alloc_buffer((32, 32), "float16", scope="shared")
                         T.evaluate(0)
 
         class NestedBlockCounter(BlockTransformer):
+
             def __init__(self):
                 super().__init__()
                 self.blocks = []
@@ -233,9 +234,10 @@ class TestCBIntrinsicGeneration:
 
         @tvm.script.ir_module
         class TestModule:
+
             @T.prim_func
             def func():
-                A = T.alloc_buffer((128, 64), "float32", scope="shared")
+                T.alloc_buffer((128, 64), "float32", scope="shared")
                 T.evaluate(0)
 
         # Get the buffer from the function

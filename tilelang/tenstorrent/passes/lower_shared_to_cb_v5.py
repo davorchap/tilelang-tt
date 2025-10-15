@@ -36,6 +36,7 @@ def LowerSharedToCB_v5(func, mod, ctx):
     """
 
     class SharedToCBTransformer(BlockTransformer):
+
         def __init__(self):
             super().__init__()
             self.shared_to_cb_map = {}  # Map shared buffer names to CB names
@@ -77,12 +78,7 @@ def LowerSharedToCB_v5(func, mod, ctx):
         def create_cb_allocation(self, cb_info):
             """Create a CB allocation intrinsic"""
             return tir.Evaluate(
-                create_cb_intrinsic(
-                    cb_info['cb_name'],
-                    cb_info['shape'],
-                    cb_info['dtype']
-                )
-            )
+                create_cb_intrinsic(cb_info['cb_name'], cb_info['shape'], cb_info['dtype']))
 
         def visit_evaluate(self, op):
             """Transform T.copy operations to abstract CB operations"""
@@ -154,7 +150,8 @@ def LowerSharedToCB_v5(func, mod, ctx):
                 call = evaluate_node.value
                 if hasattr(call, 'op'):
                     op_name = str(call.op)
-                    return any(pattern in op_name for pattern in ["tir.copy", "T.copy", "builtin.copy"])
+                    return any(
+                        pattern in op_name for pattern in ["tir.copy", "T.copy", "builtin.copy"])
             return False
 
         def _extract_copy_args(self, evaluate_node):
@@ -188,8 +185,7 @@ def LowerSharedToCB_v5(func, mod, ctx):
                     "tt.read_to_cb",
                     src,  # Source buffer/slice
                     tir.StringImm(cb_name)  # Destination CB
-                )
-            )
+                ))
 
         def _create_write_from_cb(self, cb_name, dst):
             """Create abstract write_from_cb operation"""
@@ -199,8 +195,7 @@ def LowerSharedToCB_v5(func, mod, ctx):
                     "tt.write_from_cb",
                     tir.StringImm(cb_name),  # Source CB
                     dst  # Destination buffer/slice
-                )
-            )
+                ))
 
     # Apply transformation
     transformer = SharedToCBTransformer()
@@ -227,6 +222,7 @@ def validate_protocol_less_output(func):
     """
 
     class ProtocolChecker:
+
         def __init__(self):
             self.has_protocol = False
             self.protocol_calls = []
@@ -240,10 +236,8 @@ def validate_protocol_less_output(func):
 
                     # Check for protocol operations that shouldn't be here
                     protocol_ops = [
-                        "noc_async_read", "noc_async_write",
-                        "cb_reserve_back", "cb_push_back",
-                        "cb_wait_front", "cb_pop_front",
-                        "get_write_ptr", "get_read_ptr"
+                        "noc_async_read", "noc_async_write", "cb_reserve_back", "cb_push_back",
+                        "cb_wait_front", "cb_pop_front", "get_write_ptr", "get_read_ptr"
                     ]
 
                     if any(proto in call_name for proto in protocol_ops):
@@ -269,12 +263,10 @@ if __name__ == "__main__":
     # Create test module with shared memory in Blocks
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm_with_shared(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_with_shared(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                             C: T.Buffer((256, 256), "float16")):
             # Shared memory allocations in Block
             A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
             B_shared = T.alloc_buffer((32, 32), "float16", scope="shared")

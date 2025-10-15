@@ -39,6 +39,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
     """
 
     class TileIntrinsicLowerer(BlockTransformer):
+
         def __init__(self, cb_metadata):
             super().__init__()
             self.cb_metadata = cb_metadata or {}
@@ -84,16 +85,9 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             self.loop_stack.pop()
 
             if new_body != for_node.body:
-                return tir.For(
-                    for_node.loop_var,
-                    for_node.min,
-                    for_node.extent,
-                    for_node.kind,
-                    new_body,
-                    for_node.thread_binding,
-                    for_node.annotations,
-                    for_node.span
-                )
+                return tir.For(for_node.loop_var, for_node.min, for_node.extent, for_node.kind,
+                               new_body, for_node.thread_binding, for_node.annotations,
+                               for_node.span)
             return for_node
 
         def visit_evaluate(self, evaluate_node):
@@ -162,8 +156,10 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                 call = evaluate_node.value
                 if hasattr(call, 'op'):
                     op_name = str(call.op)
-                    elementwise_ops = ["T.add", "T.multiply", "T.subtract", "T.divide",
-                                     "tir.add", "tir.multiply", "tir.subtract", "tir.divide"]
+                    elementwise_ops = [
+                        "T.add", "T.multiply", "T.subtract", "T.divide", "tir.add", "tir.multiply",
+                        "tir.subtract", "tir.divide"
+                    ]
                     return any(op in op_name for op in elementwise_ops)
             return False
 
@@ -199,10 +195,12 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
 
         def _is_reduction_loop(self, for_node):
             """Check if this is a reduction loop (K dimension in GEMM)"""
+
             # Look for patterns that indicate reduction
             # Avoid heuristics - check for actual reduction semantics
 
             class ReductionChecker:
+
                 def __init__(self, var):
                     self.var = var
                     self.has_reduction = False
@@ -238,7 +236,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             # Extract CB arguments (should be conceptual CBs from C1)
             cb_a = self._get_cb_for_arg(args[0]) if len(args) > 0 else "cb_in0"
             cb_b = self._get_cb_for_arg(args[1]) if len(args) > 1 else "cb_in1"
-            cb_c = self._get_cb_for_arg(args[2]) if len(args) > 2 else "cb_out0"
+            self._get_cb_for_arg(args[2]) if len(args) > 2 else "cb_out0"
 
             # Determine if this is accumulating
             accumulate = self._in_reduction_loop()
@@ -252,9 +250,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                     tir.StringImm(cb_a),
                     tir.StringImm(cb_b),
                     tir.IntImm("int32", 0),  # dst register (always 0 for now)
-                    tir.IntImm("bool", accumulate)
-                )
-            )
+                    tir.IntImm("bool", accumulate)))
 
         def _lower_elementwise(self, evaluate_node):
             """Lower element-wise operations to tt.fpu intrinsics"""
@@ -292,8 +288,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                     tir.StringImm(cb_a),
                     tir.StringImm(cb_b),
                     tir.IntImm("int32", 0)  # dst register
-                )
-            )
+                ))
 
         def _lower_sfpu(self, evaluate_node):
             """Lower SFPU operations to tt.sfpu intrinsics"""
@@ -319,8 +314,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                     tir.StringImm(sfpu_op),
                     tir.StringImm(cb_in),
                     tir.IntImm("int32", 0)  # dst register
-                )
-            )
+                ))
 
         def _lower_matmul_accumulation(self, buffer_store):
             """Lower matmul accumulation pattern"""
@@ -344,9 +338,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                         tir.StringImm(cb_a),
                         tir.StringImm(cb_b),
                         tir.IntImm("int32", 0),  # dst
-                        tir.IntImm("bool", accumulate)
-                    )
-                )
+                        tir.IntImm("bool", accumulate)))
 
             return buffer_store
 
@@ -354,12 +346,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             """Lower binary operations"""
             value = buffer_store.value
 
-            op_map = {
-                tir.Add: "add",
-                tir.Sub: "subtract",
-                tir.Mul: "multiply",
-                tir.Div: "divide"
-            }
+            op_map = {tir.Add: "add", tir.Sub: "subtract", tir.Mul: "multiply", tir.Div: "divide"}
 
             op_type = type(value)
             if op_type in op_map:
@@ -377,8 +364,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                         tir.StringImm(cb_a),
                         tir.StringImm(cb_b),
                         tir.IntImm("int32", 0)  # dst
-                    )
-                )
+                    ))
 
             return buffer_store
 
@@ -424,11 +410,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             """Annotate body as being in a K-loop for later passes"""
             # Add annotation for DST management pass
             return tir.AttrStmt(
-                tir.StringImm("tt.k_loop"),
-                "pragma_scope",
-                tir.IntImm("int32", 1),
-                body
-            )
+                tir.StringImm("tt.k_loop"), "pragma_scope", tir.IntImm("int32", 1), body)
 
     # Get CB metadata from previous pass
     cb_metadata = func.attrs.get("tt.conceptual_cbs", {})
@@ -457,6 +439,7 @@ def validate_no_heuristics(func):
     """
 
     class HeuristicChecker:
+
         def __init__(self):
             self.has_heuristics = False
             self.issues = []
@@ -494,12 +477,10 @@ if __name__ == "__main__":
     # Create a test function with high-level operations
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def gemm_example(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def gemm_example(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                         C: T.Buffer((256, 256), "float16")):
             # Shared memory allocations (would be from C1 pass)
             A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
             B_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
@@ -514,23 +495,24 @@ if __name__ == "__main__":
     func = TestModule["gemm_example"]
 
     # Simulate CB metadata from C1
-    func = func.with_attr("tt.conceptual_cbs", {
-        "cb_in0": {
-            "shape": [32, 32],
-            "dtype": "float16",
-            "original_buffer": "A_shared"
-        },
-        "cb_in1": {
-            "shape": [32, 32],
-            "dtype": "float16",
-            "original_buffer": "B_shared"
-        },
-        "cb_out0": {
-            "shape": [256, 256],
-            "dtype": "float16",
-            "original_buffer": "C"
-        }
-    })
+    func = func.with_attr(
+        "tt.conceptual_cbs", {
+            "cb_in0": {
+                "shape": [32, 32],
+                "dtype": "float16",
+                "original_buffer": "A_shared"
+            },
+            "cb_in1": {
+                "shape": [32, 32],
+                "dtype": "float16",
+                "original_buffer": "B_shared"
+            },
+            "cb_out0": {
+                "shape": [256, 256],
+                "dtype": "float16",
+                "original_buffer": "C"
+            }
+        })
 
     # Apply the pass
     transformed = LowerTTTileIntrinsics_v5(func, TestModule, None)

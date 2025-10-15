@@ -4,7 +4,6 @@ This provides a foundation for handling the Block/BlockRealize pattern
 that modern TVM uses for structured IR.
 """
 
-import tvm
 from tvm import tir
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -83,12 +82,8 @@ class BlockTransformer:
 
         # Reconstruct if changed
         if new_block != block_realize.block:
-            return tir.BlockRealize(
-                block_realize.iter_values,
-                block_realize.predicate,
-                new_block,
-                block_realize.span
-            )
+            return tir.BlockRealize(block_realize.iter_values, block_realize.predicate, new_block,
+                                    block_realize.span)
         return block_realize
 
     def visit_block(self, block: tir.Block) -> tir.Block:
@@ -109,28 +104,15 @@ class BlockTransformer:
             new_body = self.insert_cb_allocations(new_body, cb_metadata)
 
         # Reconstruct block if anything changed
-        if (new_body != original_body or
-                new_alloc_buffers != block.alloc_buffers):
+        if (new_body != original_body or new_alloc_buffers != block.alloc_buffers):
             # Use the replace method if available, otherwise reconstruct
             if hasattr(block, 'replace'):
-                return block.replace(
-                    body=new_body,
-                    alloc_buffers=new_alloc_buffers
-                )
+                return block.replace(body=new_body, alloc_buffers=new_alloc_buffers)
             else:
                 # Manual reconstruction
-                return tir.Block(
-                    block.iter_vars,
-                    block.reads,
-                    block.writes,
-                    block.name_hint,
-                    new_body,
-                    block.init,
-                    new_alloc_buffers,
-                    block.match_buffers,
-                    block.annotations,
-                    block.span
-                )
+                return tir.Block(block.iter_vars, block.reads, block.writes, block.name_hint,
+                                 new_body, block.init, new_alloc_buffers, block.match_buffers,
+                                 block.annotations, block.span)
         return block
 
     def process_alloc_buffers(self, alloc_buffers: List) -> Tuple[List, List[Dict]]:
@@ -181,31 +163,16 @@ class BlockTransformer:
         """Visit For loop. Override in subclasses for specific behavior."""
         new_body = self.visit(for_node.body)
         if new_body != for_node.body:
-            return tir.For(
-                for_node.loop_var,
-                for_node.min,
-                for_node.extent,
-                for_node.kind,
-                new_body,
-                for_node.thread_binding,
-                for_node.annotations,
-                for_node.span
-            )
+            return tir.For(for_node.loop_var, for_node.min, for_node.extent, for_node.kind,
+                           new_body, for_node.thread_binding, for_node.annotations, for_node.span)
         return for_node
 
     def visit_allocate(self, allocate: tir.Allocate) -> tir.Allocate:
         """Visit Allocate node. Override in subclasses."""
         new_body = self.visit(allocate.body)
         if new_body != allocate.body:
-            return tir.Allocate(
-                allocate.buffer_var,
-                allocate.dtype,
-                allocate.extents,
-                allocate.condition,
-                new_body,
-                allocate.annotations,
-                allocate.span
-            )
+            return tir.Allocate(allocate.buffer_var, allocate.dtype, allocate.extents,
+                                allocate.condition, new_body, allocate.annotations, allocate.span)
         return allocate
 
     def visit_evaluate(self, evaluate: tir.Evaluate) -> tir.Evaluate:
@@ -233,6 +200,7 @@ class BlockTransformer:
 
 # Utility functions for working with Blocks and Buffers
 
+
 def is_shared_buffer(buffer) -> bool:
     """Check if a buffer is in shared memory scope."""
     return buffer.scope() == "shared"
@@ -240,8 +208,9 @@ def is_shared_buffer(buffer) -> bool:
 
 def is_local_buffer(buffer) -> bool:
     """Check if a buffer is in local/register scope."""
-    return buffer.scope() in ["local", "wmma.matrix_a", "wmma.matrix_b",
-                             "wmma.accumulator", "fragment"]
+    return buffer.scope() in [
+        "local", "wmma.matrix_a", "wmma.matrix_b", "wmma.accumulator", "fragment"
+    ]
 
 
 def extract_buffer_info(buffer) -> Dict[str, Any]:
@@ -263,13 +232,8 @@ def create_intrinsic_call(name: str, *args) -> tir.Call:
 
 def create_cb_intrinsic(cb_name: str, shape: List[int], dtype: str) -> tir.Call:
     """Create a CB allocation intrinsic call."""
-    return tir.call_extern(
-        "handle",
-        "tt.alloc_cb",
-        tir.StringImm(cb_name),
-        *[tir.IntImm("int32", dim) for dim in shape],
-        tir.StringImm(dtype)
-    )
+    return tir.call_extern("handle", "tt.alloc_cb", tir.StringImm(cb_name),
+                           *[tir.IntImm("int32", dim) for dim in shape], tir.StringImm(dtype))
 
 
 def find_blocks_in_stmt(stmt) -> List[tir.Block]:
@@ -297,6 +261,7 @@ def find_shared_allocations(block: tir.Block) -> List[Dict[str, Any]]:
 
 # Pattern matching utilities for compute operations
 
+
 def is_matmul_pattern(stmt) -> bool:
     """Check if statement matches a matrix multiplication pattern."""
     # This would need actual pattern matching logic
@@ -322,6 +287,7 @@ def is_elementwise_pattern(stmt) -> bool:
 if __name__ == "__main__":
     # Example: Create a simple transformer
     class ExampleTransformer(BlockTransformer):
+
         def process_alloc_buffers(self, alloc_buffers):
             """Example: Transform shared buffers to CBs"""
             cb_metadata = []
@@ -337,11 +303,6 @@ if __name__ == "__main__":
         def create_cb_allocation(self, cb_info):
             """Create CB allocation for shared buffer"""
             return tir.Evaluate(
-                create_cb_intrinsic(
-                    cb_info['cb_name'],
-                    cb_info['shape'],
-                    cb_info['dtype']
-                )
-            )
+                create_cb_intrinsic(cb_info['cb_name'], cb_info['shape'], cb_info['dtype']))
 
     print("BlockTransformer utilities loaded successfully")

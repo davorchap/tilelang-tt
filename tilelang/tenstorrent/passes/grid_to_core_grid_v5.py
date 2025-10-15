@@ -44,6 +44,7 @@ def GridToCoreGrid_v5(func, mod, ctx):
         return func
 
     class GridTransformer(BlockTransformer):
+
         def __init__(self, metadata):
             super().__init__()
             self.metadata = metadata
@@ -80,16 +81,9 @@ def GridToCoreGrid_v5(func, mod, ctx):
             new_body = self.visit(for_node.body)
 
             if new_body != for_node.body:
-                return tir.For(
-                    for_node.loop_var,
-                    for_node.min,
-                    for_node.extent,
-                    for_node.kind,
-                    new_body,
-                    for_node.thread_binding,
-                    for_node.annotations,
-                    for_node.span
-                )
+                return tir.For(for_node.loop_var, for_node.min, for_node.extent, for_node.kind,
+                               new_body, for_node.thread_binding, for_node.annotations,
+                               for_node.span)
             return for_node
 
         def visit_attr_stmt(self, attr):
@@ -115,13 +109,7 @@ def GridToCoreGrid_v5(func, mod, ctx):
             new_body = self.visit(attr.body)
 
             if new_body != attr.body:
-                return tir.AttrStmt(
-                    attr.node,
-                    attr.attr_key,
-                    attr.value,
-                    new_body,
-                    attr.span
-                )
+                return tir.AttrStmt(attr.node, attr.attr_key, attr.value, new_body, attr.span)
             return attr
 
         def _detect_grid_patterns_in_block(self, block):
@@ -162,7 +150,8 @@ def GridToCoreGrid_v5(func, mod, ctx):
 
             # Check loop variable name
             if hasattr(for_node, 'loop_var'):
-                loop_var_name = for_node.loop_var.name if hasattr(for_node.loop_var, 'name') else str(for_node.loop_var)
+                loop_var_name = for_node.loop_var.name if hasattr(
+                    for_node.loop_var, 'name') else str(for_node.loop_var)
                 grid_patterns = ["blockIdx", "bx", "by", "bz", "gridIdx", "gx", "gy"]
                 return any(pattern in loop_var_name for pattern in grid_patterns)
 
@@ -192,50 +181,35 @@ def GridToCoreGrid_v5(func, mod, ctx):
                 attr_key_str = str(attr.attr_key)
                 if "blockIdx" in attr_key_str:
                     # Transform to core launch
-                    return self._create_core_launch_from_binding(var, extent, attr.body, attr_key_str)
+                    return self._create_core_launch_from_binding(var, extent, attr.body,
+                                                                 attr_key_str)
 
             # Visit body normally
             new_body = self.visit(attr.body)
             if new_body != attr.body:
-                return tir.AttrStmt(
-                    attr.node,
-                    attr.attr_key,
-                    attr.value,
-                    new_body,
-                    attr.span
-                )
+                return tir.AttrStmt(attr.node, attr.attr_key, attr.value, new_body, attr.span)
             return attr
 
         def _transform_to_core_launch(self, body, grid_dims):
             """Transform kernel body to use core launch"""
 
             # Create core launch variables
-            cx = tir.Var("cx", "int32")
-            cy = tir.Var("cy", "int32")
+            tir.Var("cx", "int32")
+            tir.Var("cy", "int32")
 
             # Create launch statements
             stmts = []
 
             # Add T.launch_core for x dimension
             launch_x = tir.Evaluate(
-                tir.call_extern(
-                    "int32",
-                    "T.launch_core",
-                    tir.StringImm("coreIdx.x"),
-                    tir.IntImm("int32", self.core_grid[0])
-                )
-            )
+                tir.call_extern("int32", "T.launch_core", tir.StringImm("coreIdx.x"),
+                                tir.IntImm("int32", self.core_grid[0])))
             stmts.append(launch_x)
 
             # Add T.launch_core for y dimension
             launch_y = tir.Evaluate(
-                tir.call_extern(
-                    "int32",
-                    "T.launch_core",
-                    tir.StringImm("coreIdx.y"),
-                    tir.IntImm("int32", self.core_grid[1])
-                )
-            )
+                tir.call_extern("int32", "T.launch_core", tir.StringImm("coreIdx.y"),
+                                tir.IntImm("int32", self.core_grid[1])))
             stmts.append(launch_y)
 
             # Add work distribution logic based on partition mode
@@ -268,10 +242,7 @@ def GridToCoreGrid_v5(func, mod, ctx):
             if not dim_str:
                 # Fall back to variable name
                 loop_var_name = loop_var.name if hasattr(loop_var, 'name') else str(loop_var)
-                if "x" in loop_var_name or "0" in loop_var_name:
-                    dim_str = "x"
-                else:
-                    dim_str = "y"
+                dim_str = "x" if "x" in loop_var_name or "0" in loop_var_name else "y"
 
             # Get core count for this dimension
             if dim_str == "x":
@@ -282,12 +253,9 @@ def GridToCoreGrid_v5(func, mod, ctx):
                 core_count = 1  # z dimension not typically used for cores
 
             # Create launch_core call
-            launch_call = tir.call_extern(
-                "int32",
-                "T.launch_core",
-                tir.StringImm(f"coreIdx.{dim_str}"),
-                tir.IntImm("int32", core_count)
-            )
+            launch_call = tir.call_extern("int32", "T.launch_core",
+                                          tir.StringImm(f"coreIdx.{dim_str}"),
+                                          tir.IntImm("int32", core_count))
 
             # Create variable to hold core index
             core_var = tir.Var(f"c{dim_str}", "int32")
@@ -319,12 +287,9 @@ def GridToCoreGrid_v5(func, mod, ctx):
                 core_count = 1
 
             # Create launch_core call
-            launch_call = tir.call_extern(
-                "int32",
-                "T.launch_core",
-                tir.StringImm(f"coreIdx.{dim_str}"),
-                tir.IntImm("int32", core_count)
-            )
+            launch_call = tir.call_extern("int32", "T.launch_core",
+                                          tir.StringImm(f"coreIdx.{dim_str}"),
+                                          tir.IntImm("int32", core_count))
 
             # Create variable to hold core index
             core_var = tir.Var(f"c{dim_str}", "int32")
@@ -368,12 +333,14 @@ def GridToCoreGrid_v5(func, mod, ctx):
             if "Mt" in self.runtime_args:
                 mt_idx = self.runtime_args.index("Mt")
                 mt = tir.call_extern("int32", "get_arg_val", tir.IntImm("int32", mt_idx))
-                stmts.append(tir.LetStmt(tir.Var("Mt", "int32"), mt, tir.Evaluate(tir.IntImm("int32", 0))))
+                stmts.append(
+                    tir.LetStmt(tir.Var("Mt", "int32"), mt, tir.Evaluate(tir.IntImm("int32", 0))))
 
             if "Nt" in self.runtime_args:
                 nt_idx = self.runtime_args.index("Nt")
                 nt = tir.call_extern("int32", "get_arg_val", tir.IntImm("int32", nt_idx))
-                stmts.append(tir.LetStmt(tir.Var("Nt", "int32"), nt, tir.Evaluate(tir.IntImm("int32", 0))))
+                stmts.append(
+                    tir.LetStmt(tir.Var("Nt", "int32"), nt, tir.Evaluate(tir.IntImm("int32", 0))))
 
             return stmts
 
@@ -387,11 +354,10 @@ def GridToCoreGrid_v5(func, mod, ctx):
                 if arg_name in self.runtime_args:
                     idx = self.runtime_args.index(arg_name)
                     value = tir.call_extern("int32", "get_arg_val", tir.IntImm("int32", idx))
-                    stmts.append(tir.LetStmt(
-                        tir.Var(arg_name, "int32"),
-                        value,
-                        tir.Evaluate(tir.IntImm("int32", 0))
-                    ))
+                    stmts.append(
+                        tir.LetStmt(
+                            tir.Var(arg_name, "int32"), value, tir.Evaluate(tir.IntImm("int32",
+                                                                                       0))))
 
             return stmts
 
@@ -399,6 +365,7 @@ def GridToCoreGrid_v5(func, mod, ctx):
             """Replace grid indices with core-based computation"""
 
             class IndexReplacer:
+
                 def __init__(self, kernel_vars):
                     self.kernel_vars = kernel_vars
 
@@ -476,14 +443,8 @@ def extract_metadata(func):
 
     # List of expected metadata keys
     metadata_keys = [
-        "tt.core_grid",
-        "tt.core_ranges",
-        "tt.partition_mode",
-        "tt.grid_tiles",
-        "tt.work_partition",
-        "tt.runtime_args",
-        "tt.shard_grid",
-        "tt.local_shape_tiles"
+        "tt.core_grid", "tt.core_ranges", "tt.partition_mode", "tt.grid_tiles", "tt.work_partition",
+        "tt.runtime_args", "tt.shard_grid", "tt.local_shape_tiles"
     ]
 
     # Extract available metadata
@@ -504,6 +465,7 @@ def validate_core_launch(func):
     """
 
     class CoreLaunchChecker:
+
         def __init__(self):
             self.has_launch_core = False
             self.has_kernel_block = False
@@ -545,18 +507,17 @@ if __name__ == "__main__":
     # Create a test function with GPU-style grid
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
-        def grid_kernel(
-            A: T.Buffer((256, 256), "float16"),
-            B: T.Buffer((256, 256), "float16"),
-            C: T.Buffer((256, 256), "float16")
-        ):
+        def grid_kernel(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                        C: T.Buffer((256, 256), "float16")):
             # GPU-style grid kernel with block structure
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     # Process tile at (bx, by)
                     for i, j in T.grid(32, 32):
-                        C[by * 32 + i, bx * 32 + j] = A[by * 32 + i, bx * 32 + j] + B[by * 32 + i, bx * 32 + j]
+                        C[by * 32 + i,
+                          bx * 32 + j] = A[by * 32 + i, bx * 32 + j] + B[by * 32 + i, bx * 32 + j]
 
     # Get function
     func = TestModule["grid_kernel"]
@@ -566,11 +527,13 @@ if __name__ == "__main__":
     func = func.with_attr("tt.partition_mode", "global")
     func = func.with_attr("tt.grid_tiles", [8, 8])
     func = func.with_attr("tt.runtime_args", ["start_id", "count", "Mt", "Nt"])
-    func = func.with_attr("tt.work_partition", {
-        "core_0_0": [[0, 0]],
-        "core_0_1": [[0, 1]],
-        # ... simplified for example
-    })
+    func = func.with_attr(
+        "tt.work_partition",
+        {
+            "core_0_0": [[0, 0]],
+            "core_0_1": [[0, 1]],
+            # ... simplified for example
+        })
 
     # Apply transformation
     transformed = GridToCoreGrid_v5(func, TestModule, None)
