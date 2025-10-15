@@ -26,9 +26,9 @@ def matmul_tt(M, N, K, block_M, block_N, block_K, dtype="float16", accum_dtype="
 
     @T.prim_func
     def gemm(
-        A: T.Tensor((M, K), dtype),
-        B: T.Tensor((K, N), dtype),
-        C: T.Tensor((M, N), dtype),
+            A: T.Tensor((M, K), dtype),
+            B: T.Tensor((K, N), dtype),
+            C: T.Tensor((M, N), dtype),
     ):
         # Grid-level parallelism (threads param ignored by TT)
         with T.Kernel(T.ceildiv(N, block_N), T.ceildiv(M, block_M), threads=128) as (bx, by):
@@ -71,7 +71,7 @@ def main():
 
     # Note: Actual execution requires TT hardware or simulator
     # This runs in simulation mode
-    c = kernel(a, b)
+    _ = kernel(a, b)
 
     # Display generated TT artifacts
     print("TT Artifacts generated:")

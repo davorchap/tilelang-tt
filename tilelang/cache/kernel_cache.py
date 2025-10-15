@@ -257,28 +257,61 @@ class KernelCache:
         cache_path = self._get_cache_path(key)
         os.makedirs(cache_path, exist_ok=True)  # Ensure directory exists
 
-        # Save kernel source code
+        # Check if this is a TT kernel by looking at the content
+        is_tt_kernel = False
+        kernel_source = kernel.adapter.get_kernel_source()
         try:
-            kernel_path = os.path.join(cache_path, KERNEL_PATH)
-            if verbose:
-                self.logger.debug(f"Saving kernel source code to file: {kernel_path}")
-            if kernel.artifact.kernel_source is not None:
-                KernelCache._safe_write_file(kernel_path, "w",
-                                             lambda file: file.write(kernel.artifact.kernel_source))
-        except Exception as e:
-            self.logger.error(f"Error saving kernel source code to disk: {e}")
+            # TT kernels return JSON with artifacts
+            artifacts = json.loads(kernel_source)
+            if "reader.cpp" in artifacts and "compute.cpp" in artifacts:
+                is_tt_kernel = True
+        except Exception:
+            pass
 
-        # Save wrapped kernel source code
-        try:
-            wrapped_kernel_path = os.path.join(cache_path, WRAPPED_KERNEL_PATH)
-            if verbose:
-                self.logger.debug(
-                    f"Saving wrapped kernel source code to file: {wrapped_kernel_path}")
-            KernelCache._safe_write_file(
-                wrapped_kernel_path, "w",
-                lambda file: file.write(kernel.adapter.get_kernel_source()))
-        except Exception as e:
-            self.logger.error(f"Error saving wrapped kernel source code to disk: {e}")
+        if is_tt_kernel:
+            # For TT backend, save individual artifacts
+            try:
+                artifacts = json.loads(kernel_source)
+
+                # Save the complete JSON as tt_artifacts.json
+                artifacts_path = os.path.join(cache_path, "tt_artifacts.json")
+                if verbose:
+                    self.logger.debug(f"Saving TT artifacts to file: {artifacts_path}")
+                KernelCache._safe_write_file(artifacts_path, "w",
+                                             lambda file: json.dump(artifacts, file, indent=2))
+
+                # Also save individual artifact files for easier inspection
+                for name, content in artifacts.items():
+                    artifact_path = os.path.join(cache_path, name)
+                    if verbose:
+                        self.logger.debug(f"Saving TT artifact: {artifact_path}")
+                    KernelCache._safe_write_file(
+                        artifact_path, "w", lambda file, c=content: file.write(c))
+            except Exception as e:
+                self.logger.error(f"Error saving TT artifacts to disk: {e}")
+        else:
+            # For non-TT backends, save as before
+            # Save kernel source code
+            try:
+                kernel_path = os.path.join(cache_path, KERNEL_PATH)
+                if verbose:
+                    self.logger.debug(f"Saving kernel source code to file: {kernel_path}")
+                if kernel.artifact.kernel_source is not None:
+                    KernelCache._safe_write_file(
+                        kernel_path, "w", lambda file: file.write(kernel.artifact.kernel_source))
+            except Exception as e:
+                self.logger.error(f"Error saving kernel source code to disk: {e}")
+
+            # Save wrapped kernel source code
+            try:
+                wrapped_kernel_path = os.path.join(cache_path, WRAPPED_KERNEL_PATH)
+                if verbose:
+                    self.logger.debug(
+                        f"Saving wrapped kernel source code to file: {wrapped_kernel_path}")
+                KernelCache._safe_write_file(wrapped_kernel_path, "w",
+                                             lambda file: file.write(kernel_source))
+            except Exception as e:
+                self.logger.error(f"Error saving wrapped kernel source code to disk: {e}")
 
         # Save the kernel library (skip for TT backend which has no compiled library)
         try:
@@ -345,25 +378,17 @@ class KernelCache:
         """
         cache_path = self._get_cache_path(key)
         wrapped_kernel_path = os.path.join(cache_path, WRAPPED_KERNEL_PATH)
+        tt_artifacts_path = os.path.join(cache_path, "tt_artifacts.json")
         kernel_lib_path = os.path.join(
             cache_path, KERNEL_CUBIN_PATH if self.execution_backend == "nvrtc" else KERNEL_LIB_PATH)
         params_path = os.path.join(cache_path, PARAMS_PATH)
 
-        # For TT backend, we don't have a library file, just check for params
-        # Check if this is likely a TT kernel by looking for artifacts in wrapped kernel
-        is_tt_kernel = False
-        if os.path.exists(wrapped_kernel_path):
-            try:
-                with open(wrapped_kernel_path, "r") as f:
-                    content = f.read()
-                    # TT kernels contain JSON with reader.cpp, compute.cpp, etc.
-                    is_tt_kernel = "reader.cpp" in content and "compute.cpp" in content
-            except:
-                pass
+        # Check if this is a TT kernel by looking for TT artifacts
+        is_tt_kernel = os.path.exists(tt_artifacts_path)
 
         if is_tt_kernel:
-            # For TT, only check for params file
-            if not os.path.exists(params_path):
+            # For TT, only check for params file and artifacts
+            if not all([os.path.exists(file) for file in (tt_artifacts_path, params_path)]):
                 return None
         else:
             # For other backends, check for both library and params
@@ -373,15 +398,24 @@ class KernelCache:
         kernel_global_source: Optional[str] = None
         kernel_params: Optional[List[KernelParam]] = None
 
-        # Load the kernel source file (optional)
+        # Load the kernel source file
         try:
-            if verbose:
-                self.logger.debug(
-                    f"Loading wrapped kernel source code from file: {wrapped_kernel_path}")
-            with open(wrapped_kernel_path, "r") as f:
-                kernel_global_source = f.read()
+            if is_tt_kernel:
+                # For TT kernels, load from tt_artifacts.json
+                if verbose:
+                    self.logger.debug(f"Loading TT artifacts from file: {tt_artifacts_path}")
+                with open(tt_artifacts_path, "r") as f:
+                    # Return as JSON string (TTKernelAdapter expects JSON)
+                    kernel_global_source = f.read()
+            else:
+                # For non-TT kernels, load from wrapped_kernel.cu
+                if verbose:
+                    self.logger.debug(
+                        f"Loading wrapped kernel source code from file: {wrapped_kernel_path}")
+                with open(wrapped_kernel_path, "r") as f:
+                    kernel_global_source = f.read()
         except Exception as e:
-            self.logger.error(f"Error loading wrapped kernel source code from disk: {e}")
+            self.logger.error(f"Error loading kernel source from disk: {e}")
 
         # Load kernel parameters
         try:
@@ -393,10 +427,12 @@ class KernelCache:
             self.logger.error(f"Error loading kernel parameters from disk: {e}")
 
         if kernel_global_source and kernel_params:
+            # For TT kernels, pass None for kernel_lib_path since they don't have compiled libraries
+            lib_path_to_use = None if is_tt_kernel else kernel_lib_path
             return JITKernel.from_database(
                 func=func,
                 kernel_global_source=kernel_global_source,
-                kernel_lib_path=kernel_lib_path,
+                kernel_lib_path=lib_path_to_use,
                 params=kernel_params,
                 target=target,
                 target_host=target_host,

@@ -46,78 +46,62 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 ---
 
-## GEMM Examples Guide
+## Tenstorrent GEMM Examples
 
-TileLang provides various GEMM examples demonstrating different features and backends. Here's a comprehensive guide:
+### Quick Start: Running GEMM on Tenstorrent
 
-### Core GEMM Examples (`examples/gemm/`)
+The Tenstorrent backend allows any TileLang GEMM to run on TT hardware with just 2 lines of changes:
 
-#### 1. **`example_gemm.py`** - Basic GEMM
-- **Purpose**: Simplest GEMM implementation using TileLang DSL
-- **Features**: Basic tile operations, shared memory, pipelined execution
-- **Target**: CUDA GPUs (default)
-- **Run**: `python examples/gemm/example_gemm.py`
-- **Key concepts**: `T.alloc_shared`, `T.alloc_fragment`, `T.Pipelined`, `T.gemm`
+```python
+# 1. Import the target
+from tilelang.utils.target import TENSTORRENT_TARGET
 
-#### 2. **`example_gemm_schedule.py`** - Manual Scheduling
-- **Purpose**: Demonstrates explicit scheduling control
-- **Features**: Fine-grained control over loop ordering and memory hierarchy
-- **Target**: CUDA GPUs
-- **Run**: `python examples/gemm/example_gemm_schedule.py`
-- **Key concepts**: Manual schedule specification for optimization
+# 2. Add target parameter to decorator
+@tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
+def matmul(...):
+    # Your existing kernel code - no changes needed!
+```
 
-#### 3. **`example_gemm_intrinsics.py`** - Hardware Intrinsics
-- **Purpose**: Direct use of hardware-specific intrinsics (MMA, WMMA)
-- **Features**: Low-level tensor core operations
-- **Target**: CUDA GPUs with tensor cores
-- **Run**: `python examples/gemm/example_gemm_intrinsics.py`
-- **Key concepts**: `mma_sync`, hardware-specific optimizations
+### Tenstorrent GEMM Examples (`examples/tenstorrent/`)
 
-#### 4. **`example_gemm_persistent.py`** - Persistent Kernels
-- **Purpose**: Persistent kernel design pattern
-- **Features**: Long-running kernels that process multiple tiles
-- **Target**: CUDA GPUs
-- **Run**: `python examples/gemm/example_gemm_persistent.py`
-- **Key concepts**: Persistent threads, work distribution
+#### 1. **`example_gemm_tt_minimal.py`** - Minimal Changes Demo
+- **Purpose**: Shows the minimal 2-line change needed to run any GEMM on TT
+- **What it does**: Takes the standard GEMM example and runs it on TT backend
+- **Run**: `python examples/tenstorrent/example_gemm_tt_minimal.py`
+- **Output**: Shows where TT artifacts are generated and cached
+- **Key learning**: Any TileLang kernel can target TT with just a target parameter
 
-#### 5. **`example_gemm_autotune.py`** - Auto-tuning
-- **Purpose**: Automatic performance tuning
-- **Features**: Parameter search space, auto-optimization
-- **Target**: CUDA GPUs
-- **Run**: `python examples/gemm/example_gemm_autotune.py`
-- **Key concepts**: Performance tuning, parameter exploration
-
-### Tenstorrent Backend Examples (`examples/tenstorrent/`)
-
-#### 6. **`example_gemm.py`** - TT-Compatible GEMM
-- **Purpose**: GEMM implementation compatible with Tenstorrent backend
-- **Features**: Grid-to-persistent mapping, tile-level parallelism
-- **Target**: Tenstorrent hardware (via backend switch)
-- **Run with TT**: Add `target=TENSTORRENT_TARGET` to `@tilelang.jit`
-- **Key concepts**: TT architecture compatibility
-
-#### 7. **`example_gemm_tt.py`** - Native TT GEMM
-- **Purpose**: GEMM specifically designed for Tenstorrent
-- **Features**: TT-optimized with 32x32 tiles, persistent kernel model
-- **Target**: Tenstorrent hardware
+#### 2. **`example_gemm_tt.py`** - TT-Optimized GEMM
+- **Purpose**: GEMM specifically optimized for Tenstorrent architecture
+- **Features**: Uses 32x32 tiles (TT's native tile size), optimized for persistent kernel model
 - **Run**: `python examples/tenstorrent/example_gemm_tt.py`
 - **Key concepts**: TT-specific optimizations, L1 circular buffers
 
-#### 8. **`example_gemm_tt_minimal.py`** - Minimal TT Changes
-- **Purpose**: Shows minimal changes needed to run on TT
-- **Features**: Same as original GEMM with just 2 line changes
-- **Run**: `python examples/tenstorrent/example_gemm_tt_minimal.py`
-- **Shows**: Artifacts directory location and generated files
-
-#### 9. **`run_gemm_with_tt_backend.py`** - TT Backend Demo
-- **Purpose**: Comprehensive demonstration of TT backend features
-- **Features**: Shows all artifacts, execution plan, and mappings
+#### 3. **`run_gemm_with_tt_backend.py`** - Comprehensive Demo
+- **Purpose**: Full demonstration of TT backend capabilities
+- **Features**: Shows all generated artifacts, execution plan, and core mappings
 - **Run**: `python examples/tenstorrent/run_gemm_with_tt_backend.py`
+- **Output**: Detailed view of reader/compute/writer kernels and runtime plan
 
-#### Documentation: **`examples/tenstorrent/HOWTO_RUN_GEMM_WITH_TT.md`**
-- Step-by-step guide for running GEMM with TT backend
-- Shows exactly what changes are needed
-- Explains artifact generation and locations
+#### 4. **Documentation: `HOWTO_RUN_GEMM_WITH_TT.md`**
+- Step-by-step guide for converting any GEMM to TT
+- Explains the artifact generation process
+- Shows where files are generated and cached
+
+### What Gets Generated for TT?
+
+When you run a GEMM with the TT backend, it generates:
+
+1. **`reader.cpp`** - Kernel that reads tiles from DRAM to L1
+2. **`compute.cpp`** - Kernel that performs the matrix multiplication
+3. **`writer.cpp`** - Kernel that writes results back to DRAM
+4. **`main.cpp`** - Host program that coordinates execution
+5. **`tt.plan.json`** - Runtime execution plan with core assignments
+
+These artifacts are:
+- Cached in `~/.tilelang/cache/` for reuse
+- Include TIR passes when `TT_DUMP_IR=1` is set
+- Ready for compilation with TT-Metalium SDK
 
 ### Running Examples with Different Backends
 
@@ -171,54 +155,6 @@ def gemm(M, N, K):
     # Exact same implementation!
 ```
 
-### Specialized GEMM Examples
-
-#### FP8 GEMM (`examples/gemm_fp8/`)
-- **`example_tilelang_gemm_fp8.py`** - Basic FP8 GEMM
-- **`example_tilelang_gemm_fp8_2xAcc.py`** - FP8 with double accumulation
-- **`example_tilelang_gemm_fp8_intrinsic.py`** - FP8 using intrinsics
-- **`example_tilelang_gemm_amd.py`** - AMD GPU specific implementation
-
-#### Dequantization GEMM (`examples/dequantize_gemm/`)
-- **`example_dequant_gemm_w4a8.py`** - Weight 4-bit, Activation 8-bit
-- **`example_dequant_gemm_fp4_hopper.py`** - FP4 on Hopper architecture
-- **`example_dequant_gemm_bf16_mxfp4_hopper.py`** - BF16 with MX-FP4
-
-#### Split-K GEMM (`examples/gemm_splitk/`)
-- **`example_tilelang_gemm_splitk.py`** - K-dimension splitting for large matrices
-- **`example_tilelang_gemm_splitk_vectorize_atomicadd.py`** - Optimized reduction
-
-#### Stream-K GEMM (`examples/gemm_streamk/`)
-- **`example_tilelang_gemm_streamk.py`** - Stream-K parallelization
-
-#### Grouped GEMM (`examples/grouped_gemm/`)
-- **`example_grouped_gemm_fwd.py`** - Forward pass batched GEMM
-- **`example_grouped_gemm_bwd.py`** - Backward pass batched GEMM
-
-### Performance Tips
-
-- **CUDA**: Use tensor cores with appropriate tile sizes (16x16, 32x8)
-- **Tenstorrent**: Always use 32x32 tiles, leverage persistent kernel model
-- **Both**: Use `T.Pipelined` for double-buffering, optimize K-dimension tiling
-
-### Converting Any Example to Tenstorrent
-
-Any TileLang GEMM example can run on Tenstorrent by adding just two lines:
-
-```python
-# 1. Import the target
-from tilelang.utils.target import TENSTORRENT_TARGET
-
-# 2. Add target parameter to decorator
-@tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
-```
-
-The TT backend automatically:
-- Maps `T.alloc_shared` → L1 circular buffers
-- Maps `T.alloc_fragment` → tile registers
-- Converts grid kernels → persistent kernels
-- Generates reader/compute/writer C++ kernels
-- Creates runtime execution plan (`tt.plan.json`)
 
 ---
 

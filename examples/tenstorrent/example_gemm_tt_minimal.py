@@ -84,13 +84,24 @@ def main():
     source = kernel.get_kernel_source()
     artifacts = json.loads(source)
 
-    print(f"\n✓ Generated TT artifacts (5 total):")
-    for artifact_name in sorted(artifacts.keys()):
-        print(f"  - {artifact_name}")
+    # Display artifacts
+    print(f"\n✓ Generated TT artifacts ({len(artifacts)} total):")
+    # Separate C++ files and TIR files
+    cpp_files = [f for f in artifacts.keys() if f.endswith(('.cpp', '.json'))]
+    tir_files = [f for f in artifacts.keys() if f.endswith('.tir')]
+
+    if tir_files:
+        print("  TIR passes:")
+        for name in sorted(tir_files):
+            print(f"    - {name}")
+    if cpp_files:
+        print("  TT artifacts:")
+        for name in sorted(cpp_files):
+            print(f"    - {name}")
 
     # Show the runtime plan
     # Note: Currently the plan is also written to ./tt.plan.json
-    print(f"\n✓ Execution plan:")
+    print("\n✓ Execution plan:")
     try:
         # Check if plan is in current directory (known issue)
         if os.path.exists("tt.plan.json"):
@@ -98,9 +109,9 @@ def main():
                 plan = json.load(f)
             print(f"  - Core grid: {plan.get('core_grid', [8, 8])}")
             print(f"  - Work partitions: {len(plan.get('work_partition', {}))} cores")
-            print(f"  - Plan file: ./tt.plan.json (working directory)")
-    except:
-        print(f"  - Generated in artifacts")
+            print("  - Plan file: ./tt.plan.json (working directory)")
+    except Exception:
+        print("  - Generated in artifacts")
 
     print("\n✓ Artifacts ready for TT-Metalium SDK compilation!")
 

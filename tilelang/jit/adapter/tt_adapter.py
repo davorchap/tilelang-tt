@@ -119,6 +119,7 @@ class TTKernelAdapter(BaseKernelAdapter):
         For TT backend, this is a simulation stub since actual execution
         requires TT hardware or simulator.
         """
+
         def lambda_forward(*args, stream: int = -1, skip_tensor_validation: bool = False):
             """Simulation stub for TT kernel execution.
 
@@ -185,3 +186,39 @@ class TTKernelAdapter(BaseKernelAdapter):
             The artifact content or None if not found
         """
         return self.artifacts.get(name)
+
+    @classmethod
+    def from_database(cls,
+                      params: List[KernelParam],
+                      result_idx: List[int],
+                      target: Union[str, Target],
+                      func_or_mod: Union[tir.PrimFunc, tvm.IRModule],
+                      kernel_global_source: str,
+                      pass_configs: Optional[Dict[str, Any]] = None,
+                      compile_flags: Optional[List[str]] = None):
+        """Create adapter from cached data (used when loading from disk cache).
+
+        Args:
+            params: List of tensor types for inputs/outputs
+            result_idx: Indices of output tensors
+            target: Target platform (should be 'tenstorrent')
+            func_or_mod: TIR function or module
+            kernel_global_source: JSON string containing TT artifacts
+            pass_configs: Optional pass configuration
+            compile_flags: Optional compile flags
+
+        Returns:
+            TTKernelAdapter instance created from cached data
+        """
+        # For TT, we don't have compiled libraries, just artifacts
+        # Create the adapter with the loaded artifacts
+        return cls(
+            params=params,
+            result_idx=result_idx,
+            target=target,
+            func_or_mod=func_or_mod,
+            kernel_global_source=kernel_global_source,
+            verbose=False,  # Don't be verbose when loading from cache
+            pass_configs=pass_configs,
+            compile_flags=compile_flags,
+        )

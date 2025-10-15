@@ -13,7 +13,6 @@ from tvm.target import Target
 import tilelang
 from tilelang import tvm as tvm
 from tilelang.engine.param import CompiledArtifact, KernelParam
-from tilelang.engine.phase import LowerAndLegalize
 from tilelang.tenstorrent import apply_tt_defaults
 from tilelang.tenstorrent.passes import run_pipeline
 
@@ -85,6 +84,11 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
     if hasattr(target, "attrs") and "device" in target.attrs:
         target_device = target.attrs["device"]
 
+    # Check environment variable for IR dumping
+    import os
+    dump_ir = os.environ.get("TT_DUMP_IR", "0") == "1"
+    ir_dump_dir = os.environ.get("TT_IR_DUMP_DIR", "tt_pass_ir")
+
     # Run the new metadata-driven pipeline
     mod = run_pipeline(
         mod,
@@ -94,6 +98,8 @@ def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
         enable_double_buffer=True,
         enable_prefetch=True,
         verbose=False,
+        dump_ir=dump_ir,
+        ir_dump_dir=ir_dump_dir,
     )
 
     # === Common Optimizations (Shared with CUDA) ===
@@ -272,6 +278,18 @@ def lower(
     import tilelang.tenstorrent as tt
 
     artifacts = tt.emit_tt_artifacts(device_mod)
+
+    # If IR dumping was enabled, also include the IR files in artifacts
+    import os
+    if os.environ.get("TT_DUMP_IR", "0") == "1":
+        ir_dump_dir = os.environ.get("TT_IR_DUMP_DIR", "tt_pass_ir")
+        if os.path.exists(ir_dump_dir):
+            # Add each IR file to artifacts with .tir extension
+            for ir_file in sorted(os.listdir(ir_dump_dir)):
+                if ir_file.endswith(".tir"):
+                    ir_path = os.path.join(ir_dump_dir, ir_file)
+                    with open(ir_path, "r") as f:
+                        artifacts[ir_file] = f.read()
 
     # Convert artifacts dict to JSON string for kernel_source field
     import json

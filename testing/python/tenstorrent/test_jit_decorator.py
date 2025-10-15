@@ -8,8 +8,8 @@ This test verifies that:
 """
 
 import json
-import pytest
 import sys
+
 sys.path.insert(0, '.')
 
 import tilelang
@@ -22,6 +22,7 @@ def test_basic_jit_decorator():
 
     @tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
     def simple_kernel(M, N, dtype="float16"):
+
         @T.prim_func
         def func(A: T.Buffer((M, N), dtype), B: T.Buffer((M, N), dtype)):
             with T.Kernel(T.ceildiv(N, 32), T.ceildiv(M, 32)) as (bx, by):
@@ -31,6 +32,7 @@ def test_basic_jit_decorator():
                         col = bx * 32 + j
                         if row < M and col < N:
                             B[row, col] = A[row, col] * T.cast(2.0, dtype)
+
         return func
 
     # Test kernel creation
@@ -52,11 +54,12 @@ def test_full_dsl_features():
 
     @tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
     def matmul(M, N, K, block_M, block_N, block_K, dtype="float16", accum_dtype="float"):
+
         @T.prim_func
         def gemm(
-            A: T.Tensor((M, K), dtype),
-            B: T.Tensor((K, N), dtype),
-            C: T.Tensor((M, N), dtype),
+                A: T.Tensor((M, K), dtype),
+                B: T.Tensor((K, N), dtype),
+                C: T.Tensor((M, N), dtype),
         ):
             # Test that threads parameter is accepted (though ignored by TT)
             with T.Kernel(T.ceildiv(N, block_N), T.ceildiv(M, block_M), threads=128) as (bx, by):
@@ -103,11 +106,12 @@ def test_different_sizes():
 
     @tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
     def matmul(M, N, K, block_M, block_N, block_K):
+
         @T.prim_func
         def gemm(
-            A: T.Tensor((M, K), "float16"),
-            B: T.Tensor((K, N), "float16"),
-            C: T.Tensor((M, N), "float16"),
+                A: T.Tensor((M, K), "float16"),
+                B: T.Tensor((K, N), "float16"),
+                C: T.Tensor((M, N), "float16"),
         ):
             with T.Kernel(T.ceildiv(N, block_N), T.ceildiv(M, block_M)) as (bx, by):
                 A_shared = T.alloc_shared((block_M, block_K), "float16")
@@ -125,7 +129,7 @@ def test_different_sizes():
 
     # Test different configurations (all use 32x32 tiles for TT)
     configs = [
-        (64, 64, 64, 32, 32, 32),     # 2x2x2 tiles
+        (64, 64, 64, 32, 32, 32),  # 2x2x2 tiles
         (128, 128, 128, 32, 32, 32),  # 4x4x4 tiles
         (256, 256, 256, 32, 32, 32),  # 8x8x8 tiles
     ]
@@ -150,6 +154,7 @@ def test_runtime_plan():
 
     @tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
     def kernel(M, N):
+
         @T.prim_func
         def func(A: T.Buffer((M, N), "float16"), B: T.Buffer((M, N), "float16")):
             with T.Kernel(T.ceildiv(N, 32), T.ceildiv(M, 32)) as (bx, by):
@@ -159,6 +164,7 @@ def test_runtime_plan():
                         col = bx * 32 + j
                         if row < M and col < N:
                             B[row, col] = A[row, col]
+
         return func
 
     k = kernel(64, 64)

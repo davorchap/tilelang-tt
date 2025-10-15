@@ -23,6 +23,7 @@ def run_original_with_tt_backend():
     # Original example with just target parameter added
     @tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
     def matmul(M, N, K, block_M, block_N, block_K, dtype="float16", accum_dtype="float"):
+
         @T.prim_func
         def gemm(
                 A: T.Tensor((M, K), dtype),
@@ -62,7 +63,7 @@ def run_original_with_tt_backend():
 
     # Show the runtime plan
     plan = json.loads(artifacts["tt.plan.json"])
-    print(f"\n✓ Runtime Plan:")
+    print("\n✓ Runtime Plan:")
     print(f"  - Core grid: {plan['core_grid'][0]}x{plan['core_grid'][1]}")
     print(f"  - Core ranges: {plan['core_ranges']}")
     print(f"  - Work partitions: {len(plan['work_partition'])} cores assigned")
@@ -70,7 +71,7 @@ def run_original_with_tt_backend():
     # Show a snippet of the compute kernel
     print("\n✓ Compute Kernel (snippet):")
     compute_lines = artifacts["compute.cpp"].split('\n')
-    for i, line in enumerate(compute_lines[30:45]):  # Show lines 30-45
+    for line in compute_lines[30:45]:  # Show lines 30-45
         print(f"  {line}")
 
     return kernel, artifacts
@@ -92,9 +93,9 @@ def run_tt_optimized_version():
 
         @T.prim_func
         def gemm(
-            A: T.Tensor((M, K), dtype),
-            B: T.Tensor((K, N), dtype),
-            C: T.Tensor((M, N), dtype),
+                A: T.Tensor((M, K), dtype),
+                B: T.Tensor((K, N), dtype),
+                C: T.Tensor((M, N), dtype),
         ):
             # Grid dimensions based on 32x32 tiles
             with T.Kernel(T.ceildiv(N, TILE_SIZE), T.ceildiv(M, TILE_SIZE)) as (bx, by):
@@ -121,9 +122,9 @@ def run_tt_optimized_version():
 
     # Create kernels for different sizes (all multiples of 32)
     sizes = [
-        (64, 64, 64),    # 2x2x2 tiles
-        (128, 128, 128), # 4x4x4 tiles
-        (256, 256, 256), # 8x8x8 tiles
+        (64, 64, 64),  # 2x2x2 tiles
+        (128, 128, 128),  # 4x4x4 tiles
+        (256, 256, 256),  # 8x8x8 tiles
     ]
 
     for M, N, K in sizes:
@@ -147,10 +148,10 @@ def show_artifact_details():
 
     @tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
     def simple_gemm(M, N, K):
+
         @T.prim_func
-        def gemm(A: T.Tensor((M, K), "float16"),
-                 B: T.Tensor((K, N), "float16"),
-                 C: T.Tensor((M, N), "float16")):
+        def gemm(A: T.Tensor((M, K), "float16"), B: T.Tensor((K, N), "float16"), C: T.Tensor(
+            (M, N), "float16")):
             with T.Kernel(T.ceildiv(N, 32), T.ceildiv(M, 32)) as (bx, by):
                 A_shared = T.alloc_shared((32, 32), "float16")
                 B_shared = T.alloc_shared((32, 32), "float16")
@@ -162,6 +163,7 @@ def show_artifact_details():
                     T.copy(B[k * 32, bx * 32], B_shared)
                     T.gemm(A_shared, B_shared, C_local)
                 T.copy(C_local, C[by * 32, bx * 32])
+
         return gemm
 
     kernel = simple_gemm(128, 128, 128)

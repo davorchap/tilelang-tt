@@ -316,6 +316,21 @@ class JITKernel(object):
         target = self.target
         execution_backend = self.execution_backend
 
+        # Check if this is a TT target - use TT-specific adapter
+        target_kind = target.kind.name if hasattr(target, 'kind') else str(target)
+        if target_kind == "tenstorrent" or str(target) == TENSTORRENT_TARGET:
+            # TT kernels loaded from database
+            adapter = TTKernelAdapter.from_database(
+                params=params,
+                result_idx=result_idx,
+                target=target,
+                func_or_mod=func_or_mod,
+                kernel_global_source=kernel_global_source,
+                pass_configs=pass_configs,
+                compile_flags=compile_flags,
+            )
+            return adapter
+
         # Create an adapter based on the specified execution backend.
         if execution_backend == "dlpack":
             raise ValueError("DLPack backend is not supported for TileLang JIT.")

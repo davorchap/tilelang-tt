@@ -78,6 +78,8 @@ def run_pipeline(
     enable_double_buffer: bool = True,
     enable_prefetch: bool = True,
     verbose: bool = False,
+    dump_ir: bool = False,
+    ir_dump_dir: str = "tt_pass_ir",
 ) -> IRModule:
     """
     Execute the full Tenstorrent lowering pipeline on an IRModule.
@@ -90,6 +92,8 @@ def run_pipeline(
         enable_double_buffer: Whether to enable double-buffering
         enable_prefetch: Whether to enable prefetching
         verbose: Whether to enable verbose logging
+        dump_ir: Whether to dump IR after each pass
+        ir_dump_dir: Directory to save IR dumps
 
     Returns:
         Transformed IRModule with persistent kernels
@@ -102,6 +106,17 @@ def run_pipeline(
         logging.basicConfig(level=logging.DEBUG)
 
     logger.info("Starting Tenstorrent lowering pipeline")
+
+    # Create IR dump directory if needed
+    if dump_ir:
+        import os
+        os.makedirs(ir_dump_dir, exist_ok=True)
+
+        # Save initial IR
+        initial_ir_path = os.path.join(ir_dump_dir, "00_initial.tir")
+        logger.info(f"Dumping initial IR to {initial_ir_path}")
+        with open(initial_ir_path, "w") as f:
+            f.write(str(mod))
 
     # Build the pipeline
     pipeline = build_tt_pipeline(
@@ -119,6 +134,15 @@ def run_pipeline(
 
         try:
             mod = pass_instance(mod)
+
+            # Dump IR after this pass if requested
+            if dump_ir:
+                import os
+                ir_file = os.path.join(ir_dump_dir, f"{i+1:02d}_{pass_name}.tir")
+                logger.info(f"Dumping IR after {pass_name} to {ir_file}")
+                with open(ir_file, "w") as f:
+                    f.write(str(mod))
+
         except Exception as e:
             logger.error(f"Pass {pass_name} failed: {e}")
             raise
