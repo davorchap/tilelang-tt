@@ -64,16 +64,29 @@ class DFGEdge:
     attrs: Dict[str, Any] = field(default_factory=dict)
 
 
-class TileDFGBuilder(tir.stmt_functor.StmtVisitor):
+class TileDFGBuilder:
     """Visitor to build tile dataflow graph from TIR"""
 
     def __init__(self):
-        super().__init__()
+        if tir is not None:
+            # Use the correct TVM visitor class
+            from tvm.tir.stmt_functor import post_order_visit
+            self.post_order_visit = post_order_visit
         self.nodes: Dict[str, DFGNode] = {}
         self.edges: List[DFGEdge] = []
         self.cb_allocations: Dict[str, Dict[str, Any]] = {}
         self.current_compute_id = 0
         self.buffer_accesses: Dict[str, Set[str]] = {}  # buffer -> {read, write}
+
+    def visit(self, stmt):
+        """Custom visitor to traverse TIR statements"""
+        def visit_node(op):
+            if isinstance(op, tir.Evaluate):
+                self.visit_evaluate(op)
+
+        if tir is not None:
+            from tvm.tir.stmt_functor import post_order_visit
+            post_order_visit(stmt, visit_node)
 
     def visit_evaluate(self, op):
         """Visit T.evaluate nodes to find dataflow operations"""
@@ -91,8 +104,6 @@ class TileDFGBuilder(tir.stmt_functor.StmtVisitor):
                 self._handle_write_from_cb(call)
             elif any(x in op_name for x in ["mm.mma", "fpu.", "sfpu."]):
                 self._handle_compute_op(call, op_name)
-
-        super().visit_evaluate(op)
 
     def _handle_cb_allocation(self, call):
         """Handle tt.alloc_cb intrinsic"""
