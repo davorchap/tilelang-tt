@@ -192,6 +192,16 @@ class AttachTensorAccessorTT:
         tile_shape = layout.get("tile_shape", [32, 32])
         dtype = layout.get("dtype", "bf16")
 
+        # Handle tile_shape conversion - could be string, list, or tuple
+        if isinstance(tile_shape, str):
+            # Convert string representation like "[32, 32]" to list
+            import ast
+            try:
+                tile_shape = ast.literal_eval(tile_shape)
+            except (ValueError, SyntaxError):
+                logger.warning(f"Could not parse tile_shape string: {tile_shape}, using default [32, 32]")
+                tile_shape = [32, 32]
+
         # Ensure tile_shape elements are integers
         if isinstance(tile_shape, (list, tuple)):
             tile_shape = [int(x) if not isinstance(x, int) else x for x in tile_shape]
@@ -205,7 +215,7 @@ class AttachTensorAccessorTT:
         tiles_per_dim = []
         if buffer_info and "shape" in buffer_info:
             shape = buffer_info["shape"]
-            if len(shape) >= 2:
+            if len(shape) >= 2 and len(tile_shape) >= 2:
                 # Calculate tiles needed for each dimension
                 import math
                 tiles_per_dim = [
