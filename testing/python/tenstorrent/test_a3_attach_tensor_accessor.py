@@ -274,9 +274,25 @@ class TestAttachTensorAccessorTT:
 
         # Check sharding info (convert TVM Arrays to lists where needed)
         assert sharding["enabled"] is True
-        assert list(sharding["axes"]) if hasattr(sharding["axes"], '__iter__') and not isinstance(sharding["axes"], str) else sharding["axes"] == ["M", "N"]
-        assert list(sharding["grid"]) if hasattr(sharding["grid"], '__iter__') and not isinstance(sharding["grid"], str) else sharding["grid"] == [2, 4]
-        assert list(sharding["shard_tiles"]) if hasattr(sharding["shard_tiles"], '__iter__') and not isinstance(sharding["shard_tiles"], str) else sharding["shard_tiles"] == [4, 2]
+
+        # Convert axes if it's a TVM Array
+        axes = sharding["axes"]
+        if hasattr(axes, '__iter__') and not isinstance(axes, str):
+            axes = list(axes)
+        assert axes == ["M", "N"]
+
+        # Convert grid if it's a TVM Array
+        grid = sharding["grid"]
+        if hasattr(grid, '__iter__') and not isinstance(grid, str):
+            grid = list(grid)
+        assert grid == [2, 4]
+
+        # Convert shard_tiles if it's a TVM Array
+        shard_tiles = sharding["shard_tiles"]
+        if hasattr(shard_tiles, '__iter__') and not isinstance(shard_tiles, str):
+            shard_tiles = list(shard_tiles)
+        assert shard_tiles == [4, 2]
+
         assert sharding["order"] == "row_major"
 
     def test_no_layouts_skip(self):
@@ -469,11 +485,21 @@ class TestA3Integration:
         accessor_c = func.attrs["tt.tensor_accessor.C"]
         assert accessor_c["stride_mode"] == "sharded"
         assert accessor_c["sharding"]["enabled"] is True
-        assert list(accessor_c["sharding"]["grid"]) if hasattr(accessor_c["sharding"]["grid"], '__iter__') and not isinstance(accessor_c["sharding"]["grid"], str) else accessor_c["sharding"]["grid"] == [2, 2]
+
+        # Convert grid if it's a TVM Array
+        grid = accessor_c["sharding"]["grid"]
+        if hasattr(grid, '__iter__') and not isinstance(grid, str):
+            grid = list(grid)
+        assert grid == [2, 2]
 
         # Check that B1 partition mode aligns
         assert func.attrs["tt.partition_mode"] == "local_shard"
-        assert list(func.attrs["tt.shard_grid"]) if hasattr(func.attrs["tt.shard_grid"], '__iter__') and not isinstance(func.attrs["tt.shard_grid"], str) else func.attrs["tt.shard_grid"] == [2, 2]
+
+        # Convert shard_grid if it's a TVM Array
+        shard_grid = func.attrs["tt.shard_grid"]
+        if hasattr(shard_grid, '__iter__') and not isinstance(shard_grid, str):
+            shard_grid = list(shard_grid)
+        assert shard_grid == [2, 2]
 
 
 # Run tests

@@ -257,11 +257,42 @@ class AttachTensorAccessorTT:
 
         if "nd_shard" in layout:
             nd_shard = layout["nd_shard"]
+
+            # Parse axes if it's a string
+            axes = nd_shard.get("axes", [])
+            if isinstance(axes, str):
+                import ast
+                try:
+                    axes = ast.literal_eval(axes)
+                except (ValueError, SyntaxError):
+                    logger.warning(f"Could not parse axes string: {axes}")
+                    axes = []
+
+            # Parse projected_grid if it's a string
+            grid = nd_shard.get("projected_grid", [1, 1])
+            if isinstance(grid, str):
+                import ast
+                try:
+                    grid = ast.literal_eval(grid)
+                except (ValueError, SyntaxError):
+                    logger.warning(f"Could not parse grid string: {grid}")
+                    grid = [1, 1]
+
+            # Parse projected_shard_tiles if it's a string
+            shard_tiles = nd_shard.get("projected_shard_tiles", [1, 1])
+            if isinstance(shard_tiles, str):
+                import ast
+                try:
+                    shard_tiles = ast.literal_eval(shard_tiles)
+                except (ValueError, SyntaxError):
+                    logger.warning(f"Could not parse shard_tiles string: {shard_tiles}")
+                    shard_tiles = [1, 1]
+
             return {
                 "enabled": True,
-                "axes": nd_shard.get("axes", []),
-                "grid": nd_shard.get("projected_grid", [1, 1]),
-                "shard_tiles": nd_shard.get("projected_shard_tiles", [1, 1]),
+                "axes": axes,
+                "grid": grid,
+                "shard_tiles": shard_tiles,
                 "order": nd_shard.get("order", "row_major")
             }
 
