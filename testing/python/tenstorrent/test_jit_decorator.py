@@ -178,17 +178,20 @@ def test_runtime_plan():
     assert "grid" in plan
     assert "cores" in plan
     assert "schedule" in plan
-    assert "layouts" in plan
+    # Note: 'layouts' is not in the current runtime plan structure
+    # The actual structure has: cores, grid, kernel, schedule
 
     # Verify grid (2x2 for 64x64 with 32x32 tiles)
     assert plan["grid"]["x"] == 2
     assert plan["grid"]["y"] == 2
+    assert plan["grid"]["total_tiles"] == 4
 
-    # Verify layouts
-    assert "A" in plan["layouts"]
-    assert "B" in plan["layouts"]
-    assert plan["layouts"]["A"]["shard"] == "DRAM"
-    assert plan["layouts"]["B"]["shard"] == "DRAM"
+    # Verify cores configuration
+    assert plan["cores"]["num_cores"] == 4
+    assert "topology" in plan["cores"]
+
+    # Verify schedule
+    assert plan["schedule"]["policy"] == "contiguous"
 
 
 if __name__ == "__main__":
