@@ -42,7 +42,8 @@ def test_example_gemm_tt():
     result = subprocess.run([sys.executable, example_path],
                             capture_output=True,
                             text=True,
-                            cwd=REPO_ROOT)
+                            cwd=REPO_ROOT,
+                            env=os.environ.copy())
 
     # Check for success
     assert result.returncode == 0, f"example_gemm_tt.py failed:\n{result.stderr}"
@@ -63,7 +64,8 @@ def test_example_gemm_tt_minimal():
     result = subprocess.run([sys.executable, example_path],
                             capture_output=True,
                             text=True,
-                            cwd=REPO_ROOT)
+                            cwd=REPO_ROOT,
+                            env=os.environ.copy())
 
     # Check for success
     assert result.returncode == 0, f"example_gemm_tt_minimal.py failed:\n{result.stderr}"
@@ -88,7 +90,8 @@ def test_run_gemm_with_tt_backend():
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
-        timeout=30  # 30 second timeout
+        timeout=30,  # 30 second timeout
+        env=os.environ.copy()
     )
 
     # Check for success
@@ -111,7 +114,8 @@ def test_new_pipeline_example():
                             capture_output=True,
                             text=True,
                             cwd=REPO_ROOT,
-                            timeout=30)
+                            timeout=30,
+                            env=os.environ.copy())
 
     # Check for success (allow non-zero exit if it's just missing SDK)
     if "TT_METAL_HOME" in result.stderr or "SDK" in result.stderr:
@@ -131,7 +135,8 @@ def test_example_gemm_basic():
                             capture_output=True,
                             text=True,
                             cwd=REPO_ROOT,
-                            timeout=30)
+                            timeout=30,
+                            env=os.environ.copy())
 
     # Check for success
     assert result.returncode == 0, f"example_gemm.py failed:\n{result.stderr}"
