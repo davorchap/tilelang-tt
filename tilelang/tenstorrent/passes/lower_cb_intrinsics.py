@@ -37,6 +37,13 @@ class CBProtocolInserter:
     """Mutator to replace abstract ops with protocol sequences"""
 
     def __init__(self, kernel_role: str, tensor_accessors: Dict[str, Dict[str, Any]],
+                 cb_indices: Dict[str, int]):
+        self.kernel_role = kernel_role
+        self.tensor_accessors = tensor_accessors
+        self.cb_indices = cb_indices
+        self.in_pipeline_loop = False
+        self.pipeline_depth = 3  # Default pipeline depth
+
     def visit(self, stmt):
         """Custom visitor implementation"""
         if tir is None:
@@ -60,13 +67,6 @@ class CBProtocolInserter:
 
         from tvm.tir.stmt_functor import post_order_visit
         return post_order_visit(stmt, visitor_func)
-
-                 cb_indices: Dict[str, int]):
-        self.kernel_role = kernel_role
-        self.tensor_accessors = tensor_accessors
-        self.cb_indices = cb_indices
-        self.in_pipeline_loop = False
-        self.pipeline_depth = 3  # Default pipeline depth
 
     def visit_evaluate(self, op):
         """Visit T.evaluate nodes to replace abstract operations"""
@@ -98,11 +98,13 @@ class CBProtocolInserter:
             new_body = self.visit(op.body) if hasattr(op, 'body') else op.body
             self.in_pipeline_loop = False
             # Return modified loop
-            return tir.For(op.loop_var, op.min, op.extent, op.kind, new_body) if hasattr(op, 'loop_var') else op
+            return tir.For(op.loop_var, op.min, op.extent, op.kind, new_body) if hasattr(
+                op, 'loop_var') else op
         else:
             # Process normally
             new_body = self.visit(op.body) if hasattr(op, 'body') else op.body
-            return tir.For(op.loop_var, op.min, op.extent, op.kind, new_body) if hasattr(op, 'loop_var') else op
+            return tir.For(op.loop_var, op.min, op.extent, op.kind, new_body) if hasattr(
+                op, 'loop_var') else op
 
     def _lower_read_to_cb(self, call) -> List[tir.Stmt]:
         """Lower tt.read_to_cb to NOC read protocol"""

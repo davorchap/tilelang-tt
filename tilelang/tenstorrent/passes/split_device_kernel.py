@@ -49,6 +49,13 @@ class KernelSplitter:
     """Mutator to extract statements for a specific kernel role"""
 
     def __init__(self, role: KernelRole, dfg_metadata: Dict[str, Any]):
+        self.role = role
+        self.dfg = dfg_metadata
+        self.statements = []
+        self.cb_names = set()
+        self.buffer_names = set()
+        self.skip_current = False
+
     def visit(self, stmt):
         """Custom visitor implementation"""
         if tir is None:
@@ -73,13 +80,6 @@ class KernelSplitter:
         from tvm.tir.stmt_functor import post_order_visit
         return post_order_visit(stmt, visitor_func)
 
-        self.role = role
-        self.dfg = dfg_metadata
-        self.statements = []
-        self.cb_names = set()
-        self.buffer_names = set()
-        self.skip_current = False
-
     def visit_evaluate(self, op):
         """Visit T.evaluate nodes to filter by role"""
 
@@ -97,7 +97,7 @@ class KernelSplitter:
             else:
                 return None  # Filter out
 
-        return # super().visit_evaluate(op) - no parent class
+        return op
 
     def visit_allocate(self, op):
         """Visit allocate nodes (CB allocations)"""
@@ -108,7 +108,7 @@ class KernelSplitter:
 
         if self._cb_belongs_to_role(alloc_name):
             self.cb_names.add(alloc_name)
-            return super().visit_allocate(op)
+            return op
         else:
             # Process body without the allocation
             return self.visit(op.body)
@@ -118,7 +118,7 @@ class KernelSplitter:
 
         # Check if this loop is relevant to current role
         if self._loop_belongs_to_role(op):
-            return # super().visit_for(op) - no parent class
+            return op
         else:
             # Skip the loop but process its body
             return self.visit(op.body)

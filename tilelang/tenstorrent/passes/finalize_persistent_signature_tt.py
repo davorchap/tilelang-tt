@@ -274,6 +274,7 @@ class FinalizePersistentSignatureTT:
 
         # Check for GEMM/reduction patterns
         class Analyzer:
+
             def __init__(self, analysis):
                 self.analysis = analysis
 

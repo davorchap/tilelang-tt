@@ -41,6 +41,11 @@ class ComputeOpAnalyzer:
     """Visitor to analyze compute operations in the kernel"""
 
     def __init__(self):
+        self.compute_ops = []
+        self.cb_names = set()
+        self.has_k_loop = False
+        self.loop_depth = 0
+
     def visit(self, stmt):
         """Custom visitor implementation"""
         if tir is None:
@@ -64,11 +69,6 @@ class ComputeOpAnalyzer:
 
         from tvm.tir.stmt_functor import post_order_visit
         return post_order_visit(stmt, visitor_func)
-
-        self.compute_ops = []
-        self.cb_names = set()
-        self.has_k_loop = False
-        self.loop_depth = 0
 
     def visit_evaluate(self, op):
         """Visit T.evaluate nodes to find compute operations"""
@@ -147,6 +147,10 @@ class ComputeInitInserter:
     """Mutator to insert compute engine initialization"""
 
     def __init__(self, init_info: Dict[str, Any]):
+        self.init_info = init_info
+        self.init_inserted = False
+        self.at_function_start = True
+
     def visit(self, stmt):
         """Custom visitor implementation"""
         if tir is None:
@@ -171,10 +175,6 @@ class ComputeInitInserter:
         from tvm.tir.stmt_functor import post_order_visit
         return post_order_visit(stmt, visitor_func)
 
-        self.init_info = init_info
-        self.init_inserted = False
-        self.at_function_start = True
-
     def visit_seq_stmt(self, op):
         """Visit sequence statements to insert init at the beginning"""
 
@@ -184,14 +184,15 @@ class ComputeInitInserter:
 
             # Continue with rest of the body
             self.at_function_start = False
-            rest = super().visit_seq_stmt(op)
+            # Process the rest of the sequence
+            rest = self.visit(op)
 
             # Combine init with rest
             if init_stmts:
                 self.init_inserted = True
                 return tir.SeqStmt(init_stmts + [rest])
 
-        return super().visit_seq_stmt(op)
+        return self.visit(op)
 
     def visit_evaluate(self, op):
         """Visit first evaluate to potentially insert init before it"""
@@ -207,7 +208,7 @@ class ComputeInitInserter:
                 return tir.SeqStmt(init_stmts + [op])
 
         self.at_function_start = False
-        return # super().visit_evaluate(op) - no parent class
+        return op
 
     def visit_for(self, op):
         """Visit for loop - insert init before if at start"""
@@ -220,10 +221,10 @@ class ComputeInitInserter:
                 self.init_inserted = True
                 self.at_function_start = False
                 # Return sequence of init followed by loop
-                return tir.SeqStmt(init_stmts + [# super().visit_for(op) - no parent class])
+                return tir.SeqStmt(init_stmts + [op])
 
         self.at_function_start = False
-        return # super().visit_for(op) - no parent class
+        return op
 
     def _create_init_statements(self) -> List[tir.Stmt]:
         """Create initialization statements based on compute type"""
