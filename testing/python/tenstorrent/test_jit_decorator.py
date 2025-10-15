@@ -145,8 +145,8 @@ def test_different_sizes():
 
         expected_grid_x = N // bN
         expected_grid_y = M // bM
-        assert plan["core_grid"][0] == expected_grid_x
-        assert plan["core_grid"][1] == expected_grid_y
+        assert plan["grid"]["x"] == expected_grid_x
+        assert plan["grid"]["y"] == expected_grid_y
 
 
 def test_runtime_plan():
@@ -175,13 +175,14 @@ def test_runtime_plan():
     plan = json.loads(artifacts["tt.plan.json"])
 
     # Verify plan structure
-    assert "core_grid" in plan
-    assert "core_ranges" in plan
-    assert "work_partition" in plan
+    assert "grid" in plan
+    assert "cores" in plan
+    assert "schedule" in plan
     assert "layouts" in plan
 
-    # Verify core grid (2x2 for 64x64 with 32x32 tiles)
-    assert plan["core_grid"] == [2, 2]
+    # Verify grid (2x2 for 64x64 with 32x32 tiles)
+    assert plan["grid"]["x"] == 2
+    assert plan["grid"]["y"] == 2
 
     # Verify layouts
     assert "A" in plan["layouts"]

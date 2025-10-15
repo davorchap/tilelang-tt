@@ -332,15 +332,17 @@ def test_lower_gemm_to_tt_intrinsics_records_pattern_metadata():
     assert int(pattern["cb_in1"]) == 1
     assert int(pattern["cb_out"]) == 16
 
+    # The pass is now metadata-only - actual lowering happens during codegen
+    # So the IR should still contain the original tl.tl_gemm calls
     call_names = collect_call_names(func.body)
-    assert "tt.mm_init" in call_names
-    assert "tt.matmul_tiles" in call_names
-    assert not has_buffer_store(func.body)
-    assert not has_tt_matmul_attr(func.body)
+    assert "tl.tl_gemm" in call_names
+    # TT intrinsics should NOT be in the IR yet
+    assert "tt.mm_init" not in call_names
+    assert "tt.matmul_tiles" not in call_names
 
 
 def test_lower_gemm_to_tt_intrinsics_emits_sequence():
-    """Lowering should rewrite matmul loops into the expected TT intrinsic sequence."""
+    """Lowering now only adds metadata - actual TT intrinsic emission happens during codegen."""
     from tilelang.tenstorrent.passes import LowerTTTileIntrinsics
 
     func = create_func_with_gemm()
@@ -348,24 +350,13 @@ def test_lower_gemm_to_tt_intrinsics_emits_sequence():
     mod = LowerTTTileIntrinsics()(mod)
     func = mod["main"]
 
+    # The pass is metadata-only now, so no TT intrinsics should be in the IR
     sequence = collect_tt_intrinsic_sequence(func.body)
-    expected = [
-        "tt.tile_regs_acquire",
-        "tt.mm_init",
-        "tt.cb_wait_front",
-        "tt.cb_wait_front",
-        "tt.matmul_tiles",
-        "tt.cb_pop_front",
-        "tt.cb_pop_front",
-        "tt.tile_regs_commit",
-        "tt.tile_regs_wait",
-        "tt.cb_reserve_back",
-        "tt.pack_tile",
-        "tt.cb_push_back",
-        "tt.tile_regs_release",
-    ]
+    assert sequence == [], f"Expected no TT intrinsics in IR (metadata-only pass), got: {sequence}"
 
-    assert sequence == expected, f"Unexpected TT intrinsic sequence: {sequence}"
+    # But the original tl.tl_gemm should still be there
+    call_names = collect_call_names(func.body)
+    assert "tl.tl_gemm" in call_names
 
     patterns = func.attrs["tt_matmul_patterns"]
     assert len(patterns) == 1
@@ -390,9 +381,11 @@ def test_lower_gemm_to_tt_intrinsics_ignores_unmarked_calls():
     # The pass should process all tl.tl_gemm calls
     assert "tt_num_matmuls" in func.attrs
     assert "tt_has_tensorize" in func.attrs
+
+    # The pass is now metadata-only - actual lowering happens during codegen
     call_names = collect_call_names(func.body)
-    assert "tt.mm_init" in call_names
-    assert not has_buffer_store(func.body)
+    assert "tl.tl_gemm" in call_names  # Original call should still be there
+    assert "tt.mm_init" not in call_names  # TT intrinsics not generated yet
     assert has_tt_matmul_attr(func.body) is False
 
 
