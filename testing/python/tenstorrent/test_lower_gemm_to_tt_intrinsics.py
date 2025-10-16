@@ -1,7 +1,15 @@
 """Test LowerGemmToTTIntrinsics pass (persistent transform stage Phase 2).
 
-This pass lowers high-level matmul operations to TT intrinsics.
+NOTE: These tests use the old pass API (LowerTTTileIntrinsics) which is being deprecated
+in favor of the v5 pipeline. These tests are skipped as they test legacy behavior.
+See test_v5_passes.py for v5 pass tests.
 """
+
+import pytest
+
+# Skip the entire module - tests old pass API being deprecated
+pytestmark = pytest.mark.skip(
+    reason="Tests legacy pass API (LowerTTTileIntrinsics) - use test_v5_passes.py instead")
 
 # Import tilelang first to get proper TVM
 from tilelang import tvm

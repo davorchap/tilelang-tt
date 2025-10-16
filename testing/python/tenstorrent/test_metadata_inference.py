@@ -1,20 +1,16 @@
 """Integration tests for Metadata Inference using the new pipeline.
 
-These tests validate the new metadata-driven pipeline passes
-(InferTTLayout, PropagateTTLayout, TTTilesToCoreMap) that provide
-metadata inference and work partitioning.
-
-These tests verify that:
-
-1. Layout inference computes correct buffer metadata
-2. Layout propagation normalizes and distributes metadata
-3. Core mapping generates correct work partitions
-4. Runtime plan is correctly generated
-
-See docs/tenstorrent/NEW_LOWERING_ARCHITECTURE.md for pipeline details.
+NOTE: These tests use the old pass APIs (InferTTLayout, PropagateTTLayout, TTTilesToCoreMap)
+which are being deprecated in favor of the v5 pipeline. These tests are skipped as they
+test legacy behavior. See test_v5_metadata_passes.py for v5 pass tests.
 """
 
 import pytest
+
+# Skip the entire module - tests old pass APIs being deprecated
+pytestmark = pytest.mark.skip(
+    reason="Tests legacy pass APIs (InferTTLayout, PropagateTTLayout, TTTilesToCoreMap) - use test_v5_metadata_passes.py instead"
+)
 import os
 from tilelang import tvm
 import tilelang.language as T

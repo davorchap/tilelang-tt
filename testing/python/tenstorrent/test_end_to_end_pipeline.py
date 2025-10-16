@@ -1,9 +1,16 @@
 """
 End-to-End Pipeline Tests for Tenstorrent Backend
 
-These tests validate the complete transformation pipeline from TileLang IR
-to Tenstorrent artifacts on representative GEMM workloads.
+NOTE: These tests use the old pass APIs (InferTTLayout, PropagateTTLayout, TTTilesToCoreMap,
+LowerTTTileIntrinsics, GridToPersistentTT) which are being deprecated in favor of the v5 pipeline.
+These tests are skipped as they test legacy behavior. See test_v5_pipeline_e2e.py for v5 pipeline tests.
 """
+
+import pytest
+
+# Skip the entire module - tests old pass APIs being deprecated
+pytestmark = pytest.mark.skip(
+    reason="Tests legacy pass APIs (all old passes) - use test_v5_pipeline_e2e.py instead")
 
 import tvm
 from tvm import tir

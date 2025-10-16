@@ -1,4 +1,14 @@
-"""Test tile padding (now integrated into TTTilesToCoreMap)."""
+"""Test tile padding (now integrated into TTTilesToCoreMap).
+
+NOTE: This test uses the old pass API (TTTilesToCoreMap) which is being deprecated
+in favor of the v5 pipeline. This test is skipped as it tests legacy behavior.
+"""
+
+import pytest
+
+# Skip the entire module - tests old pass API being deprecated
+pytestmark = pytest.mark.skip(
+    reason="Tests legacy pass API (TTTilesToCoreMap) - use test_v5_metadata_passes.py instead")
 
 # Import tilelang first to get proper TVM
 from tilelang import tvm

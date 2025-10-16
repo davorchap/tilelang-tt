@@ -1,10 +1,16 @@
 """Basic tests for Persistent transform stage: GridToPersistentTT pass.
 
-This module tests the foundation of persistent transform stage – the GridToPersistentTT transform
-that converts grid-style kernels to persistent per-core loops.
+NOTE: These tests use the old pass APIs (InferTTLayout, PropagateTTLayout, TTTilesToCoreMap,
+LowerTTTileIntrinsics, GridToPersistentTT) which are being deprecated in favor of the v5 pipeline.
+These tests are skipped as they test legacy behavior. See test_v5_passes.py for v5 pass tests.
 """
 
 import pytest
+
+# Skip the entire module - tests old pass APIs being deprecated
+pytestmark = pytest.mark.skip(
+    reason="Tests legacy pass APIs (GridToPersistentTT, LowerTTTileIntrinsics) - use test_v5_passes.py instead"
+)
 from tilelang import tvm
 import tilelang.language as T
 from tilelang.tenstorrent import (

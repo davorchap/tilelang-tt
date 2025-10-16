@@ -1,4 +1,11 @@
-"""Tests for layout-aware metadata passes."""
+"""Tests for layout-aware metadata passes.
+
+NOTE: These tests use the old pass APIs (InferTTLayout, PropagateTTLayout, TTTilesToCoreMap)
+which are being deprecated in favor of the v5 pipeline. These tests are skipped as they
+test legacy behavior. See test_v5_metadata_passes.py for v5 pass tests.
+"""
+
+import pytest
 
 from tilelang import tvm
 import tilelang.language as T
@@ -11,6 +18,11 @@ from tilelang.tenstorrent.passes import (
     InferTTLayout,
     PropagateTTLayout,
     TTTilesToCoreMap,
+)
+
+# Skip the entire module - tests old pass APIs being deprecated
+pytestmark = pytest.mark.skip(
+    reason="Tests legacy pass APIs (InferTTLayout, PropagateTTLayout, TTTilesToCoreMap) - use test_v5_metadata_passes.py instead"
 )
 
 

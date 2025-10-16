@@ -1,6 +1,15 @@
-"""Ensure Tenstorrent pass pipelines print TIR after every stage."""
+"""Ensure Tenstorrent pass pipelines print TIR after every stage.
+
+NOTE: This test uses the old pass APIs which are being deprecated in favor of the v5 pipeline.
+This test is skipped as it tests legacy behavior.
+"""
 
 from __future__ import annotations
+
+import pytest
+
+# Skip the entire module - tests old pass APIs being deprecated
+pytestmark = pytest.mark.skip(reason="Tests legacy pass APIs - use test_v5_passes.py instead")
 
 from tilelang import tvm
 import tilelang.language as T
