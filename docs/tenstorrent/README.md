@@ -28,33 +28,55 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 ## Documentation Index
 
-### 🏗️ Architecture
+### 🏗️ Architecture & Design
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[TT_ARCHITECTURE.md](TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture | All developers |
-| **[TIR_BASICS.md](TIR_BASICS.md)** | TensorIR primer and TT lowering concepts | All developers |
-| **[LOWERING_ARCHITECTURE.md](LOWERING_ARCHITECTURE.md)** | Metadata-driven Grid → Persistent lowering | Backend developers |
-| **[RUNTIME_PLAN.md](RUNTIME_PLAN.md)** | Runtime plan specification (tt.plan.json) | Backend developers |
-| **[IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md)** | GPU vs TT lowering pipeline comparison | Compiler engineers |
-| **[PASS_TABLE_SHARED.md](PASS_TABLE_SHARED.md)** | Shared lowering/optimization passes | Transform developers |
-| **[PASS_TABLE_GPU.md](PASS_TABLE_GPU.md)** | CUDA/ROCm-only pass reference | GPU backend developers |
-| **[PASS_TABLE_TT.md](PASS_TABLE_TT.md)** | Tenstorrent pass reference (layout-aware roadmap) | TT backend developers |
-| **[TT_BACKEND_TASKS.md](TT_BACKEND_TASKS.md)** | Pattern detection implementation tasks | Contributors |
+| **[architecture/TT_ARCHITECTURE.md](architecture/TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture | All developers |
+| **[architecture/IR_LOWERING_ANALYSIS.md](architecture/IR_LOWERING_ANALYSIS.md)** | GPU vs TT comparison & execution models | Compiler engineers |
+| **[architecture/TileLang_TT_TIR_Lowering_Guide_v5.md](architecture/TileLang_TT_TIR_Lowering_Guide_v5.md)** | V5 pass pipeline specification | Backend developers |
+| **[architecture/RUNTIME_PLAN.md](architecture/RUNTIME_PLAN.md)** | Runtime plan specification (tt.plan.json) | Backend developers |
 
-### 🚀 Setup & Usage
+### 📚 Development Guides
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[CI.md](CI.md)** | Continuous integration + local parity steps | Contributors |
-| **[local_build_guide.md](local_build_guide.md)** | Detailed local build walkthrough | Developers |
-| **[METALIUM_SETUP_GUIDE.md](METALIUM_SETUP_GUIDE.md)** | SDK installation & configuration | Hardware users |
+| **[guides/TIR_BASICS.md](guides/TIR_BASICS.md)** | TensorIR primer and TT lowering concepts | All developers |
+| **[guides/TT_Python_Implementation_Quickstart.md](guides/TT_Python_Implementation_Quickstart.md)** | Quick-start for Python pass development | Contributors |
+| **[guides/TT_Python_to_CPP_Migration.md](guides/TT_Python_to_CPP_Migration.md)** | Python→C++ migration guide | Backend developers |
+| **[guides/kernel_authoring_comparison.md](guides/kernel_authoring_comparison.md)** | DSL vs SDK kernel comparison | Kernel developers |
 
-### 🔬 Validation
+### 🔧 Setup & Configuration
 
-| Document | Purpose | Status |
-|----------|---------|--------|
-| **[METALIUM_SDK_VALIDATION_PLAN.md](METALIUM_SDK_VALIDATION_PLAN.md)** | SDK validation phases | ⚠️ Blocked (needs SDK access) |
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| **[setup/METALIUM_SETUP_GUIDE.md](setup/METALIUM_SETUP_GUIDE.md)** | SDK installation & configuration | Hardware users |
+| **[setup/CI.md](setup/CI.md)** | Continuous integration + local parity | Contributors |
+| **[setup/local_build_guide.md](setup/local_build_guide.md)** | Detailed local build walkthrough | Developers |
+
+### 📋 Planning & Status
+
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| **[planning/TT_Implementation_Plan.md](planning/TT_Implementation_Plan.md)** | 4-week implementation roadmap | Project team |
+| **[planning/TT_Pass_Status.md](planning/TT_Pass_Status.md)** | Current pass implementation status | Contributors |
+| **[planning/TT_BACKEND_TASKS.md](planning/TT_BACKEND_TASKS.md)** | Task breakdown & assignments | Contributors |
+| **[planning/METALIUM_SDK_VALIDATION_PLAN.md](planning/METALIUM_SDK_VALIDATION_PLAN.md)** | SDK validation phases | Hardware team |
+
+### 📖 Reference
+
+| Document | Purpose | Audience |
+|----------|---------|----------|
+| **[reference/PASS_TABLE_SHARED.md](reference/PASS_TABLE_SHARED.md)** | Shared lowering/optimization passes | Transform developers |
+| **[reference/PASS_TABLE_GPU.md](reference/PASS_TABLE_GPU.md)** | CUDA/ROCm-only pass reference | GPU backend developers |
+| **[reference/PASS_TABLE_TT.md](reference/PASS_TABLE_TT.md)** | Tenstorrent pass reference | TT backend developers |
+| **[reference/TT_Pass_Specifications.md](reference/TT_Pass_Specifications.md)** | Detailed pass specifications | Implementation team |
+
+### 🔄 Pass Documentation
+
+| Document | Purpose |
+|----------|---------|
+| **[passes/](passes/)** | Individual pass implementation docs |
 
 ---
 
@@ -242,10 +264,11 @@ pytest testing/python/tenstorrent/test_codegen_pipeline.py -v       # Code gener
 
 ## Questions & Support
 
-- **Architecture**: See [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md)
-- **Build issues**: See [local_build_guide.md](local_build_guide.md)
-- **SDK setup**: See [METALIUM_SETUP_GUIDE.md](METALIUM_SETUP_GUIDE.md)
-- **Compiler internals**: See [IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md)
+- **Architecture**: See [architecture/TT_ARCHITECTURE.md](architecture/TT_ARCHITECTURE.md)
+- **Build issues**: See [setup/local_build_guide.md](setup/local_build_guide.md)
+- **SDK setup**: See [setup/METALIUM_SETUP_GUIDE.md](setup/METALIUM_SETUP_GUIDE.md)
+- **Compiler internals**: See [architecture/IR_LOWERING_ANALYSIS.md](architecture/IR_LOWERING_ANALYSIS.md)
+- **Implementation plan**: See [planning/TT_Implementation_Plan.md](planning/TT_Implementation_Plan.md)
 
 ---
 

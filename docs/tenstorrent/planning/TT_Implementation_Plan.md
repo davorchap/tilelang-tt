@@ -542,3 +542,229 @@ This Python-first approach will get us to a working GEMM implementation **2-3x f
 **Document Version:** 2.0
 **Last Updated:** 2025-10-15
 **Next Review:** End of Week 1
+
+---
+
+## Implementation Timeline (4-Week Sprint)
+
+### Week 1: Foundation & Kernel Split
+
+**Goal:** Implement the critical infrastructure for splitting kernels
+
+#### Monday-Tuesday: Setup & Analysis
+| Task | Duration | Output |
+|------|----------|--------|
+| Setup pass infrastructure | 4h | Pass templates, test framework |
+| Implement BuildTileDFGTT | 4h | Dataflow graph builder |
+| Design SplitDeviceKernel algorithm | 4h | Design doc & pseudocode |
+
+#### Wednesday-Friday: Kernel Splitting
+| Task | Duration | Output |
+|------|----------|--------|
+| Implement SplitDeviceKernel (core logic) | 8h | Basic splitting working |
+| Add CB ID assignment | 4h | CB allocation logic |
+| Implement AttachTensorAccessorTT | 4h | Abstract accessors |
+| Test with simple GEMM | 4h | Unit tests passing |
+
+**Week 1 Deliverables:**
+- BuildTileDFGTT.py - Dataflow graph construction
+- SplitDeviceKernel.py - Monolithic → 3 kernels
+- AttachTensorAccessorTT.py - Tensor accessor metadata
+- Basic test suite with simple patterns
+
+---
+
+### Week 2: Protocol Insertion
+
+**Goal:** Add all protocol insertion passes
+
+#### Monday-Tuesday: NOC/CB Protocol
+| Task | Duration | Output |
+|------|----------|--------|
+| Implement LowerCBIntrinsics (reader) | 6h | Reader protocol insertion |
+| Implement LowerCBIntrinsics (writer) | 4h | Writer protocol insertion |
+| Test NOC protocol generation | 2h | Protocol tests |
+
+#### Wednesday-Thursday: DST & Compute Init
+| Task | Duration | Output |
+|------|----------|--------|
+| Implement InsertDSTManagementTT | 6h | DST lifecycle management |
+| Implement InsertComputeInitTT | 4h | Engine initialization |
+| Test compute protocol generation | 2h | Compute tests |
+
+#### Friday: Integration
+| Task | Duration | Output |
+|------|----------|--------|
+| Implement ConfigureTensorAccessorTT | 3h | Runtime binding |
+| Wire up all protocol passes | 3h | Integrated pipeline |
+| Debug integration issues | 2h | Fixes |
+
+**Week 2 Deliverables:**
+- LowerCBIntrinsics.py - NOC/CB protocol insertion
+- InsertDSTManagementTT.py - DST lifecycle
+- InsertComputeInitTT.py - Compute engine init
+- ConfigureTensorAccessorTT.py - Accessor binding
+- Protocol tests passing
+
+---
+
+### Week 3: Integration & Refinement
+
+**Goal:** Fix existing passes and integrate everything
+
+#### Monday-Tuesday: Fix Existing Passes
+| Task | Duration | Output |
+|------|----------|--------|
+| Fix LowerSharedToCB (remove heuristics) | 6h | Protocol-less version |
+| Fix LowerTTTileIntrinsics (remove "_tile") | 4h | Clean tensorization |
+| Update GridToCoreGrid for new metadata | 2h | Updated pass |
+
+#### Wednesday-Thursday: Runtime & Verification
+| Task | Duration | Output |
+|------|----------|--------|
+| Update FinalizePersistentSignatureTT | 4h | Runtime args finalized |
+| Update VerifyTTIR for new schema | 4h | Validation pass |
+| Fix metadata flow issues | 4h | Clean metadata |
+
+#### Friday: First End-to-End Test
+| Task | Duration | Output |
+|------|----------|--------|
+| Run full pipeline on GEMM | 4h | First compilation |
+| Debug and fix issues | 4h | Working pipeline |
+
+**Week 3 Deliverables:**
+- All existing passes updated for v5 design
+- Complete pipeline assembled
+- First successful GEMM compilation
+- Generated C++ code structure correct
+
+---
+
+### Week 4: Testing & Stabilization
+
+**Goal:** Comprehensive testing and bug fixes
+
+#### Monday-Tuesday: Test Suite
+| Task | Duration | Output |
+|------|----------|--------|
+| Add comprehensive GEMM tests | 4h | GEMM test suite |
+| Add element-wise operation tests | 4h | Eltwise tests |
+| Add edge case tests | 4h | Robustness tests |
+
+#### Wednesday-Thursday: Bug Fixes
+| Task | Duration | Output |
+|------|----------|--------|
+| Fix issues from testing | 8h | Stable passes |
+| Add better error messages | 2h | Improved diagnostics |
+| Add validation checks | 2h | Safety checks |
+
+#### Friday: Documentation & Demo
+| Task | Duration | Output |
+|------|----------|--------|
+| Update documentation | 3h | Current docs |
+| Create demo notebook | 3h | Working examples |
+| Team demo preparation | 2h | Demo ready |
+
+**Week 4 Deliverables:**
+- Comprehensive test suite (50+ tests)
+- All major bugs fixed
+- GEMM variants working (different sizes)
+- Clear documentation
+- Demo notebook with examples
+
+---
+
+## Daily Standup Template
+
+```markdown
+## Day X Standup
+
+**Yesterday:**
+- Completed: [Task] ✅
+- Progress: [Task] (75%)
+
+**Today:**
+- [ ] Task 1 (2h)
+- [ ] Task 2 (3h)
+- [ ] Task 3 (2h)
+
+**Blockers:**
+- [Issue if any]
+
+**Help Needed:**
+- [Specific assistance required]
+```
+
+---
+
+## Testing Milestones
+
+### Week 1 Test
+```python
+def test_week1_milestone():
+    """Kernel splitting works"""
+    kernel = simple_matmul()
+    result = SplitDeviceKernel()(kernel)
+    assert len(result) == 3
+```
+
+### Week 2 Test
+```python
+def test_week2_milestone():
+    """Protocol insertion works"""
+    kernels = get_split_kernels()
+    reader = LowerCBIntrinsics()(kernels.reader)
+    compute = InsertDSTManagementTT()(kernels.compute)
+    assert "noc_async_read" in str(reader)
+    assert "dst.acquire" in str(compute)
+```
+
+### Week 3 Test
+```python
+def test_week3_milestone():
+    """Full pipeline works"""
+    result = run_full_pipeline(gemm_kernel)
+    assert result.success
+    assert len(result.kernels) == 3
+```
+
+### Week 4 Test
+```python
+def test_week4_milestone():
+    """Multiple patterns work"""
+    for pattern in [gemm_256, gemm_512, eltwise_add]:
+        result = run_full_pipeline(pattern)
+        assert result.success
+```
+
+---
+
+## Quick Iteration Workflow
+
+```bash
+# Edit pass
+vim tilelang/tenstorrent/passes/my_pass.py
+
+# Test immediately (no compilation!)
+pytest testing/python/tenstorrent/test_my_pass.py -v
+
+# Interactive debugging
+ipdb testing/python/tenstorrent/test_my_pass.py
+```
+
+---
+
+## Communication Plan
+
+### Daily Updates (Slack/Discord)
+```
+✅ Completed: SplitDeviceKernel basic structure
+🚧 In Progress: CB ID assignment (75%)
+🔴 Blocker: Need clarification on CB allocation strategy
+📊 Tests: 5/8 passing
+```
+
+### Weekly Demo (Friday 4pm)
+- Live compilation of current state
+- Test results summary
+- Next week priorities
