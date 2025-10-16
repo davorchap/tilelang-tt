@@ -58,7 +58,7 @@ class TestInferTTLayout_v5:
         # Check defaults
         assert layout_a["memory"] == "DRAM"
         assert layout_a["layout"] == "interleaved"
-        assert layout_a["tile_shape"] == [32, 32]
+        assert list(layout_a["tile_shape"]) == [32, 32]
 
     def test_user_annotations(self):
         """Test that user annotations are properly applied"""
@@ -90,7 +90,7 @@ class TestInferTTLayout_v5:
         assert layout_a["memory"] == "L1"
         assert layout_a["layout"] == "sharded"
         assert "nd_shard" in layout_a
-        assert layout_a["nd_shard"]["grid"] == [2, 4]
+        assert list(layout_a["nd_shard"]["grid"]) == [2, 4]
 
     def test_l1_validation(self):
         """Test L1 buffer validation"""
@@ -370,9 +370,9 @@ class TestLayoutAwareWorkPartitionTT_v5:
 
         # Check shard-specific attributes
         assert "tt.shard_grid" in func.attrs
-        assert func.attrs["tt.shard_grid"] == [2, 4]
+        assert list(func.attrs["tt.shard_grid"]) == [2, 4]
         assert "tt.local_shape_tiles" in func.attrs
-        assert func.attrs["tt.local_shape_tiles"] == [4, 2]
+        assert list(func.attrs["tt.local_shape_tiles"]) == [4, 2]
 
         # Check runtime args for local_shard mode
         runtime_args = func.attrs["tt.runtime_args"]
@@ -509,8 +509,8 @@ class TestPassIntegration_v5:
 
         # Should be local_shard mode
         assert func.attrs["tt.partition_mode"] == "local_shard"
-        assert func.attrs["tt.shard_grid"] == [4, 4]
-        assert func.attrs["tt.local_shape_tiles"] == [2, 2]
+        assert list(func.attrs["tt.shard_grid"]) == [4, 4]
+        assert list(func.attrs["tt.local_shape_tiles"]) == [2, 2]
 
         # Runtime args should include shard parameters
         runtime_args = func.attrs["tt.runtime_args"]
