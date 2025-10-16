@@ -180,7 +180,7 @@ class ReaderKernelGenerator(KernelGenerator):
 
     def _generate_main_function(self):
         """Generate reader kernel MAIN function"""
-        self.code.writeln("void MAIN {")
+        self.code.writeln("void MAIN() {")
         self.code.indent()
 
         # Generate runtime arg extraction
@@ -292,7 +292,7 @@ class ComputeKernelGenerator(KernelGenerator):
 
     def _generate_main_function(self):
         """Generate compute kernel MAIN function"""
-        self.code.writeln("void MAIN {")
+        self.code.writeln("void MAIN() {")
         self.code.indent()
 
         # Generate runtime args
@@ -375,7 +375,7 @@ class WriterKernelGenerator(KernelGenerator):
 
     def _generate_main_function(self):
         """Generate writer kernel MAIN function"""
-        self.code.writeln("void MAIN {")
+        self.code.writeln("void MAIN() {")
         self.code.indent()
 
         # Generate runtime args
@@ -601,6 +601,9 @@ class CodegenTT:
         # Import enhanced generators
         from .kernel_generators import create_kernel_generator
 
+        # Check if we have split kernels with roles
+        has_split_kernels = False
+
         # Generate each kernel
         for name, func in mod.functions_items():
             if isinstance(func, tir.PrimFunc):
@@ -611,6 +614,44 @@ class CodegenTT:
                     generator = create_kernel_generator(func, role)
                     outputs[f"{role}.cpp"] = generator.generate()
                     logger.info(f"Generated {role}.cpp from {name}")
+                    has_split_kernels = True
+
+        # If no split kernels were found, generate stub kernels from the main function
+        if not has_split_kernels:
+            logger.warning("No split kernels found, generating stub kernels from main function")
+
+            # Find the main function
+            main_func = None
+            for name, func in mod.functions_items():
+                if isinstance(func, tir.PrimFunc):
+                    if func.attrs and func.attrs.get("global_symbol") == "main":
+                        main_func = func
+                        break
+                    # Fallback to any function with metadata
+                    if not main_func and func.attrs and "tt.core_grid" in func.attrs:
+                        main_func = func
+
+            if main_func:
+                # Generate stub kernels with appropriate roles
+                # These are simplified templates until kernel splitting is implemented
+
+                # Generate reader kernel
+                reader_func = main_func.with_attr("tt.kernel_role", "reader")
+                generator = create_kernel_generator(reader_func, "reader")
+                outputs["reader.cpp"] = generator.generate()
+                logger.info("Generated stub reader.cpp")
+
+                # Generate compute kernel
+                compute_func = main_func.with_attr("tt.kernel_role", "compute")
+                generator = create_kernel_generator(compute_func, "compute")
+                outputs["compute.cpp"] = generator.generate()
+                logger.info("Generated stub compute.cpp")
+
+                # Generate writer kernel
+                writer_func = main_func.with_attr("tt.kernel_role", "writer")
+                generator = create_kernel_generator(writer_func, "writer")
+                outputs["writer.cpp"] = generator.generate()
+                logger.info("Generated stub writer.cpp")
 
         # Generate host launcher
         host_gen = HostGenerator(mod)
@@ -618,6 +659,9 @@ class CodegenTT:
 
         # Generate CMakeLists.txt
         outputs["CMakeLists.txt"] = self._generate_cmake()
+
+        # Generate tt.plan.json
+        outputs["tt.plan.json"] = self._generate_plan_json(mod)
 
         logger.info(f"Generated {len(outputs)} source files")
 
@@ -660,6 +704,54 @@ target_link_libraries(tt_kernel
 set_property(TARGET tt_kernel PROPERTY CXX_STANDARD 17)
 """
         return cmake
+
+    def _generate_plan_json(self, mod: IRModule) -> str:
+        """Generate tt.plan.json with scheduling metadata"""
+        import json
+
+        plan = {
+            "version": "5.0",
+            "target": "tenstorrent",
+            "generator": "tilelang.tenstorrent.codegen",
+        }
+
+        # Extract metadata from the main function
+        for _name, func in mod.functions_items():
+            if isinstance(func, tir.PrimFunc) and func.attrs:
+                # Extract core grid dimensions
+                if "tt.core_grid" in func.attrs:
+                    core_grid = func.attrs["tt.core_grid"]
+                    plan["grid"] = {
+                        "x":
+                            int(core_grid[0]) if hasattr(core_grid[0], "__int__") else core_grid[0],
+                        "y":
+                            int(core_grid[1]) if hasattr(core_grid[1], "__int__") else core_grid[1],
+                    }
+
+                # Extract work partition
+                if "tt.work_partition" in func.attrs:
+                    work_partition = func.attrs["tt.work_partition"]
+                    plan["work_partition"] = []
+                    for item in work_partition:
+                        # Convert to serializable format
+                        if hasattr(item, "__getitem__"):
+                            plan["work_partition"].append({
+                                "start_id":
+                                    int(item[0]) if hasattr(item[0], "__int__") else item[0],
+                                "count":
+                                    int(item[1]) if hasattr(item[1], "__int__") else item[1],
+                            })
+
+                # Extract other metadata
+                if "tt.num_tiles" in func.attrs:
+                    plan["num_tiles"] = int(func.attrs["tt.num_tiles"])
+                if "tt.num_cores" in func.attrs:
+                    plan["num_cores"] = int(func.attrs["tt.num_cores"])
+
+                # Only need metadata from one function (they should all have it)
+                break
+
+        return json.dumps(plan, indent=2)
 
     def __call__(self, mod: IRModule) -> Dict[str, str]:
         """Allow using the class as a function"""
