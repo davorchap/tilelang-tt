@@ -1,10 +1,14 @@
 """
 LowerTTTileIntrinsics: maps high-level tile intrinsics to TT-specific device calls.
 This pass transforms tile-level operations into Tenstorrent hardware intrinsics.
+
+DEPRECATED: This pass is deprecated in favor of the v5 pipeline.
+Use `lower_tt_tile_intrinsics_v5` or `run_pipeline()` instead.
 """
 
 from __future__ import annotations
 import logging
+import warnings
 
 try:
     import tvm
@@ -25,6 +29,9 @@ class LowerTTTileIntrinsics:
     - T.gemm -> TT matrix engine ops
     - tile_load/store -> TT DMA operations
     - Epilogue ops -> TT SFPU operations
+
+    .. deprecated::
+        LowerTTTileIntrinsics is deprecated. Use `lower_tt_tile_intrinsics_v5` or `run_pipeline()` instead.
     """
 
     def __init__(self, target_device: str = "grayskull") -> None:
@@ -33,7 +40,15 @@ class LowerTTTileIntrinsics:
 
         Args:
             target_device: Target TT device ("grayskull", "wormhole", "blackhole")
+
+        .. deprecated::
+            LowerTTTileIntrinsics is deprecated. Use `lower_tt_tile_intrinsics_v5` or `run_pipeline()` instead.
         """
+        warnings.warn(
+            "LowerTTTileIntrinsics is deprecated and will be removed in a future version. "
+            "Use lower_tt_tile_intrinsics_v5 or run_pipeline() instead.",
+            DeprecationWarning,
+            stacklevel=2)
         self.target_device = target_device
 
         # Device-specific configurations

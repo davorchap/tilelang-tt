@@ -1,11 +1,15 @@
 """
 InferTTLayout: stamps layout/shard metadata onto PrimFuncs.
 This pass ensures all buffers have layout descriptors, applying defaults where needed.
+
+DEPRECATED: This pass is deprecated in favor of the v5 pipeline.
+Use `infer_tt_layout_v5` from `infer_tt_layout_v5.py` instead.
 """
 
 from __future__ import annotations
 from typing import Optional, Dict, Any
 import logging
+import warnings
 
 try:
     import tvm
@@ -36,7 +40,15 @@ class InferTTLayout:
         Args:
             defaults: Default layout descriptors to apply when none exist.
                      Example: {"shard": "DRAM", "interleave": True}
+
+        .. deprecated::
+            InferTTLayout is deprecated. Use `infer_tt_layout_v5` or `run_pipeline()` instead.
         """
+        warnings.warn(
+            "InferTTLayout is deprecated and will be removed in a future version. "
+            "Use infer_tt_layout_v5 from infer_tt_layout_v5.py or run_pipeline() instead.",
+            DeprecationWarning,
+            stacklevel=2)
         self.defaults = defaults or {"shard": "DRAM", "interleave": False}
 
     def _extract_grid_dimensions(self, func: "tir.PrimFunc") -> tuple[int, int]:

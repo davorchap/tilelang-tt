@@ -1,10 +1,14 @@
 """
 PropagateTTLayout: copies/normalizes tt.layout_desc across blocks/buffers.
 This pass ensures layout consistency throughout the IR.
+
+DEPRECATED: This pass is deprecated in favor of the v5 pipeline.
+Use `propagate_tt_layout_v5` from `propagate_tt_layout_v5.py` instead.
 """
 
 from __future__ import annotations
 import logging
+import warnings
 from typing import Dict, Any
 
 try:
@@ -26,10 +30,18 @@ class PropagateTTLayout:
 
     This ensures that layout information is consistent and available
     at all levels where it's needed.
+
+    .. deprecated::
+        PropagateTTLayout is deprecated. Use `propagate_tt_layout_v5` or `run_pipeline()` instead.
     """
 
     def __call__(self, mod: IRModule) -> IRModule:
         """Apply the pass to an IRModule."""
+        warnings.warn(
+            "PropagateTTLayout is deprecated and will be removed in a future version. "
+            "Use propagate_tt_layout_v5 from propagate_tt_layout_v5.py or run_pipeline() instead.",
+            DeprecationWarning,
+            stacklevel=2)
         if tvm is None:
             return mod
 

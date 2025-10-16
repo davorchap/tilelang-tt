@@ -1,10 +1,14 @@
 """
 GridToPersistentTT: late pass that injects persistent outer loops, staging buffers,
 and emits host worklists. This is the final lowering step to TT persistent kernels.
+
+DEPRECATED: This pass is deprecated in favor of the v5 pipeline.
+Use v5 Stage D passes or `run_pipeline()` instead.
 """
 
 from __future__ import annotations
 import logging
+import warnings
 
 try:
     import tvm
@@ -30,6 +34,9 @@ class GridToPersistentTT:
     3. Adds staging buffers and double-buffering
     4. Places barriers for synchronization
     5. Emits tt.plan.json for host coordination
+
+    .. deprecated::
+        GridToPersistentTT is deprecated. Use v5 Stage D passes or `run_pipeline()` instead.
     """
 
     def __init__(
@@ -45,7 +52,15 @@ class GridToPersistentTT:
             plan_path: Output path for the runtime plan JSON
             enable_double_buffer: Whether to enable double-buffering
             enable_prefetch: Whether to enable prefetching
+
+        .. deprecated::
+            GridToPersistentTT is deprecated. Use v5 Stage D passes or `run_pipeline()` instead.
         """
+        warnings.warn(
+            "GridToPersistentTT is deprecated and will be removed in a future version. "
+            "Use the v5 pipeline (run_pipeline()) instead.",
+            DeprecationWarning,
+            stacklevel=2)
         self.plan_path = plan_path
         self.enable_double_buffer = enable_double_buffer
         self.enable_prefetch = enable_prefetch

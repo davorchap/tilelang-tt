@@ -1,12 +1,16 @@
 """
 TTTilesToCoreMap: computes CoreRange(s) and a layout-aware work partition.
 This pass assigns output tiles to cores based on the specified partitioning strategy.
+
+DEPRECATED: This pass is deprecated in favor of the v5 pipeline.
+Use `layout_aware_work_partition_tt_v5` or `run_pipeline()` instead.
 """
 
 from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 import logging
 import math
+import warnings
 
 try:
     import tvm
@@ -35,6 +39,9 @@ class TTTilesToCoreMap:
 
     This pass analyzes the computation and assigns tiles to cores,
     creating a work partition that respects layout constraints.
+
+    .. deprecated::
+        TTTilesToCoreMap is deprecated. Use `layout_aware_work_partition_tt_v5` or `run_pipeline()` instead.
     """
 
     def __init__(
@@ -48,7 +55,15 @@ class TTTilesToCoreMap:
         Args:
             fallback_grid: Default grid size if not specified in attributes
             partition_strategy: Strategy for partitioning work ("row_major", "column_major", "block")
+
+        .. deprecated::
+            TTTilesToCoreMap is deprecated. Use `layout_aware_work_partition_tt_v5` or `run_pipeline()` instead.
         """
+        warnings.warn(
+            "TTTilesToCoreMap is deprecated and will be removed in a future version. "
+            "Use layout_aware_work_partition_tt_v5 or run_pipeline() instead.",
+            DeprecationWarning,
+            stacklevel=2)
         self.fallback_grid = tuple(fallback_grid)
         self.partition_strategy = partition_strategy
 
