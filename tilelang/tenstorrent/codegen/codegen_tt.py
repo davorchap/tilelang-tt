@@ -622,7 +622,7 @@ class CodegenTT:
 
             # Find the main function
             main_func = None
-            for name, func in mod.functions_items():
+            for _name, func in mod.functions_items():
                 if isinstance(func, tir.PrimFunc):
                     if func.attrs and func.attrs.get("global_symbol") == "main":
                         main_func = func
@@ -718,35 +718,46 @@ set_property(TARGET tt_kernel PROPERTY CXX_STANDARD 17)
         # Extract metadata from the main function
         for _name, func in mod.functions_items():
             if isinstance(func, tir.PrimFunc) and func.attrs:
-                # Extract core grid dimensions
-                if "tt.core_grid" in func.attrs:
-                    core_grid = func.attrs["tt.core_grid"]
+                # Extract core grid dimensions (using tt_grid_x/y attributes from test)
+                if "tt_grid_x" in func.attrs and "tt_grid_y" in func.attrs:
+                    grid_x = func.attrs["tt_grid_x"]
+                    grid_y = func.attrs["tt_grid_y"]
+                    total_tiles = int(grid_x) * int(grid_y) if hasattr(
+                        grid_x, "__int__") else grid_x * grid_y
                     plan["grid"] = {
-                        "x":
-                            int(core_grid[0]) if hasattr(core_grid[0], "__int__") else core_grid[0],
-                        "y":
-                            int(core_grid[1]) if hasattr(core_grid[1], "__int__") else core_grid[1],
+                        "x": int(grid_x) if hasattr(grid_x, "__int__") else grid_x,
+                        "y": int(grid_y) if hasattr(grid_y, "__int__") else grid_y,
+                        "total_tiles": total_tiles,
                     }
 
-                # Extract work partition
-                if "tt.work_partition" in func.attrs:
-                    work_partition = func.attrs["tt.work_partition"]
-                    plan["work_partition"] = []
-                    for item in work_partition:
-                        # Convert to serializable format
-                        if hasattr(item, "__getitem__"):
-                            plan["work_partition"].append({
-                                "start_id":
-                                    int(item[0]) if hasattr(item[0], "__int__") else item[0],
-                                "count":
-                                    int(item[1]) if hasattr(item[1], "__int__") else item[1],
-                            })
+                # Extract core configuration
+                if "tt_num_cores" in func.attrs:
+                    num_cores = int(func.attrs["tt_num_cores"]) if hasattr(
+                        func.attrs["tt_num_cores"], "__int__") else func.attrs["tt_num_cores"]
+                    plan["cores"] = {"num_cores": num_cores, "topology": "grid", "assignments": []}
+
+                    # Add tile assignments from tt_tiles_per_core if present
+                    if "tt_tiles_per_core" in func.attrs:
+                        tiles_per_core = func.attrs["tt_tiles_per_core"]
+                        for i, assignment in enumerate(tiles_per_core[:num_cores]):
+                            if hasattr(assignment, "__getitem__") and len(assignment) >= 2:
+                                start_tile = int(assignment[0]) if hasattr(
+                                    assignment[0], "__int__") else assignment[0]
+                                count = int(assignment[1]) if hasattr(assignment[1],
+                                                                      "__int__") else assignment[1]
+                                plan["cores"]["assignments"].append({
+                                    "core_id": i,
+                                    "start_tile": start_tile,
+                                    "count": count,
+                                })
+
+                # Add schedule section
+                plan["schedule"] = {"policy": "contiguous", "order": "row_major"}
 
                 # Extract other metadata
-                if "tt.num_tiles" in func.attrs:
-                    plan["num_tiles"] = int(func.attrs["tt.num_tiles"])
-                if "tt.num_cores" in func.attrs:
-                    plan["num_cores"] = int(func.attrs["tt.num_cores"])
+                if "tt_num_tiles" in func.attrs:
+                    plan["num_tiles"] = int(func.attrs["tt_num_tiles"]) if hasattr(
+                        func.attrs["tt_num_tiles"], "__int__") else func.attrs["tt_num_tiles"]
 
                 # Only need metadata from one function (they should all have it)
                 break
