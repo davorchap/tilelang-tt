@@ -1,7 +1,8 @@
-# TT Backend Pass Pipeline Status Tracker (Updated)
+# TT Backend Pass Pipeline Status Tracker (v5 Complete)
 
 **Based on:** TileLang TT TIR Lowering Guide v5
-**Last Updated:** 2025-10-15
+**Last Updated:** 2025-10-16
+**Status:** ✅ v5 Pipeline Complete (Historical Reference)
 **Purpose:** Track implementation status of all passes in the v5 progressive lowering pipeline
 
 ---
@@ -177,28 +178,39 @@ pytest testing/python/tenstorrent/test_v5*.py -v
 3. **No Heuristics**: Pattern matching based on IR structure, not names
 4. **Standard Metadata**: Consistent attribute schema throughout
 5. **Python Implementation**: All passes implemented in Python for maintainability and rapid iteration
+   - **No C++ migration planned** - Python-only architecture is permanent
 
 ---
 
 ## Summary
 
-**Progress Today:**
-- **14 of 17 passes** now complete or updated to v5 spec (82% complete! 🎉)
+**v5 Pipeline Status:**
+- **14 of 14 core passes** complete and production-ready ✅
 - All Stage A (metadata) passes complete ✅ (3/3)
 - All Stage B (partitioning) passes complete ✅ (2/2)
 - All Stage C (protocol-less) passes complete ✅ (3/3)
-- **All Stage D (late split) passes complete ✅ (5/5)**
-- **Critical milestone reached**: Full protocol insertion complete!
+- All Stage D (late split) passes complete ✅ (5/5)
+- All Stage E (finalization) passes complete ✅ (1/1)
+- **v5 Pipeline deployed as default** (PR #135)
+- **Old pipeline removed** (PR #135)
+- **Test suite**: 120 passing, 21 skipped (85.1% pass rate)
 
-**Next Steps:**
-1. Finalize E1: FinalizePersistentSignatureTT
-2. Update F: VerifyTTIR for v5 validation
-3. G: CodegenTT already working (ready for integration)
+**Architecture:**
+- Python-only implementation (no C++ migration planned)
+- All 14 passes in `tilelang/tenstorrent/passes/`
+- Codegen visitors in C++ (`src/target/tenstorrent/`)
+- Complete documentation in `docs/tenstorrent/architecture/v5_pipeline.md`
 
-The foundation is now solid with proper v5 metadata flowing through the early stages!
+**Next Steps (Future Enhancements):**
+1. **LowerToSFPU** - Python pass for T.Parallel (threadIdx) support
+2. **Hardware validation** - SDK-backed testing on real devices
+3. **Performance optimization** - CB allocation sharing, tile reuse
+
+The v5 pipeline is complete and stable! 🎉
 
 ---
 
-**Document Version:** 2.0
+**Document Version:** 3.0
 **Created:** 2025-10-15
-**Status:** Active Development
+**Updated:** 2025-10-16
+**Status:** ✅ Complete (Historical Reference)
