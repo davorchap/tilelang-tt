@@ -353,9 +353,8 @@ class TileDFGBuilder:
             # Direct buffer access
             if hasattr(buffer_slice.buffer, 'name'):
                 return buffer_slice.buffer.name
-            elif hasattr(buffer_slice.buffer, 'data'):
-                if hasattr(buffer_slice.buffer.data, 'name'):
-                    return buffer_slice.buffer.data.name
+            elif hasattr(buffer_slice.buffer, 'data') and hasattr(buffer_slice.buffer.data, 'name'):
+                return buffer_slice.buffer.data.name
         elif hasattr(buffer_slice, 'name'):
             return buffer_slice.name
 

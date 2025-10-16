@@ -237,7 +237,7 @@ class AttachTensorAccessorTT:
         Patterns:
         - "input": Read-only access
         - "output": Write-only access
-        - "inout": Read-modify-write
+        - "read_write": Read-modify-write
         - "weight": Read-only, might be broadcast
         """
 
@@ -250,8 +250,8 @@ class AttachTensorAccessorTT:
         elif any(x in name_lower for x in ["weight", "w", "b", "kernel"]):
             return "weight"
         else:
-            # Default to inout for unknown patterns
-            return "inout"
+            # Default to read_write for unknown patterns
+            return "read_write"
 
     def _extract_sharding_info(self, layout: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Extract sharding information if present."""

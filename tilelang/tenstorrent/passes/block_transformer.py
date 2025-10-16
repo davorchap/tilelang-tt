@@ -266,20 +266,18 @@ def is_matmul_pattern(stmt) -> bool:
     """Check if statement matches a matrix multiplication pattern."""
     # This would need actual pattern matching logic
     # Simplified for now
-    if isinstance(stmt, tir.Evaluate):
-        if isinstance(stmt.value, tir.Call):
-            call_name = str(stmt.value.op)
-            return any(pattern in call_name for pattern in ["gemm", "matmul", "T.gemm"])
+    if isinstance(stmt, tir.Evaluate) and isinstance(stmt.value, tir.Call):
+        call_name = str(stmt.value.op)
+        return any(pattern in call_name for pattern in ["gemm", "matmul", "T.gemm"])
     return False
 
 
 def is_elementwise_pattern(stmt) -> bool:
     """Check if statement matches an element-wise operation pattern."""
-    if isinstance(stmt, tir.Evaluate):
-        if isinstance(stmt.value, tir.Call):
-            call_name = str(stmt.value.op)
-            elementwise_ops = ["add", "multiply", "subtract", "divide", "T.add", "T.multiply"]
-            return any(op in call_name for op in elementwise_ops)
+    if isinstance(stmt, tir.Evaluate) and isinstance(stmt.value, tir.Call):
+        call_name = str(stmt.value.op)
+        elementwise_ops = ["add", "multiply", "subtract", "divide", "T.add", "T.multiply"]
+        return any(op in call_name for op in elementwise_ops)
     return False
 
 
