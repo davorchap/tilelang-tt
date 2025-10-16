@@ -176,7 +176,7 @@ pytest testing/python/tenstorrent/test_v5*.py -v
 2. **Protocol-less Mid-level**: No NOC/CB/DST until Stage D
 3. **No Heuristics**: Pattern matching based on IR structure, not names
 4. **Standard Metadata**: Consistent attribute schema throughout
-5. **Python-First**: Rapid prototyping, C++ migration later
+5. **Python Implementation**: All passes implemented in Python for maintainability and rapid iteration
 
 ---
 

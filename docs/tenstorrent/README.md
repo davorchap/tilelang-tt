@@ -43,7 +43,6 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 |----------|---------|----------|
 | **[guides/TIR_BASICS.md](guides/TIR_BASICS.md)** | TensorIR primer and TT lowering concepts | All developers |
 | **[guides/TT_Python_Implementation_Quickstart.md](guides/TT_Python_Implementation_Quickstart.md)** | Quick-start for Python pass development | Contributors |
-| **[guides/TT_Python_to_CPP_Migration.md](guides/TT_Python_to_CPP_Migration.md)** | Python→C++ migration guide | Backend developers |
 | **[guides/kernel_authoring_comparison.md](guides/kernel_authoring_comparison.md)** | DSL vs SDK kernel comparison | Kernel developers |
 
 ### 🔧 Setup & Configuration

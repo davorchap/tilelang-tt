@@ -1,8 +1,8 @@
 # LowerToSFPU Pass
 
-**Status**: 🔴 Not Implemented (placeholder)
-**Priority**: HIGH (required for T.Parallel support)
-**File**: `src/transform/tenstorrent/lower_to_sfpu.cc`
+**Status**: 🔴 Not Implemented - Future Python implementation needed
+**Priority**: MEDIUM (required for T.Parallel support)
+**File**: To be created as `tilelang/tenstorrent/passes/lower_to_sfpu.py`
 
 ---
 
@@ -21,18 +21,15 @@ This pass is required to support element-wise operations and other SIMD patterns
 
 ---
 
-## Current Status (Placeholder)
+## Implementation Note
 
-For now, this pass **errors out** when threadIdx constructs are detected with a clear message:
+**IMPORTANT**: This pass should be implemented in **Python** following the v5 pipeline architecture, not as a C++ pass. All TT backend passes are Python-based for maintainability and rapid iteration.
 
-```
-LowerToSFPU: Found threadIdx constructs that require SFPU lowering.
-Detected: threadIdx.x (tx)
-SFPU (SIMD Floating Point Unit) lowering is not yet implemented.
-T.Parallel() constructs will be supported in a future update to map
-intra-tile parallelism to Tenstorrent SFPU operations.
-For now, please use only tile-level parallelism (blockIdx via T.Kernel).
-```
+The previous C++ placeholder has been removed. When implemented, this pass should:
+- Be written in Python in `tilelang/tenstorrent/passes/lower_to_sfpu.py`
+- Follow the v5 pass function signature: `def lower_to_sfpu(mod: IRModule) -> IRModule`
+- Use TVM's Python IR mutators/visitors for transformations
+- Integrate into the v5 pipeline in Stage B (after grid transformation)
 
 ---
 
