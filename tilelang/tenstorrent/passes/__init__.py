@@ -8,7 +8,7 @@ from .propagate_tt_layout import PropagateTTLayout
 from .tt_tiles_to_core_map import TTTilesToCoreMap
 from .lower_tt_tile_intrinsics import LowerTTTileIntrinsics
 from .grid_to_persistent_tt import GridToPersistentTT
-from .pipeline import build_tt_pipeline, run_pipeline
+from .pipeline import build_tt_pipeline, build_v5_pipeline, run_pipeline
 
 # V5 passes - Stage A: Metadata
 from .infer_tt_layout_v5 import InferTTLayout_v5, infer_tt_layout_v5
@@ -45,6 +45,7 @@ __all__ = [
     "LowerTTTileIntrinsics",
     "GridToPersistentTT",
     "build_tt_pipeline",
+    "build_v5_pipeline",
     "run_pipeline",
     # V5 passes - Stage A
     "InferTTLayout_v5",

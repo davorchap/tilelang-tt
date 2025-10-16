@@ -12,7 +12,19 @@ Guidelines for Claude Code when collaborating on this repository.
 2. Install Tenstorrent dependencies: `pip install -r requirements-tenstorrent.txt` (uses CPU-only PyTorch, saves ~5GB).
 3. Run the mock-mode CI replica: `bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4`.
 4. For SDK-backed runs, export `TT_METAL_HOME` and add `--with-metalium`.
-5. Standalone tests: `LD_LIBRARY_PATH=build/tvm:$LD_LIBRARY_PATH pytest testing/python/tenstorrent/ -v`.
+5. Standalone tests:
+   ```bash
+   # Always activate venv first and set LD_LIBRARY_PATH
+   source .venv/bin/activate
+   export LD_LIBRARY_PATH=build/tvm:$LD_LIBRARY_PATH
+   pytest testing/python/tenstorrent/ -v
+
+   # Quick summary:
+   pytest testing/python/tenstorrent/ --tb=no -q
+
+   # With line-level traceback:
+   pytest testing/python/tenstorrent/ -v --tb=line
+   ```
 6. Enforce formatting and lint baselines with `source .venv/bin/activate && bash format.sh` before staging commits. **Important:** Always run `format.sh` from within the virtual environment to avoid dependency issues.
 
 **Note:** Use `requirements-tenstorrent.txt` for TT backend development. It includes CPU-only PyTorch and excludes CUDA dependencies, preventing disk space issues.
