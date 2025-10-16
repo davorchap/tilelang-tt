@@ -175,11 +175,35 @@ class EnhancedComputeKernelGenerator(EnhancedKernelGenerator):
     def _analyze_compute_ops(self) -> set:
         """Analyze compute operations to determine includes"""
 
-        class OpAnalyzer(tir.stmt_functor.StmtVisitor):
+        class OpAnalyzer:
 
             def __init__(self):
-                super().__init__()
                 self.ops_found = set()
+
+            def visit(self, stmt):
+                """Recursive IR traversal to find compute ops"""
+                if stmt is None:
+                    return
+
+                if isinstance(stmt, tir.Evaluate):
+                    self.visit_evaluate(stmt)
+                elif isinstance(stmt, tir.For):
+                    self.visit(stmt.body)
+                elif isinstance(stmt, tir.SeqStmt):
+                    for s in stmt.seq:
+                        self.visit(s)
+                elif isinstance(stmt, tir.LetStmt):
+                    self.visit(stmt.body)
+                elif isinstance(stmt, tir.IfThenElse):
+                    self.visit(stmt.then_case)
+                    if stmt.else_case:
+                        self.visit(stmt.else_case)
+                elif isinstance(stmt, tir.Allocate):
+                    self.visit(stmt.body)
+                elif isinstance(stmt, tir.AttrStmt):
+                    self.visit(stmt.body)
+                elif isinstance(stmt, tir.AssertStmt):
+                    self.visit(stmt.body)
 
             def visit_evaluate(self, op):
                 if hasattr(op.value, 'op') and hasattr(op.value.op, 'name'):
@@ -191,7 +215,6 @@ class EnhancedComputeKernelGenerator(EnhancedKernelGenerator):
                         self.ops_found.add("binary")
                     elif "sfpu" in op_name:
                         self.ops_found.add("unary")
-                super().visit_evaluate(op)
 
         analyzer = OpAnalyzer()
         analyzer.visit(self.func.body)
