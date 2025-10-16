@@ -269,28 +269,38 @@ jobs:
 
           python3 -c '
           import tilelang.tenstorrent as tt
+          from tilelang.tenstorrent.passes import (
+              infer_tt_layout_v5,
+              split_device_kernel,
+          )
           import tvm
           from tvm import tir
+          from tvm.script import tir as T
+          import tvm.script
 
           print("=== Verifying Real Metalium Kernel API Usage ===")
 
-          # Create simple test module
-          A = tir.decl_buffer((256, 256), "float16", name="A")
-          B = tir.decl_buffer((256, 256), "float16", name="B")
-          C = tir.decl_buffer((256, 256), "float16", name="C")
+          # Create a proper test module with compute operations
+          @tvm.script.ir_module
+          class TestModule:
+              @T.prim_func
+              def gemm(A: T.Buffer((64, 64), "float16"),
+                      B: T.Buffer((64, 64), "float16"),
+                      C: T.Buffer((64, 64), "float16")):
+                  T.func_attr({"global_symbol": "gemm"})
+                  for i, j in T.grid(64, 64):
+                      C[i, j] = T.float16(0)
+                      for k in T.serial(64):
+                          C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
-          func = tir.PrimFunc(params=[A, B, C], body=tir.Evaluate(0))
-          func = func.with_attrs({
-              "global_symbol": "main",
-              "tt_grid_x": 8,
-              "tt_grid_y": 8,
-              "tt_num_cores": 64,
-          })
+          mod = TestModule
 
-          mod = tvm.IRModule({"main": func})
+          # Run minimal v5 pipeline to get split kernels
+          print("Running v5 pipeline...")
+          mod = infer_tt_layout_v5(mod)  # A1: Add layout metadata
+          mod = split_device_kernel(mod)  # D1: Split into reader/compute/writer
 
-          # Apply TT defaults and generate code
-          mod = tt.apply_tt_defaults(mod)
+          # Generate code from split kernels
           artifacts = tt.emit_tt_artifacts(mod)
 
           # Verify kernel files use real Metalium API headers
