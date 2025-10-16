@@ -1,52 +1,293 @@
-# Pass Implementation Documentation
+# TileLang Tenstorrent Pass Documentation
 
-This directory contains detailed documentation for individual pass implementations.
+**Last Updated:** 2025-10-16
+**Pipeline Version:** v5 (14 passes, Python-only)
 
-## Current Documentation
+---
 
-- **attach_tensor_accessor_tt_summary.md**: AttachTensorAccessorTT pass implementation details
-- **grid_to_persistent_tt.md**: Grid to persistent loop transformation (deprecated, see v5 passes)
-- **infer_tt_layout.md**: Layout inference for TT buffers (deprecated, see infer_tt_layout_v5)
-- **lower_to_sfpu.md**: SFPU (Special Function Processing Unit) lowering (future Python implementation needed)
-- **memory_space_lower_tt.md**: Memory space lowering for TT (deprecated)
-- **propagate_tt_layout.md**: Layout propagation across IR (deprecated, see propagate_tt_layout_v5)
-- **tile_pad_tt.md**: Tile padding for alignment (deprecated)
-- **verify_tt_ir.md**: IR verification for TT constraints
+## Overview
 
-## Adding New Pass Documentation
+This directory contains documentation for the TileLang Tenstorrent backend pass pipeline. The v5 pipeline consists of **14 passes** organized into **5 stages (A-E)**, all implemented in Python.
 
-When implementing a new pass:
+---
 
-1. Create a markdown file named after the pass (snake_case)
-2. Include:
-   - Purpose and motivation
-   - Input/output IR examples
-   - Algorithm description
-   - Implementation notes
-   - Test cases
-   - Known limitations
+## Quick Navigation
 
-3. Follow the existing format in the documentation files
+### 📚 Comprehensive References
+- [v5_pipeline.md](../architecture/v5_pipeline.md) - **800+ line authoritative v5 reference**
+- [PASS_TABLE_TT.md](../reference/PASS_TABLE_TT.md) - Complete pass reference table
+- [TT_ARCHITECTURE.md](../architecture/TT_ARCHITECTURE.md) - Backend architecture
+
+### 🎯 Stage-Based Documentation
+- [Stage A: Metadata](./stages/metadata.md) - 3 passes (A1-A3)
+- [Stage B: Partitioning](./stages/partitioning.md) - 2 passes (B1-B2)
+- [Stage C: Protocol-less Lowering](./stages/protocol_less.md) - 3 passes (C1-C3)
+- [Stage D: Late Split & Protocol](./stages/late_split.md) - 5 passes (D1-D5)
+- [Stage E: Finalization](./stages/finalization.md) - 1 pass (E1)
+
+---
+
+## v5 Pipeline Diagram
+
+```
+User Code (TileLang DSL)
+    ↓
+Frontend Lowering (12 shared passes)
+    ↓
+Apply TT Defaults
+    ↓
+┌─────────────────────────────────────────┐
+│ Stage A: Metadata (3 passes)            │
+│  A1: infer_tt_layout_v5                 │
+│  A2: propagate_tt_layout_v5             │
+│  A3: attach_tensor_accessor_tt          │
+└───────────────────┬─────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│ Stage B: Partitioning (2 passes)        │
+│  B1: layout_aware_work_partition_tt_v5  │
+│  B2: grid_to_core_grid_v5               │
+└───────────────────┬─────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│ Stage C: Protocol-less (3 passes)       │
+│  C1: lower_shared_to_cb_v5              │
+│  C2: lower_tt_tile_intrinsics_v5        │
+│  C3: build_tile_dfg_tt                  │
+└───────────────────┬─────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│ Stage D: Late Split & Protocol (5)      │
+│  D1: split_device_kernel                │
+│  D2: configure_tensor_accessor_tt       │
+│  D3: lower_cb_intrinsics                │
+│  D4: insert_compute_init_tt             │
+│  D5: insert_dst_management_tt           │
+└───────────────────┬─────────────────────┘
+                    ↓
+┌─────────────────────────────────────────┐
+│ Stage E: Finalization (1 pass)          │
+│  E1: finalize_persistent_signature_tt   │
+└───────────────────┬─────────────────────┘
+                    ↓
+Common Optimizations (11 shared passes)
+    ↓
+Verification (verify_tt_ir)
+    ↓
+Codegen (reader.cpp, compute.cpp, writer.cpp, main.cpp, tt.plan.json)
+```
+
+---
+
+## v5 Pass Index
+
+### Stage A: Metadata
+
+| # | Pass | Purpose | Location | Documentation |
+|---|------|---------|----------|---------------|
+| A1 | infer_tt_layout_v5 | Infer buffer layouts | `tilelang/tenstorrent/passes/infer_tt_layout_v5.py` | [Stage A Docs](./stages/metadata.md#a1-infer_tt_layout_v5) |
+| A2 | propagate_tt_layout_v5 | Derive CB descriptors | `tilelang/tenstorrent/passes/propagate_tt_layout_v5.py` | [Stage A Docs](./stages/metadata.md#a2-propagate_tt_layout_v5) |
+| A3 | attach_tensor_accessor_tt | Attach accessor metadata | `tilelang/tenstorrent/passes/attach_tensor_accessor_tt.py` | [Stage A Docs](./stages/metadata.md#a3-attach_tensor_accessor_tt) |
+
+**Stage Overview:** [Stage A: Metadata](./stages/metadata.md)
+
+### Stage B: Partitioning
+
+| # | Pass | Purpose | Location | Documentation |
+|---|------|---------|----------|---------------|
+| B1 | layout_aware_work_partition_tt_v5 | Determine per-core work | `tilelang/tenstorrent/passes/layout_aware_work_partition_tt_v5.py` | [Stage B Docs](./stages/partitioning.md#b1-layout_aware_work_partition_tt_v5) |
+| B2 | grid_to_core_grid_v5 | GPU grid → persistent loop | `tilelang/tenstorrent/passes/grid_to_core_grid_v5.py` | [Stage B Docs](./stages/partitioning.md#b2-grid_to_core_grid_v5) |
+
+**Stage Overview:** [Stage B: Partitioning](./stages/partitioning.md)
+
+### Stage C: Protocol-less Lowering
+
+| # | Pass | Purpose | Location | Documentation |
+|---|------|---------|----------|---------------|
+| C1 | lower_shared_to_cb_v5 | Shared mem → abstract CBs | `tilelang/tenstorrent/passes/lower_shared_to_cb_v5.py` | [Stage C Docs](./stages/protocol_less.md#c1-lower_shared_to_cb_v5) |
+| C2 | lower_tt_tile_intrinsics_v5 | Tile ops → TT intrinsics | `tilelang/tenstorrent/passes/lower_tt_tile_intrinsics_v5.py` | [Stage C Docs](./stages/protocol_less.md#c2-lower_tt_tile_intrinsics_v5) |
+| C3 | build_tile_dfg_tt | Build dataflow graph | `tilelang/tenstorrent/passes/build_tile_dfg_tt.py` | [Stage C Docs](./stages/protocol_less.md#c3-build_tile_dfg_tt) |
+
+**Stage Overview:** [Stage C: Protocol-less Lowering](./stages/protocol_less.md)
+
+### Stage D: Late Split & Protocol
+
+| # | Pass | Purpose | Location | Documentation |
+|---|------|---------|----------|---------------|
+| D1 | split_device_kernel | 1 kernel → 3 kernels | `tilelang/tenstorrent/passes/split_device_kernel.py` | [Stage D Docs](./stages/late_split.md#d1-split_device_kernel) |
+| D2 | configure_tensor_accessor_tt | Bind runtime args | `tilelang/tenstorrent/passes/configure_tensor_accessor_tt.py` | [Stage D Docs](./stages/late_split.md#d2-configure_tensor_accessor_tt) |
+| D3 | lower_cb_intrinsics | Insert NOC/CB protocol | `tilelang/tenstorrent/passes/lower_cb_intrinsics.py` | [Stage D Docs](./stages/late_split.md#d3-lower_cb_intrinsics) |
+| D4 | insert_compute_init_tt | Insert acquire_dst, mm_init | `tilelang/tenstorrent/passes/insert_compute_init_tt.py` | [Stage D Docs](./stages/late_split.md#d4-insert_compute_init_tt) |
+| D5 | insert_dst_management_tt | Insert commit/pack/release | `tilelang/tenstorrent/passes/insert_dst_management_tt.py` | [Stage D Docs](./stages/late_split.md#d5-insert_dst_management_tt) |
+
+**Stage Overview:** [Stage D: Late Split & Protocol](./stages/late_split.md)
+
+### Stage E: Finalization
+
+| # | Pass | Purpose | Location | Documentation |
+|---|------|---------|----------|---------------|
+| E1 | finalize_persistent_signature_tt | Finalize runtime args, validate metadata | `tilelang/tenstorrent/passes/finalize_persistent_signature_tt.py` | [Stage E Docs](./stages/finalization.md#e1-finalize_persistent_signature_tt) |
+
+**Stage Overview:** [Stage E: Finalization](./stages/finalization.md)
+
+### Verification
+
+| Pass | Purpose | Location | Documentation |
+|------|---------|----------|---------------|
+| verify_tt_ir | Verify TT constraints | `tilelang/tenstorrent/passes/verify_tt_ir.py` | [verify_tt_ir.md](./verify_tt_ir.md) |
+
+---
+
+## Individual Pass Documentation
+
+### Current Documentation Files
+
+- [attach_tensor_accessor_tt_summary.md](./attach_tensor_accessor_tt_summary.md) - A3 pass details
+- [lower_to_sfpu.md](./lower_to_sfpu.md) - Future SFPU pass (Python implementation needed)
+- [verify_tt_ir.md](./verify_tt_ir.md) - IR verification
+
+### Deprecated Documentation (Archived)
+
+The following docs describe the old 5-pass pipeline (removed in PR #135):
+- [infer_tt_layout.md](../archive/old-passes/infer_tt_layout.md) - Replaced by infer_tt_layout_v5
+- [propagate_tt_layout.md](../archive/old-passes/propagate_tt_layout.md) - Replaced by propagate_tt_layout_v5
+- [grid_to_persistent_tt.md](../archive/old-passes/grid_to_persistent_tt.md) - Replaced by grid_to_core_grid_v5
+- [memory_space_lower_tt.md](../archive/old-passes/memory_space_lower_tt.md) - Replaced by lower_shared_to_cb_v5
+
+---
 
 ## Pass Categories
 
-### V5 Active Passes (Python)
-See `tilelang/tenstorrent/passes/` for current v5 implementation:
-- infer_tt_layout_v5, propagate_tt_layout_v5, attach_tensor_accessor_tt (Stage A: Metadata)
-- layout_aware_work_partition_tt_v5, grid_to_core_grid_v5 (Stage B: Partitioning)
-- lower_shared_to_cb_v5, lower_tt_tile_intrinsics_v5, build_tile_dfg_tt (Stage C: Lowering)
-- split_device_kernel, configure_tensor_accessor_tt, lower_cb_intrinsics, insert_compute_init_tt, insert_dst_management_tt (Stage D: Late Split & Protocol)
-- finalize_persistent_signature_tt (Stage E: Finalization)
+### ✅ V5 Active Passes (Python)
+All 14 passes implemented in Python:
+- **Stage A (3 passes)**: Metadata inference and propagation
+- **Stage B (2 passes)**: Work partitioning and grid transformation
+- **Stage C (3 passes)**: Protocol-free tile intrinsic lowering
+- **Stage D (5 passes)**: Kernel splitting and protocol insertion
+- **Stage E (1 pass)**: Finalization and validation
 
-### Deprecated/Old Passes
-- infer_tt_layout (replaced by infer_tt_layout_v5)
-- propagate_tt_layout (replaced by propagate_tt_layout_v5)
-- grid_to_persistent_tt (replaced by grid_to_core_grid_v5)
-- memory_space_lower_tt (replaced by lower_shared_to_cb_v5)
-- tile_pad_tt (deprecated)
+**Implementation Directory:** `tilelang/tenstorrent/passes/`
 
-### Future Passes (Not Yet Implemented)
-- **lower_to_sfpu**: SFPU lowering for T.Parallel support (needs Python implementation)
+**Architecture:** Python-only (no C++ migration planned)
 
-### Verification Passes
-- verify_tt_ir (IR validation and constraint checking)
+### 🔴 Future Passes (Not Yet Implemented)
+- **lower_to_sfpu**: SFPU lowering for T.Parallel (threadIdx) support
+  - Status: Design phase
+  - Priority: MEDIUM
+  - Implementation: Python (following v5 architecture)
+  - Documentation: [lower_to_sfpu.md](./lower_to_sfpu.md)
+
+### 🔧 Verification Passes
+- **verify_tt_ir**: IR validation and constraint checking
+  - Status: Production
+  - Documentation: [verify_tt_ir.md](./verify_tt_ir.md)
+
+---
+
+## v5 Design Principles
+
+1. **Progressive Lowering**: Early metadata → Late protocol
+2. **Protocol-less Mid-level**: No NOC/CB/DST until Stage D
+3. **No Heuristics**: Pattern matching based on IR structure, not names
+4. **Standard Metadata**: Consistent attribute schema throughout
+5. **Python Implementation**: All passes in Python for maintainability and rapid iteration
+
+---
+
+## Adding New Pass Documentation
+
+When documenting a new pass:
+
+### 1. Individual Pass Doc (Optional)
+Create `pass_name.md` with:
+- Purpose and motivation
+- Input/output IR examples
+- Algorithm description
+- Implementation notes
+- Test cases
+- Known limitations
+
+### 2. Update Stage Doc (Required)
+Add pass details to appropriate `stages/*.md` file
+
+### 3. Update This Index (Required)
+Add entry to the appropriate stage table above
+
+### 4. Update PASS_TABLE_TT.md (Required)
+Add pass to [PASS_TABLE_TT.md](../reference/PASS_TABLE_TT.md)
+
+---
+
+## Testing
+
+### Test Files
+- `testing/python/tenstorrent/test_v5_metadata_passes.py` - Stage A tests
+- `testing/python/tenstorrent/test_v5_passes.py` - Stage B-C tests
+- `testing/python/tenstorrent/test_v5_passes_integration.py` - Integration tests
+- `testing/python/tenstorrent/test_codegen_pipeline.py` - Full pipeline
+
+### Test Coverage
+- **120 tests passing** (85.1% pass rate)
+- **21 tests skipped** (TVM bugs, hardware-specific features)
+
+### Running Tests
+```bash
+# All TT backend tests
+pytest testing/python/tenstorrent/ -v
+
+# Quick summary
+pytest testing/python/tenstorrent/ --tb=no -q
+
+# Specific stage tests
+pytest testing/python/tenstorrent/test_v5_metadata_passes.py -v
+pytest testing/python/tenstorrent/test_v5_passes.py -v
+pytest testing/python/tenstorrent/test_v5_passes_integration.py -v
+```
+
+---
+
+## References
+
+### Architecture Documentation
+- [v5_pipeline.md](../architecture/v5_pipeline.md) - **Authoritative v5 reference (800+ lines)**
+- [TT_ARCHITECTURE.md](../architecture/TT_ARCHITECTURE.md) - Complete backend architecture
+- [IR_LOWERING_ANALYSIS.md](../architecture/IR_LOWERING_ANALYSIS.md) - GPU vs TT comparison
+
+### Reference Tables
+- [PASS_TABLE_TT.md](../reference/PASS_TABLE_TT.md) - v5 pass reference table
+- [PASS_TABLE_SHARED.md](../reference/PASS_TABLE_SHARED.md) - Shared optimization passes
+- [PASS_TABLE_GPU.md](../reference/PASS_TABLE_GPU.md) - GPU-specific passes
+
+### Planning Documentation
+- [TT_Pass_Status.md](../planning/TT_Pass_Status.md) - v5 implementation status (historical)
+- [TT_BACKEND_TASKS.md](../planning/TT_BACKEND_TASKS.md) - Backend tasks and future enhancements
+
+### Setup Guides
+- [local_build_guide.md](../setup/local_build_guide.md) - Local build instructions
+- [CI.md](../setup/CI.md) - CI/CD workflows
+- [METALIUM_SETUP_GUIDE.md](../setup/METALIUM_SETUP_GUIDE.md) - SDK setup
+
+---
+
+## Changelog
+
+### 2025-10-16 (v5 Complete)
+- Added comprehensive v5 pipeline navigation
+- Created stage-based documentation (5 stage docs)
+- Reorganized by v5 pipeline stages
+- Added pass index with direct links
+- Updated all references to v5
+
+### 2025-10-10 (v5 Default)
+- Updated to reflect v5 as default pipeline
+- Deprecated old pass documentation
+- Added v5 pass categorization
+
+### 2025-10-08 (Initial)
+- Original pass documentation structure
+
+---
+
+**Last Updated:** 2025-10-16
+**Pipeline Version:** v5 (14 passes, Python-only)
+**Status:** Production
