@@ -15,13 +15,14 @@ pytestmark = pytest.mark.skip(
 import tvm
 from tvm import tir
 import tilelang.tenstorrent as tt
-from tilelang.tenstorrent.passes import (
-    InferTTLayout,
-    PropagateTTLayout,
-    TTTilesToCoreMap,
-    LowerTTTileIntrinsics,
-    GridToPersistentTT,
-)
+# Old pass imports commented out - these classes have been removed
+# from tilelang.tenstorrent.passes import (
+#     InferTTLayout,
+#     PropagateTTLayout,
+#     TTTilesToCoreMap,
+#     LowerTTTileIntrinsics,
+#     GridToPersistentTT,
+# )
 
 # Skip reason for codegen tests
 CODEGEN_SKIP_REASON = "Requires reader/writer/compute kernel codegen implementation (reader.cpp, compute.cpp, writer.cpp generation)"

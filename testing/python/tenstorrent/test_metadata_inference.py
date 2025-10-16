@@ -15,12 +15,14 @@ import os
 from tilelang import tvm
 import tilelang.language as T
 from tilelang.tenstorrent import apply_tt_defaults
-from tilelang.tenstorrent.passes import (
-    InferTTLayout,
-    PropagateTTLayout,
-    TTTilesToCoreMap,
-    run_pipeline,
-)
+# Old pass imports commented out - these classes have been removed
+# from tilelang.tenstorrent.passes import (
+#     InferTTLayout,
+#     PropagateTTLayout,
+#     TTTilesToCoreMap,
+#     run_pipeline,
+# )
+from tilelang.tenstorrent.passes import run_pipeline
 from tilelang.tenstorrent.attrs import TT_CORE_GRID, TT_LAYOUT_DESC, TT_WORK_PARTITION
 
 

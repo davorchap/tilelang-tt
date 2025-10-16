@@ -15,13 +15,14 @@ from tilelang import tvm
 import tilelang.language as T
 
 from tilelang.tenstorrent import apply_tt_defaults
-from tilelang.tenstorrent.passes import (
-    InferTTLayout,
-    PropagateTTLayout,
-    TTTilesToCoreMap,
-    LowerTTTileIntrinsics,
-    GridToPersistentTT,
-)
+# Old pass imports commented out - these classes have been removed
+# from tilelang.tenstorrent.passes import (
+#     InferTTLayout,
+#     PropagateTTLayout,
+#     TTTilesToCoreMap,
+#     LowerTTTileIntrinsics,
+#     GridToPersistentTT,
+# )
 
 
 def apply_tt_metadata_passes(mod):

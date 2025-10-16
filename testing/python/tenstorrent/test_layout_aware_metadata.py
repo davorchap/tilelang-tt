@@ -14,11 +14,12 @@ from tilelang.tenstorrent import (
     annotate_tt_layout,
     apply_tt_defaults,
 )
-from tilelang.tenstorrent.passes import (
-    InferTTLayout,
-    PropagateTTLayout,
-    TTTilesToCoreMap,
-)
+# Old pass imports commented out - these classes have been removed
+# from tilelang.tenstorrent.passes import (
+#     InferTTLayout,
+#     PropagateTTLayout,
+#     TTTilesToCoreMap,
+# )
 
 # Skip the entire module - tests old pass APIs being deprecated
 pytestmark = pytest.mark.skip(

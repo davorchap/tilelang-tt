@@ -18,13 +18,14 @@ from tilelang.tenstorrent import (
     annotate_tt_schedule,
     annotate_tt_layout,
 )
-from tilelang.tenstorrent.passes import (
-    InferTTLayout,
-    PropagateTTLayout,
-    TTTilesToCoreMap,
-    LowerTTTileIntrinsics,
-    GridToPersistentTT,
-)
+# Old pass imports commented out - these classes have been removed
+# from tilelang.tenstorrent.passes import (
+#     InferTTLayout,
+#     PropagateTTLayout,
+#     TTTilesToCoreMap,
+#     LowerTTTileIntrinsics,
+#     GridToPersistentTT,
+# )
 
 
 def apply_metadata_passes(mod):

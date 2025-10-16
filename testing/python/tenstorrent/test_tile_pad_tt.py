@@ -13,7 +13,8 @@ pytestmark = pytest.mark.skip(
 # Import tilelang first to get proper TVM
 from tilelang import tvm
 from tvm import tir
-from tilelang.tenstorrent.passes import TTTilesToCoreMap
+# Old pass imports commented out - these classes have been removed
+# # from tilelang.tenstorrent.passes import TTTilesToCoreMap
 
 
 def test_tile_pad_integrated():

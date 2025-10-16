@@ -13,7 +13,8 @@ pytestmark = pytest.mark.skip(
 # Import tilelang first to get proper TVM
 from tilelang import tvm
 from tvm import tir
-from tilelang.tenstorrent.passes import GridToPersistentTT
+# Old pass imports commented out - these classes have been removed
+# # from tilelang.tenstorrent.passes import GridToPersistentTT
 
 
 def test_memory_space_lower_integrated():
