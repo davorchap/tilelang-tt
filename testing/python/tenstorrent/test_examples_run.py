@@ -81,7 +81,7 @@ def test_example_gemm_tt_minimal():
                         ]), "Expected TT artifacts not mentioned in output"
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
+# Un-skipped: v5 Python codegen now implemented (PR #134)
 def test_run_gemm_with_tt_backend():
     """Test that run_gemm_with_tt_backend.py runs without errors."""
     example_path = os.path.join(EXAMPLES_DIR, 'run_gemm_with_tt_backend.py')
@@ -127,7 +127,7 @@ def test_new_pipeline_example():
     assert result.returncode == 0, f"new_pipeline_example.py failed:\n{result.stderr}"
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
+# Un-skipped: v5 Python codegen now implemented (PR #134)
 def test_example_gemm_basic():
     """Test the basic example_gemm.py if it exists."""
     example_path = os.path.join(EXAMPLES_DIR, 'example_gemm.py')

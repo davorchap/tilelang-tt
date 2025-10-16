@@ -183,7 +183,7 @@ def _make_tt_module(partition_mode: str = "global") -> tvm.IRModule:
     return mod
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
+@pytest.mark.skip(reason="Host program format changed in v5, needs test update")
 def test_host_program_reports_partition_and_tensor_accessors():
     """Global layout: guardrails and TensorAccessor payloads are emitted."""
 
@@ -196,7 +196,7 @@ def test_host_program_reports_partition_and_tensor_accessors():
     assert ("TensorAccessorArgs must be created via TensorAccessorArgs::Create" in host_cpp)
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
+@pytest.mark.skip(reason="Host program format changed in v5, needs test update")
 def test_host_program_runtime_args_schema_global():
     """Global layout: canonical runtime arg schema and per-core payloads."""
 
@@ -209,7 +209,7 @@ def test_host_program_runtime_args_schema_global():
     assert ('{"Mt", 8}' in host_cpp and '{"Kt", 1}' in host_cpp and '{"Nt", 8}' in host_cpp)
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
+@pytest.mark.skip(reason="Host program format changed in v5, needs test update")
 def test_host_program_runtime_args_schema_local_shard():
     """Local shard layout: expanded runtime args include shard geometry."""
 

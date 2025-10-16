@@ -56,7 +56,8 @@ def test_reader_writer_guard_against_missing_shard_coords():
     assert "(void)tt_shard_coord_x;" in writer_cpp
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
+@pytest.mark.skip(
+    reason="Validation for missing shard coordinates not yet implemented in v5 codegen")
 def test_emit_tt_artifacts_requires_shard_runtime_args():
     """Missing shard coordinates for local partition raises a codegen error."""
 
