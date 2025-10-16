@@ -59,14 +59,34 @@ def LowerAndLegalizeTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
 
 
 def OptimizeForTargetTT(mod: tvm.IRModule, target: Target) -> tvm.IRModule:
-    """TT-specific optimization phase using the new metadata-driven pipeline.
+    """TT-specific optimization phase using the v5 metadata-driven pipeline.
 
-    This phase transforms TIR into TT-ready IR using the new 5-pass pipeline:
-    1. InferTTLayout - Infer buffer layouts and metadata
-    2. PropagateTTLayout - Propagate and normalize layout info
-    3. TTTilesToCoreMap - Compute core mapping and work partition
-    4. LowerTTTileIntrinsics - Lower tile ops to device intrinsics
-    5. GridToPersistentTT - Final lowering to persistent kernels
+    This phase transforms TIR into TT-ready IR using the v5 14-pass pipeline
+    organized in stages A-E:
+
+    Stage A: Metadata
+      - infer_tt_layout_v5: Infer buffer layouts and metadata
+      - propagate_tt_layout_v5: Propagate and normalize layout info
+      - attach_tensor_accessor_tt: Attach accessor metadata
+
+    Stage B: Partitioning
+      - layout_aware_work_partition_tt_v5: Compute core mapping
+      - grid_to_core_grid_v5: Transform grid to persistent cores
+
+    Stage C: Protocol-less Lowering
+      - lower_shared_to_cb_v5: Lower shared memory to circular buffers
+      - lower_tt_tile_intrinsics_v5: Lower tile intrinsics
+      - build_tile_dfg_tt: Build tile dataflow graph
+
+    Stage D: Late Split & Protocol
+      - split_device_kernel: Split into reader/compute/writer
+      - configure_tensor_accessor_tt: Configure tensor accessors
+      - lower_cb_intrinsics: Lower circular buffer intrinsics
+      - insert_compute_init_tt: Insert compute initialization
+      - insert_dst_management_tt: Insert DST management
+
+    Stage E: Finalization
+      - finalize_persistent_signature_tt: Finalize persistent signatures
 
     The pipeline also emits a runtime plan (tt.plan.json) for host-device coordination.
 
