@@ -148,13 +148,11 @@ class TestE2EPipeline:
                             # Load tiles to shared
                             for ty in T.thread_binding(8, thread="threadIdx.y"):
                                 for tx in T.thread_binding(8, thread="threadIdx.x"):
-                                    A_shared[ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4] = \
-                                        A[by * 32: by * 32 + 32, bx * 32: bx * 32 + 32][
-                                            ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4]
-
-                                    B_shared[ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4] = \
-                                        B[by * 32: by * 32 + 32, bx * 32: bx * 32 + 32][
-                                            ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4]
+                                    for i, j in T.grid(4, 4):
+                                        A_shared[ty * 4 + i, tx * 4 + j] = \
+                                            A[by * 32 + ty * 4 + i, bx * 32 + tx * 4 + j]
+                                        B_shared[ty * 4 + i, tx * 4 + j] = \
+                                            B[by * 32 + ty * 4 + i, bx * 32 + tx * 4 + j]
 
                             # Compute
                             for k in T.serial(8):

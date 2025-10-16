@@ -145,7 +145,14 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             """Check for T.gemm intrinsic call"""
             if isinstance(evaluate_node.value, tir.Call):
                 call = evaluate_node.value
-                if hasattr(call, 'op'):
+                # Check for call_extern with "T.gemm" as function name
+                if str(call.op) == "Op(tir.call_extern)":
+                    # For call_extern, args[0] is the function name
+                    if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
+                        func_name = call.args[0].value
+                        return any(pattern in func_name for pattern in ["T.gemm", "tir.gemm", "tvm_gemm"])
+                # Also check op name directly
+                elif hasattr(call, 'op'):
                     op_name = str(call.op)
                     return any(pattern in op_name for pattern in ["T.gemm", "tir.gemm", "tvm_gemm"])
             return False
@@ -154,7 +161,18 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             """Check for element-wise operations"""
             if isinstance(evaluate_node.value, tir.Call):
                 call = evaluate_node.value
-                if hasattr(call, 'op'):
+                # Check for call_extern with elementwise op as function name
+                if str(call.op) == "Op(tir.call_extern)":
+                    # For call_extern, args[0] is the function name
+                    if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
+                        func_name = call.args[0].value
+                        elementwise_ops = [
+                            "T.add", "T.multiply", "T.subtract", "T.divide", "tir.add", "tir.multiply",
+                            "tir.subtract", "tir.divide"
+                        ]
+                        return any(op in func_name for op in elementwise_ops)
+                # Also check op name directly
+                elif hasattr(call, 'op'):
                     op_name = str(call.op)
                     elementwise_ops = [
                         "T.add", "T.multiply", "T.subtract", "T.divide", "tir.add", "tir.multiply",
@@ -233,10 +251,18 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             call = evaluate_node.value
             args = call.args
 
+            # For call_extern, args are: [func_name, actual_args...]
+            # Check if this is a call_extern
+            if str(call.op) == "Op(tir.call_extern)" and len(args) >= 1:
+                # Skip first arg (function name)
+                actual_args = args[1:]
+            else:
+                actual_args = args
+
             # Extract CB arguments (should be conceptual CBs from C1)
-            cb_a = self._get_cb_for_arg(args[0]) if len(args) > 0 else "cb_in0"
-            cb_b = self._get_cb_for_arg(args[1]) if len(args) > 1 else "cb_in1"
-            self._get_cb_for_arg(args[2]) if len(args) > 2 else "cb_out0"
+            cb_a = self._get_cb_for_arg(actual_args[0]) if len(actual_args) > 0 else "cb_in0"
+            cb_b = self._get_cb_for_arg(actual_args[1]) if len(actual_args) > 1 else "cb_in1"
+            self._get_cb_for_arg(actual_args[2]) if len(actual_args) > 2 else "cb_out0"
 
             # Determine if this is accumulating
             accumulate = self._in_reduction_loop()
@@ -255,7 +281,17 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
         def _lower_elementwise(self, evaluate_node):
             """Lower element-wise operations to tt.fpu intrinsics"""
             call = evaluate_node.value
-            op_name = str(call.op)
+            args = call.args
+
+            # Determine the operation name
+            op_name = ""
+            # For call_extern, function name is in args[0]
+            if str(call.op) == "Op(tir.call_extern)" and len(args) >= 1 and isinstance(args[0], tir.StringImm):
+                op_name = args[0].value
+                actual_args = args[1:]  # Skip function name
+            else:
+                op_name = str(call.op)
+                actual_args = args
 
             # Map high-level ops to TT FPU ops
             op_map = {
@@ -277,8 +313,8 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                     break
 
             # Get CB operands
-            cb_a = self._get_cb_for_arg(call.args[0]) if len(call.args) > 0 else "cb_in0"
-            cb_b = self._get_cb_for_arg(call.args[1]) if len(call.args) > 1 else cb_a
+            cb_a = self._get_cb_for_arg(actual_args[0]) if len(actual_args) > 0 else "cb_in0"
+            cb_b = self._get_cb_for_arg(actual_args[1]) if len(actual_args) > 1 else cb_a
 
             # Create protocol-less FPU intrinsic
             return tir.Evaluate(
@@ -528,3 +564,9 @@ if __name__ == "__main__":
         print("\n✅ Pass validation successful: No heuristics used")
     except ValueError as e:
         print(f"\n❌ Validation failed: {e}")
+
+
+# Module-level wrapper function for compatibility with test imports
+def lower_tt_tile_intrinsics_v5(mod):
+    """Apply LowerTTTileIntrinsics v5 pass to a module."""
+    return LowerTTTileIntrinsics_v5(mod)

@@ -58,6 +58,8 @@ def GridToCoreGrid_v5(func, mod, ctx):
             self.in_kernel = False
             self.kernel_vars = {}
             self.grid_loops_found = []
+            self.grid_loop_depth = 0  # Track nesting depth of grid loops
+            self.work_distribution_added = False  # Track if we've added work distribution
 
         def visit_block(self, block):
             """Override to detect grid patterns in blocks"""
@@ -228,6 +230,10 @@ def GridToCoreGrid_v5(func, mod, ctx):
             """Create T.launch_core from grid loop"""
             loop_var = for_node.loop_var
 
+            # Track grid loop depth
+            self.grid_loop_depth += 1
+            current_depth = self.grid_loop_depth
+
             # Determine dimension (x or y) from binding or variable name
             dim_str = ""
             if hasattr(for_node, 'thread_binding') and for_node.thread_binding is not None:
@@ -266,10 +272,55 @@ def GridToCoreGrid_v5(func, mod, ctx):
             # Store mapping for later use
             self.kernel_vars[loop_var] = core_var
 
+            # Check if this is the innermost grid loop (for 2D grids, depth == 2)
+            # and we haven't added work distribution yet
+            expected_depth = len(self.core_grid)  # 2 for 2D grids
+            if current_depth == expected_depth and not self.work_distribution_added:
+                # Inject work distribution logic before the body
+                work_stmts = []
+
+                # Add work distribution based on partition mode
+                if self.partition_mode == "global":
+                    work_stmts = self._add_global_work_distribution()
+                else:  # local_shard
+                    work_stmts = self._add_local_shard_distribution()
+
+                # If we have work distribution statements, wrap them around the body
+                if work_stmts:
+                    # Create a sequence of work distribution + body
+                    wrapped_body = self._wrap_body_with_work_distribution(new_body, work_stmts)
+                    new_body = wrapped_body
+                    self.work_distribution_added = True
+
             # Create let statement
             let_stmt = tir.LetStmt(core_var, launch_call, new_body)
 
+            # Decrement depth when returning
+            self.grid_loop_depth -= 1
+
             return let_stmt
+
+        def _wrap_body_with_work_distribution(self, body, work_stmts):
+            """
+            Wrap the body with work distribution LetStmt nodes.
+
+            Takes work_stmts (list of LetStmt with dummy bodies) and chains them
+            so the innermost LetStmt contains the actual body.
+            """
+            if not work_stmts:
+                return body
+
+            # Work backwards through the work_stmts, making each LetStmt wrap the next
+            current_body = body
+            for stmt in reversed(work_stmts):
+                if isinstance(stmt, tir.LetStmt):
+                    # Replace the dummy body with the current body
+                    current_body = tir.LetStmt(stmt.var, stmt.value, current_body)
+                else:
+                    # If it's not a LetStmt, just prepend it
+                    current_body = tir.SeqStmt([stmt, current_body])
+
+            return current_body
 
         def _create_core_launch_from_binding(self, var, extent, body, attr_key):
             """Create core launch from thread binding attribute"""
@@ -553,3 +604,9 @@ if __name__ == "__main__":
         print("\n✅ Pass validation successful: Proper core launch structure")
     except ValueError as e:
         print(f"\n❌ Validation failed: {e}")
+
+
+# Module-level wrapper function for compatibility with test imports
+def grid_to_core_grid_v5(mod):
+    """Apply GridToCoreGrid v5 pass to a module."""
+    return GridToCoreGrid_v5(mod)

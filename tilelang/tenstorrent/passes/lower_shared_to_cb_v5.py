@@ -306,3 +306,9 @@ if __name__ == "__main__":
         print("\n✅ Pass validation successful: Output is protocol-less")
     except ValueError as e:
         print(f"\n❌ Validation failed: {e}")
+
+
+# Module-level wrapper function for compatibility with test imports
+def lower_shared_to_cb_v5(mod):
+    """Apply LowerSharedToCB v5 pass to a module."""
+    return LowerSharedToCB_v5(mod)
