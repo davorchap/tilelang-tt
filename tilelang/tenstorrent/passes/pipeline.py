@@ -15,13 +15,6 @@ except ImportError:  # pragma: no cover
     tir = None
     IRModule = object
 
-# Old pipeline passes (for backwards compatibility)
-from .infer_tt_layout import InferTTLayout
-from .propagate_tt_layout import PropagateTTLayout
-from .tt_tiles_to_core_map import TTTilesToCoreMap
-from .lower_tt_tile_intrinsics import LowerTTTileIntrinsics
-from .grid_to_persistent_tt import GridToPersistentTT
-
 # V5 pipeline passes
 # Stage A: TIR Preparation & Metadata
 
@@ -34,52 +27,6 @@ from .grid_to_persistent_tt import GridToPersistentTT
 # Stage E: Finalization
 
 logger = logging.getLogger(__name__)
-
-
-def build_tt_pipeline(
-    plan_path: str = "tt.plan.json",
-    target_device: str = "grayskull",
-    partition_strategy: str = "row_major",
-    enable_double_buffer: bool = True,
-    enable_prefetch: bool = True,
-    custom_passes: Optional[List] = None,
-) -> List:
-    """
-    Build the Tenstorrent lowering pipeline.
-
-    Args:
-        plan_path: Output path for the runtime plan JSON
-        target_device: Target TT device ("grayskull", "wormhole", "blackhole")
-        partition_strategy: Work partitioning strategy ("row_major", "column_major", "block")
-        enable_double_buffer: Whether to enable double-buffering
-        enable_prefetch: Whether to enable prefetching
-        custom_passes: Optional list of additional passes to insert
-
-    Returns:
-        List of pass instances in execution order
-    """
-    pipeline = [
-        # 1. Infer and attach layout metadata
-        InferTTLayout(),
-        # 2. Propagate and normalize layout info
-        PropagateTTLayout(),
-        # 3. Compute core mapping and work partition
-        TTTilesToCoreMap(partition_strategy=partition_strategy),
-        # 4. Lower tile-level intrinsics to device ops
-        LowerTTTileIntrinsics(target_device=target_device),
-        # 5. Final lowering to persistent kernels
-        GridToPersistentTT(
-            plan_path=plan_path,
-            enable_double_buffer=enable_double_buffer,
-            enable_prefetch=enable_prefetch,
-        ),
-    ]
-
-    # Insert any custom passes before the final lowering
-    if custom_passes:
-        pipeline = pipeline[:-1] + custom_passes + pipeline[-1:]
-
-    return pipeline
 
 
 def build_v5_pipeline(
@@ -177,7 +124,6 @@ def run_pipeline(
     verbose: bool = False,
     dump_ir: bool = False,
     ir_dump_dir: str = "tt_pass_ir",
-    use_v5_pipeline: bool = True,
 ) -> IRModule:
     """
     Execute the full Tenstorrent lowering pipeline on an IRModule.
@@ -192,7 +138,6 @@ def run_pipeline(
         verbose: Whether to enable verbose logging
         dump_ir: Whether to dump IR after each pass
         ir_dump_dir: Directory to save IR dumps
-        use_v5_pipeline: Use the new v5 pipeline (default True). Set to False for old pipeline.
 
     Returns:
         Transformed IRModule with persistent kernels
@@ -204,8 +149,7 @@ def run_pipeline(
     if verbose:
         logging.basicConfig(level=logging.DEBUG)
 
-    pipeline_name = "v5" if use_v5_pipeline else "old"
-    logger.info(f"Starting Tenstorrent lowering pipeline ({pipeline_name})")
+    logger.info("Starting Tenstorrent lowering pipeline (v5)")
 
     # Create IR dump directory if needed
     if dump_ir:
@@ -218,24 +162,14 @@ def run_pipeline(
         with open(initial_ir_path, "w") as f:
             f.write(str(mod))
 
-    # Build the pipeline - use v5 by default
-    if use_v5_pipeline:
-        pipeline = build_v5_pipeline(
-            plan_path=plan_path,
-            target_device=target_device,
-            partition_strategy=partition_strategy,
-            enable_double_buffer=enable_double_buffer,
-            enable_prefetch=enable_prefetch,
-        )
-    else:
-        # Fallback to old pipeline for backwards compatibility
-        pipeline = build_tt_pipeline(
-            plan_path=plan_path,
-            target_device=target_device,
-            partition_strategy=partition_strategy,
-            enable_double_buffer=enable_double_buffer,
-            enable_prefetch=enable_prefetch,
-        )
+    # Build the v5 pipeline
+    pipeline = build_v5_pipeline(
+        plan_path=plan_path,
+        target_device=target_device,
+        partition_strategy=partition_strategy,
+        enable_double_buffer=enable_double_buffer,
+        enable_prefetch=enable_prefetch,
+    )
 
     # Execute each pass
     for i, pass_instance in enumerate(pipeline):
