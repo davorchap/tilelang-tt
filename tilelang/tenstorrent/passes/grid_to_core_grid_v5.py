@@ -143,7 +143,7 @@ def GridToCoreGrid_v5(func, mod, ctx):
         def _is_grid_loop(self, for_node):
             """Check if this is a grid dimension loop"""
             # Check for thread binding
-            if hasattr(for_node, 'thread_binding') and for_node.thread_binding:
+            if hasattr(for_node, 'thread_binding') and for_node.thread_binding is not None:
                 binding_str = str(for_node.thread_binding)
                 grid_patterns = ["blockIdx", "gridIdx"]
                 return any(pattern in binding_str for pattern in grid_patterns)
@@ -230,7 +230,7 @@ def GridToCoreGrid_v5(func, mod, ctx):
 
             # Determine dimension (x or y) from binding or variable name
             dim_str = ""
-            if hasattr(for_node, 'thread_binding') and for_node.thread_binding:
+            if hasattr(for_node, 'thread_binding') and for_node.thread_binding is not None:
                 binding_str = str(for_node.thread_binding)
                 if "x" in binding_str or ".0" in binding_str:
                     dim_str = "x"
