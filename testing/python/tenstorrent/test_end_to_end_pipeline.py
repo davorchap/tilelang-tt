@@ -33,6 +33,9 @@ def apply_tt_transform_passes(mod):
     """Helper to apply transform passes in the new pipeline."""
     mod = LowerTTTileIntrinsics()(mod)
     mod = GridToPersistentTT()(mod)
+    # Add kernel splitting for v5 pipeline compatibility
+    from tilelang.tenstorrent.passes import split_device_kernel
+    mod = split_device_kernel(mod)
     return mod
 
 
