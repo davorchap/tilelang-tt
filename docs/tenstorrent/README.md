@@ -1,7 +1,7 @@
 # TileLang Tenstorrent Backend Documentation
 
-**Last Updated**: 2025-10-10  
-**Status**: Layout-aware metadata + shard-aware runtime integration ready; SDK validation awaiting hardware access.
+**Last Updated**: 2025-10-16
+**Status**: v5 pipeline complete (14 passes, Python-only). Old pipeline removed. SDK validation awaiting hardware access.
 
 ---
 
@@ -33,8 +33,9 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 | Document | Purpose | Audience |
 |----------|---------|----------|
 | **[architecture/TT_ARCHITECTURE.md](architecture/TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture | All developers |
+| **[architecture/v5_pipeline.md](architecture/v5_pipeline.md)** ⭐ | Authoritative v5 pipeline reference (14 passes) | Backend developers |
 | **[architecture/IR_LOWERING_ANALYSIS.md](architecture/IR_LOWERING_ANALYSIS.md)** | GPU vs TT comparison & execution models | Compiler engineers |
-| **[architecture/TileLang_TT_TIR_Lowering_Guide_v5.md](architecture/TileLang_TT_TIR_Lowering_Guide_v5.md)** | V5 pass pipeline specification | Backend developers |
+| **[architecture/TileLang_TT_TIR_Lowering_Guide_v5.md](architecture/TileLang_TT_TIR_Lowering_Guide_v5.md)** | V5 pass pipeline lowering guide | Backend developers |
 | **[architecture/RUNTIME_PLAN.md](architecture/RUNTIME_PLAN.md)** | Runtime plan specification (tt.plan.json) | Backend developers |
 
 ### 📚 Development Guides
@@ -57,10 +58,11 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[planning/TT_Implementation_Plan.md](planning/TT_Implementation_Plan.md)** | 4-week implementation roadmap | Project team |
-| **[planning/TT_Pass_Status.md](planning/TT_Pass_Status.md)** | Current pass implementation status | Contributors |
-| **[planning/TT_BACKEND_TASKS.md](planning/TT_BACKEND_TASKS.md)** | Task breakdown & assignments | Contributors |
+| **[planning/TT_Pass_Status.md](planning/TT_Pass_Status.md)** | v5 pipeline implementation status (historical) | Contributors |
+| **[planning/TT_Implementation_Plan.md](planning/TT_Implementation_Plan.md)** | v5 implementation roadmap (historical, superseded) | Project team |
+| **[planning/TT_BACKEND_TASKS.md](planning/TT_BACKEND_TASKS.md)** | Backend consolidation tasks (historical) | Contributors |
 | **[planning/METALIUM_SDK_VALIDATION_PLAN.md](planning/METALIUM_SDK_VALIDATION_PLAN.md)** | SDK validation phases | Hardware team |
+| **[archive/pre-v5/](archive/pre-v5/)** | Pre-v5 planning docs, progress reports, old pipeline | Historical reference |
 
 ### 📖 Reference
 
@@ -79,24 +81,29 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 ---
 
-## Current Status (2025-10-14)
+## Current Status (2025-10-16)
 
-### ✅ Completed
-- Target registration and Python orchestration (`tilelang/tenstorrent`).
-- V5 metadata-driven pipeline with 14 passes organized in stages A-E.
-- Layout-aware metadata pipeline (v5 passes) generating canonical runtime-argument schemas.
-- Grid-to-persistent transformation with shard-aware guardrails and per-core runtime metadata tables in host artifacts.
-- IR-driven reader/compute/writer visitors aligned with the new runtime contract.
-- Mock-mode CI parity via `maint/scripts/local_build_and_test_tt.sh`.
-- Runtime plan generation (`tt.plan.json`) for host-device coordination.
-- Grid extraction from T.Kernel IR structure.
-- Proper JSON serialization for TVM container types.
+### ✅ Completed (v5 Pipeline)
+- **v5 Pipeline Complete**: 14 passes in stages A-E, all Python implementation
+- **Old Pipeline Removed**: Original 5-pass pipeline deleted (PR #135)
+- **Python-Only Architecture**: All TT backend passes remain in Python for maintainability
+- Target registration and Python orchestration (`tilelang/tenstorrent`)
+- Layout-aware metadata pipeline generating canonical runtime-argument schemas
+- Grid-to-persistent transformation with shard-aware guardrails
+- IR-driven reader/compute/writer/host codegen visitors
+- Mock-mode CI parity via `maint/scripts/local_build_and_test_tt.sh`
+- Runtime plan generation (`tt.plan.json`) for host-device coordination
+- Grid extraction from T.Kernel IR structure
+- Proper JSON serialization for TVM container types
+- **Test Suite**: 120 passing, 21 skipped (85.1% pass rate)
 
-### 🚧 In Progress
-- Additional diagnostics for halo hints, L1 capacity checks, and documentation refreshes.
+### 🎯 Next Steps
+- SDK-backed hardware validation (awaiting device access)
+- Performance profiling and optimization
+- Additional diagnostics (halo hints, L1 capacity checks)
 
 ### ⏸️ Blocked
-- Real hardware validation and performance profiling (see [METALIUM_SDK_VALIDATION_PLAN.md](METALIUM_SDK_VALIDATION_PLAN.md)).
+- Real hardware validation and performance profiling (see [planning/METALIUM_SDK_VALIDATION_PLAN.md](planning/METALIUM_SDK_VALIDATION_PLAN.md))
 
 ---
 
@@ -131,7 +138,7 @@ Code Generation (IR-Driven Visitors)
     └─ tt.plan.json
 ```
 
-See [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md) for complete architecture details.
+See [architecture/TT_ARCHITECTURE.md](architecture/TT_ARCHITECTURE.md) for complete architecture details.
 
 ---
 
@@ -150,7 +157,7 @@ cmake --build build -j$(nproc)
 - ✅ No hardware required
 - ✅ Fast iteration
 - ✅ Complete code generation
-- ✅ All 95 tests pass
+- ✅ 120 tests passing (21 skipped)
 
 **Limitations**:
 - ❌ Cannot execute on hardware
@@ -183,14 +190,17 @@ cmake --build build -j$(nproc)
 ## Testing
 
 ```bash
-# All TT backend tests
+# All TT backend tests (120 passing, 21 skipped)
 pytest testing/python/tenstorrent/ -v
 
+# Quick summary
+pytest testing/python/tenstorrent/ --tb=no -q
+
 # Specific test categories
-pytest testing/python/tenstorrent/test_target_registration.py -v    # Target registration
-pytest testing/python/tenstorrent/test_metadata_inference.py -v     # Metadata inference
-pytest testing/python/tenstorrent/test_persistent_lowering.py -v    # Persistent loop
-pytest testing/python/tenstorrent/test_codegen_pipeline.py -v       # Code generation
+pytest testing/python/tenstorrent/test_target_registration.py -v     # Target registration
+pytest testing/python/tenstorrent/test_v5_passes_integration.py -v   # v5 pipeline integration
+pytest testing/python/tenstorrent/test_codegen_pipeline.py -v        # Code generation
+pytest testing/python/tenstorrent/test_jit_decorator.py -v           # JIT decorator
 ```
 
 ---
@@ -264,10 +274,12 @@ pytest testing/python/tenstorrent/test_codegen_pipeline.py -v       # Code gener
 ## Questions & Support
 
 - **Architecture**: See [architecture/TT_ARCHITECTURE.md](architecture/TT_ARCHITECTURE.md)
+- **v5 Pipeline**: See [architecture/v5_pipeline.md](architecture/v5_pipeline.md)
 - **Build issues**: See [setup/local_build_guide.md](setup/local_build_guide.md)
 - **SDK setup**: See [setup/METALIUM_SETUP_GUIDE.md](setup/METALIUM_SETUP_GUIDE.md)
 - **Compiler internals**: See [architecture/IR_LOWERING_ANALYSIS.md](architecture/IR_LOWERING_ANALYSIS.md)
-- **Implementation plan**: See [planning/TT_Implementation_Plan.md](planning/TT_Implementation_Plan.md)
+- **Pass status**: See [planning/TT_Pass_Status.md](planning/TT_Pass_Status.md)
+- **Historical docs**: See [archive/pre-v5/](archive/pre-v5/)
 
 ---
 
