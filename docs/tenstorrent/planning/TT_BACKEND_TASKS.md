@@ -16,9 +16,9 @@ This document captures the end-to-end task tracker for consolidating the TileLan
 - Supporting multiple matmuls per reduction loop inside `LowerGemmToTTIntrinsics`; this extension follows after the primary path is stable.
 
 ### Architecture Snapshot
-- **Layout-aware metadata pipeline**: `InferTTLayout`, `PropagateTTLayout`, and `LayoutAwareWorkPartitionTT` provide canonical `tt.buffer.*`, `tt.cb.*`, and `tt.runtime_args` metadata that downstream passes consume without heuristics.
-- **Shard-aware persistent lowering**: `grid_to_persistent_tt` converts tiled kernels into persistent loops using the canonical runtime schema; host codegen emits a metadata summary in `main.cpp` that mirrors runtime argument payloads.
-- **C++ implementation target**: Phase 2 ports the remaining Python helpers into `src/transform/tenstorrent/`, aligning runtime guardrails across layout inference, persistent lowering, and memory space lowering.
+- **V5 metadata-driven pipeline**: 14 Python passes in stages A-E provide canonical `tt.buffer.*`, `tt.cb.*`, and `tt.runtime_args` metadata that downstream passes consume without heuristics.
+- **Shard-aware persistent lowering**: Grid-to-core transformation converts tiled kernels into persistent loops using the canonical runtime schema; host codegen emits a metadata summary in `main.cpp` that mirrors runtime argument payloads.
+- **Python implementation**: All TT backend passes are implemented in Python for maintainability and rapid iteration. No C++ migration planned.
 - **Mock-mode validation**: Mock CI remains the primary validation path; real SDK (`--with-metalium`) flows are unchanged but now depend on the consolidated metadata emitted by the host/runtime stack.
 
 ---
@@ -70,22 +70,20 @@ The work is organized into three sequential phases with clear responsibilities. 
 - Ensure all runtime metadata emitted by `LowerGemmToTTIntrinsics` is canonical so compute codegen remains a straightforward printer.
 - Keep mock-mode JIT validation focused on artifact correctness rather than numerical execution.
 
-### Phase 2 – Core Infrastructure and Legacy Cleanup (🟡 Planned)
+### Phase 2 – Core Infrastructure and Legacy Cleanup (🟡 Outdated - v5 completed)
 
-*Goal*: Migrate layout-aware metadata logic to C++, eliminate legacy helpers, and remove circular buffer heuristics.
+**NOTE**: This phase description is outdated. The v5 Python pipeline has been completed and is now the default. See `planning/TT_Pass_Status.md` for current status.
 
-| Task ID | Description |
-|---------|-------------|
-| `refactor-metadata-passes-to-cpp` | **Refactor Metadata Passes to C++**: Port `infer_tt_layout`, `propagate_tt_layout`, and `layout_aware_work_partition_tt` into `src/transform/tenstorrent/`. |
-| `refactor-memory-space-lower-tt` | **Rework `MemorySpaceLowerTT`**: Consume canonical `tt.cb.*` attributes for deterministic CB configuration. |
-| `refactor-grid-to-persistent-tt` | **Update `GridToPersistentTT`**: Use canonical `tt.runtime_arg_names`/`tt.runtime_args` and drop legacy runtime synthesis. |
-| `cleanup-deprecate-legacy-passes` | **Deprecate and Remove Legacy Passes**: Retire `infer_default_tt_schedule`, `infer_default_tt_shard`, `tt_tiles_to_core_map` after validation. |
-| `improvement-strengthen-diagnostics` | **Strengthen Metadata Diagnostics**: Improve error messages for N-D sharding, halo hints, and L1 capacity checks. |
-| `testing-expand-integration-tests` | **Expand Integration Test Suite**: Add pytest coverage for sharding/layout permutations through the C++ pipeline. |
+*Original Goal*: Eliminate legacy helpers and remove circular buffer heuristics.
 
-*Feedback highlights*:
-- Align the host metadata summary in `main.cpp` with runtime schemas so both sides share a single source of truth.
-- Treat persistent guardrails and CB sizing as enforced invariants once the C++ pipeline lands.
+| Task ID | Description | Status |
+|---------|-------------|--------|
+| `cleanup-deprecate-legacy-passes` | **Deprecate and Remove Legacy Passes**: Retire old pass implementations | ✅ Complete (PR #135) |
+| `improvement-strengthen-diagnostics` | **Strengthen Metadata Diagnostics**: Improve error messages for N-D sharding, halo hints, and L1 capacity checks | 🟡 Ongoing |
+| `testing-expand-integration-tests` | **Expand Integration Test Suite**: Add pytest coverage for sharding/layout permutations | 🟡 Ongoing |
+
+*Implementation Note*:
+- **All TT backend passes remain in Python** - No C++ migration planned. Python implementation provides better maintainability and rapid iteration.
 
 ### Phase 3 – Documentation and Finalization (🟡 Planned)
 

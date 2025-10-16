@@ -2,13 +2,8 @@
 Tenstorrent-specific TIR passes for the new lowering pipeline.
 """
 
-# Re-export pass constructors for convenience (old passes)
-from .infer_tt_layout import InferTTLayout
-from .propagate_tt_layout import PropagateTTLayout
-from .tt_tiles_to_core_map import TTTilesToCoreMap
-from .lower_tt_tile_intrinsics import LowerTTTileIntrinsics
-from .grid_to_persistent_tt import GridToPersistentTT
-from .pipeline import build_tt_pipeline, run_pipeline
+# Pipeline functions
+from .pipeline import build_v5_pipeline, run_pipeline
 
 # V5 passes - Stage A: Metadata
 from .infer_tt_layout_v5 import InferTTLayout_v5, infer_tt_layout_v5
@@ -38,13 +33,8 @@ from .finalize_persistent_signature_tt import finalize_persistent_signature_tt
 from .verify_tt_ir import verify_tt_ir
 
 __all__ = [
-    # Old pipeline passes
-    "InferTTLayout",
-    "PropagateTTLayout",
-    "TTTilesToCoreMap",
-    "LowerTTTileIntrinsics",
-    "GridToPersistentTT",
-    "build_tt_pipeline",
+    # Pipeline functions
+    "build_v5_pipeline",
     "run_pipeline",
     # V5 passes - Stage A
     "InferTTLayout_v5",

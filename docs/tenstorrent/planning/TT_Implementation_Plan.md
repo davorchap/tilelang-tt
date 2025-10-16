@@ -1,31 +1,43 @@
 # Tenstorrent Backend Implementation Plan (Python-First)
 
-**Version:** 2.0
+**Version:** 2.1 (Superseded)
 **Date:** 2025-10-15
-**Status:** Rapid Prototyping Focus
+**Last Updated:** 2025-10-16
+**Status:** ⚠️ **SUPERSEDED** - v5 pipeline now complete (see TT_Pass_Status.md)
 **Based on:** TileLang TT TIR Lowering Guide v5
 
 ---
 
-## Executive Summary
+## ⚠️ Document Status
 
-This updated plan prioritizes **rapid prototyping in Python** to achieve a working end-to-end GEMM compilation quickly. C++ migration is postponed to Phase 2, after all passes are stable and proven. This approach optimizes for development speed and iteration time.
+**This document is outdated.** The v5 Python pipeline has been completed and is now the default. See:
+- `planning/TT_Pass_Status.md` for current implementation status
+- `architecture/TT_ARCHITECTURE.md` for architecture overview
+- `reference/PASS_TABLE_TT.md` for pass reference
 
-### Key Changes from v1
-- **Python-first development** - All new passes implemented in Python
-- **C++ migration postponed** - Only after passes stabilize
-- **Faster iteration** - No Python/C++ boundary complexity during prototyping
-- **Focus on GEMM** - Get one pattern working end-to-end first
+**Key Update:** **No C++ migration is planned.** All TT backend passes will remain in Python for maintainability and rapid iteration.
 
 ---
 
-## Phase Overview
+## Executive Summary (Historical)
 
-| Phase | Duration | Focus | Language | Goal |
-|-------|----------|-------|----------|------|
-| **Phase 1** | 3-4 weeks | Complete all passes | **Python** | Working GEMM end-to-end |
-| **Phase 2** | 2-3 weeks | Optimization & Migration | Python → C++ | Performance & production quality |
-| **Phase 3** | 1-2 weeks | Polish & Documentation | Mixed | Release ready |
+This document originally prioritized **rapid prototyping in Python** to achieve a working end-to-end GEMM compilation. The approach was successful and v5 pipeline is now complete.
+
+### Key Changes from v1 (Completed)
+- ✅ **Python-first development** - All passes implemented in Python
+- ✅ **No C++ migration** - Passes remain in Python permanently
+- ✅ **Faster iteration** - Python provides maintainability advantage
+- ✅ **Focus on GEMM** - Working end-to-end compilation achieved
+
+---
+
+## Phase Overview (Historical - Completed)
+
+| Phase | Duration | Focus | Language | Status |
+|-------|----------|-------|----------|--------|
+| **Phase 1** | 3-4 weeks | Complete all passes | **Python** | ✅ Complete (PR #134, #135) |
+| **Phase 2** | ~~2-3 weeks~~ | ~~Optimization & Migration~~ | ~~Python → C++~~ | **Cancelled** (No C++ migration) |
+| **Phase 3** | 1-2 weeks | Polish & Documentation | Python | 🟡 Ongoing |
 
 ---
 
@@ -448,29 +460,26 @@ def test_gemm_end_to_end():
 
 ---
 
-## Phase 2: Selective C++ Migration (Weeks 5-7)
+## Phase 2: ~~Selective C++ Migration~~ (Cancelled)
 
-### After Phase 1 Success, Consider Migration
+### Decision: No C++ Migration
 
-**Migration Candidates (Performance-Critical):**
-1. InferTTLayout - Heavy metadata processing
-2. LayoutAwareWorkPartitionTT - Complex computation
-3. SplitDeviceKernel - IR manipulation intensive
+**All TT backend passes will remain in Python permanently.**
 
-**Keep in Python (Rarely Changed):**
-1. AttachTensorAccessorTT - Simple metadata
-2. ConfigureTensorAccessorTT - Simple binding
-3. BuildTileDFGTT - Graph building
+**Rationale:**
+- ✅ **Maintainability**: Python code is easier to understand and modify
+- ✅ **Rapid Iteration**: Changes don't require recompilation
+- ✅ **Debugging**: Python stack traces and debuggers are superior
+- ✅ **Team Velocity**: More contributors can work on Python code
+- ✅ **Sufficient Performance**: Pass compilation time is not a bottleneck
 
-**Migration Decision Matrix:**
-
-| Pass | Complexity | Performance Impact | Change Frequency | Migrate? |
-|------|------------|-------------------|------------------|----------|
-| InferTTLayout | High | High | Low | Yes |
-| SplitDeviceKernel | High | High | Medium | Yes |
-| LowerCBIntrinsics | Medium | Medium | Low | Maybe |
-| InsertDSTManagementTT | Medium | Low | Low | No |
-| BuildTileDFGTT | Low | Low | Low | No |
+**Original Migration Candidates (Now Staying in Python):**
+| Pass | Complexity | Status |
+|------|------------|--------|
+| InferTTLayout_v5 | High | ✅ Staying in Python |
+| SplitDeviceKernel | High | ✅ Staying in Python |
+| LowerCBIntrinsics | Medium | ✅ Staying in Python |
+| All other passes | Varies | ✅ Staying in Python |
 
 ---
 
@@ -496,23 +505,22 @@ def test_gemm_end_to_end():
 
 ---
 
-## Success Metrics (Revised)
+## Success Metrics (Completed)
 
-### Phase 1 (Python Implementation)
-- [ ] All 17 passes implemented
-- [ ] GEMM compiles end-to-end
-- [ ] Generated code structure correct
-- [ ] Basic test suite passing
+### Phase 1 (Python Implementation) - ✅ Complete
+- ✅ All 14 v5 passes implemented
+- ✅ GEMM compiles end-to-end
+- ✅ Generated code structure correct
+- ✅ Comprehensive test suite passing (120 tests)
 
-### Phase 2 (Optimization - Optional)
-- [ ] Critical passes migrated to C++
-- [ ] 2-5x compilation speedup
-- [ ] Memory usage optimized
+### Phase 2 (~~Optimization~~) - **Cancelled**
+- ~~Critical passes migrated to C++~~ - **No C++ migration**
+- N/A - Python performance is sufficient
 
-### Phase 3 (Release)
-- [ ] Documentation complete
-- [ ] Examples working
-- [ ] CI/CD integrated
+### Phase 3 (Release) - 🟡 In Progress
+- 🟡 Documentation updates in progress
+- ✅ Examples working
+- ✅ CI/CD integrated (mock mode)
 
 ---
 
@@ -527,15 +535,16 @@ def test_gemm_end_to_end():
 
 ---
 
-## Conclusion
+## Conclusion (Updated)
 
-This Python-first approach will get us to a working GEMM implementation **2-3x faster** than the C++ approach. Once we have a stable, working pipeline, we can selectively migrate performance-critical passes to C++ in Phase 2.
+The Python-first approach was **successful** - v5 pipeline is now complete and working end-to-end. The decision to keep all passes in Python permanently has proven correct.
 
-**Key Benefits:**
-- 🚀 Rapid prototyping and iteration
-- 🔧 Easy debugging and testing
-- 📈 Incremental progress visibility
-- 🎯 Focus on correctness first, performance second
+**Key Benefits Achieved:**
+- ✅ Rapid prototyping and iteration
+- ✅ Easy debugging and testing
+- ✅ Incremental progress visibility
+- ✅ Correctness achieved
+- ✅ **No C++ migration needed** - Python performance is sufficient for compilation passes
 
 ---
 

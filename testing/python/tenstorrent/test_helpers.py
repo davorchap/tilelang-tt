@@ -8,7 +8,7 @@ implementation to the new Python implementation.
 
 def use_new_pipeline(mod, **kwargs):
     """
-    Helper to run the new pipeline on a module.
+    Helper to run the v5 pipeline on a module.
 
     Args:
         mod: IRModule to process
@@ -24,51 +24,6 @@ def use_new_pipeline(mod, **kwargs):
     kwargs.setdefault("verbose", False)
 
     return run_pipeline(mod, **kwargs)
-
-
-def get_pass_by_name(pass_name):
-    """
-    Get a pass instance by its legacy name.
-
-    This helps migrate tests that reference passes by string name.
-    """
-    from tilelang.tenstorrent.passes import (
-        InferTTLayout,
-        PropagateTTLayout,
-        TTTilesToCoreMap,
-        LowerTTTileIntrinsics,
-        GridToPersistentTT,
-    )
-
-    pass_map = {
-        "InferDefaultTTSchedule": InferTTLayout,
-        "InferDefaultTTShard": PropagateTTLayout,
-        "TTTilesToCoreMap": TTTilesToCoreMap,
-        "LowerGemmToTTIntrinsics": LowerTTTileIntrinsics,
-        "GridToPersistentTT": GridToPersistentTT,
-        # Add legacy names
-        "MemorySpaceLowerTT": lambda: GridToPersistentTT(),  # Integrated
-        "TilePadTT": lambda: TTTilesToCoreMap(),  # Integrated
-        "VerifyTTIR": lambda mod: mod,  # No-op, verification is integrated
-    }
-
-    pass_class = pass_map.get(pass_name)
-    if pass_class:
-        if callable(pass_class) and not isinstance(pass_class, type):
-            return pass_class()  # Already instantiated lambda
-        return pass_class()  # Instantiate the class
-
-    raise ValueError(f"Unknown pass name: {pass_name}")
-
-
-def apply_pass_compat(mod, pass_name, **kwargs):
-    """
-    Apply a pass using its legacy name with compatibility.
-
-    This is a bridge function for tests that use the old API.
-    """
-    pass_instance = get_pass_by_name(pass_name)
-    return pass_instance(mod)
 
 
 def convert_legacy_attrs(func):

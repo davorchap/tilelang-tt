@@ -43,7 +43,6 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 |----------|---------|----------|
 | **[guides/TIR_BASICS.md](guides/TIR_BASICS.md)** | TensorIR primer and TT lowering concepts | All developers |
 | **[guides/TT_Python_Implementation_Quickstart.md](guides/TT_Python_Implementation_Quickstart.md)** | Quick-start for Python pass development | Contributors |
-| **[guides/TT_Python_to_CPP_Migration.md](guides/TT_Python_to_CPP_Migration.md)** | Python→C++ migration guide | Backend developers |
 | **[guides/kernel_authoring_comparison.md](guides/kernel_authoring_comparison.md)** | DSL vs SDK kernel comparison | Kernel developers |
 
 ### 🔧 Setup & Configuration
@@ -84,8 +83,8 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 ### ✅ Completed
 - Target registration and Python orchestration (`tilelang/tenstorrent`).
-- Pure Python metadata-driven pipeline with 5 well-structured passes.
-- Layout-aware metadata pipeline (`InferTTLayout`, `PropagateTTLayout`, `TTTilesToCoreMap`) generating canonical runtime-argument schemas.
+- V5 metadata-driven pipeline with 14 passes organized in stages A-E.
+- Layout-aware metadata pipeline (v5 passes) generating canonical runtime-argument schemas.
 - Grid-to-persistent transformation with shard-aware guardrails and per-core runtime metadata tables in host artifacts.
 - IR-driven reader/compute/writer visitors aligned with the new runtime contract.
 - Mock-mode CI parity via `maint/scripts/local_build_and_test_tt.sh`.
@@ -110,12 +109,12 @@ TVM IRModule
     ↓
 Apply TT Defaults
     ↓
-Transform Pipeline (Python Implementation)
-    ├─ InferTTLayout (extract grid, infer layouts)
-    ├─ PropagateTTLayout (normalize and distribute)
-    ├─ TTTilesToCoreMap (work partition generation)
-    ├─ LowerTTTileIntrinsics (tile op lowering)
-    └─ GridToPersistentTT (final lowering + plan emission)
+V5 Transform Pipeline (14 Passes, Stages A-E)
+    ├─ Stage A: Metadata (infer_tt_layout_v5, propagate_tt_layout_v5, attach_tensor_accessor_tt)
+    ├─ Stage B: Partitioning (layout_aware_work_partition_tt_v5, grid_to_core_grid_v5)
+    ├─ Stage C: Protocol-less Lowering (lower_shared_to_cb_v5, lower_tt_tile_intrinsics_v5, build_tile_dfg_tt)
+    ├─ Stage D: Late Split & Protocol (split_device_kernel, configure_tensor_accessor_tt, lower_cb_intrinsics, insert_compute_init_tt, insert_dst_management_tt)
+    └─ Stage E: Finalization (finalize_persistent_signature_tt)
     ↓
 Code Generation (IR-Driven Visitors)
     ├─ Reader Kernel (NOC DRAM→L1)
