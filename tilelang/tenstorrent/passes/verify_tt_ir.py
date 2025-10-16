@@ -202,7 +202,8 @@ class MetadataValidator:
                 report.stats[f"{kernel_role}_arg_count"] = len(runtime_args)
 
                 # Verify essential args
-                if kernel_role in ["reader", "writer"] and not any("addr" in str(arg) for arg in runtime_args):
+                if kernel_role in ["reader", "writer"
+                                  ] and not any("addr" in str(arg) for arg in runtime_args):
                     report.add_issue(
                         ValidationLevel.WARNING,
                         "Runtime Args",
@@ -221,7 +222,8 @@ class ProtocolValidator:
             return
 
         # Check protocol insertion markers
-        if (kernel_role == "reader" or kernel_role == "writer") and (not func.attrs or "tt.cb_protocol_inserted" not in func.attrs):
+        if (kernel_role == "reader" or kernel_role
+                == "writer") and (not func.attrs or "tt.cb_protocol_inserted" not in func.attrs):
             report.add_issue(
                 ValidationLevel.WARNING,
                 "Protocol",
@@ -303,7 +305,9 @@ class StructureValidator:
                 suggestion="Apply D1 (SplitDeviceKernel) for 3-kernel architecture")
 
         # Check for balanced split
-        if kernel_roles["reader"] and kernel_roles["compute"] and kernel_roles["writer"] and (len(kernel_roles["reader"]) != len(kernel_roles["compute"]) or len(kernel_roles["compute"]) != len(kernel_roles["writer"])):
+        if kernel_roles["reader"] and kernel_roles["compute"] and kernel_roles["writer"] and (
+                len(kernel_roles["reader"]) != len(kernel_roles["compute"]) or
+                len(kernel_roles["compute"]) != len(kernel_roles["writer"])):
             report.add_issue(
                 ValidationLevel.WARNING,
                 "Structure",

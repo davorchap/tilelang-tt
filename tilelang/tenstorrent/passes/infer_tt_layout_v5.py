@@ -246,7 +246,8 @@ class InferTTLayout_v5:
         def extract_from_node(node):
             nonlocal grid_x, grid_y
 
-            if isinstance(node, tir.AttrStmt) and node.attr_key == "thread_extent" and hasattr(node.node, "thread_tag"):
+            if isinstance(node, tir.AttrStmt) and node.attr_key == "thread_extent" and hasattr(
+                    node.node, "thread_tag"):
                 tag = node.node.thread_tag
                 extent = node.value
 

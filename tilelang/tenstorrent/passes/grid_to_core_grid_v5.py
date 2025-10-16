@@ -121,7 +121,8 @@ def GridToCoreGrid_v5(func, mod, ctx):
                 if isinstance(node, tir.For):
                     if self._is_grid_loop(node):
                         self.grid_loops_found.append(node)
-                elif isinstance(node, tir.AttrStmt) and (self._is_kernel_attr(node) or self._is_thread_binding_attr(node)):
+                elif isinstance(node, tir.AttrStmt) and (self._is_kernel_attr(node) or
+                                                         self._is_thread_binding_attr(node)):
                     self.grid_loops_found.append(node)
 
             stmt_functor.post_order_visit(block.body, visitor)
@@ -528,7 +529,8 @@ def validate_core_launch(func):
                     if "launch_core" in call_name:
                         self.has_launch_core = True
                         self.launch_calls.append(call_name)
-                elif isinstance(node, tir.AttrStmt) and hasattr(node, 'attr_key') and "kernel" in str(node.attr_key).lower():
+                elif isinstance(node, tir.AttrStmt) and hasattr(
+                        node, 'attr_key') and "kernel" in str(node.attr_key).lower():
                     self.has_kernel_block = True
 
             stmt_functor.post_order_visit(stmt, visitor)

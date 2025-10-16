@@ -197,7 +197,8 @@ class DSTProtocolInserter:
         """Wrap loops with DST management for accumulation pattern"""
 
         # Check if this is the K-loop to wrap
-        if self.dst_pattern == DSTPattern.ACCUMULATION and not self.dst_wrapped and self._is_reduction_loop(op):
+        if self.dst_pattern == DSTPattern.ACCUMULATION and not self.dst_wrapped and self._is_reduction_loop(
+                op):
             # Wrap entire K-loop with DST management
             wrapped_body = self._wrap_accumulation_loop(op)
             self.dst_wrapped = True
@@ -228,7 +229,8 @@ class DSTProtocolInserter:
     def visit_evaluate(self, op):
         """Wrap single compute operations if not in loop"""
 
-        if self.dst_pattern == DSTPattern.SINGLE_TILE and not self.dst_wrapped and self._is_compute_op(op):
+        if self.dst_pattern == DSTPattern.SINGLE_TILE and not self.dst_wrapped and self._is_compute_op(
+                op):
             # Wrap with DST protocol
             wrapped = self._wrap_single_tile_compute(op)
             self.dst_wrapped = True

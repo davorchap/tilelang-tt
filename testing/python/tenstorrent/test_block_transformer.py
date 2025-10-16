@@ -29,7 +29,7 @@ class TestBlockTransformer:
 
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
+                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
                 T.evaluate(0)
 
         # Create a simple transformer that counts blocks
@@ -65,8 +65,8 @@ class TestBlockTransformer:
 
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
-                B_local = T.alloc_buffer((16, 16), "float16", scope="local")
+                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
+                B_local = T.alloc_buffer((16, 16), "float16", scope="local")  # noqa: F841
                 T.evaluate(0)
 
         class SharedBufferCollector(BlockTransformer):
@@ -104,7 +104,7 @@ class TestBlockTransformer:
 
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
+                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
                 T.evaluate(0)
 
         class SharedToCBTransformer(BlockTransformer):
@@ -156,7 +156,7 @@ class TestBlockTransformer:
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 with T.block("compute"):
-                    A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
+                    A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
                     for i, j in T.grid(32, 32):
                         A_shared[i, j] = A[i, j]
 
@@ -189,9 +189,11 @@ class TestBlockTransformer:
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 with T.block("outer"):
-                    A_shared_outer = T.alloc_buffer((64, 64), "float16", scope="shared")
+                    A_shared_outer = T.alloc_buffer(  # noqa: F841
+                        (64, 64), "float16", scope="shared")
                     with T.block("inner"):
-                        A_shared_inner = T.alloc_buffer((32, 32), "float16", scope="shared")
+                        A_shared_inner = T.alloc_buffer(  # noqa: F841
+                            (32, 32), "float16", scope="shared")
                         T.evaluate(0)
 
         class NestedBlockCounter(BlockTransformer):
@@ -240,7 +242,7 @@ class TestCBIntrinsicGeneration:
 
             @T.prim_func
             def func():
-                A = T.alloc_buffer((128, 64), "float32", scope="shared")
+                A = T.alloc_buffer((128, 64), "float32", scope="shared")  # noqa: F841
                 T.evaluate(0)
 
         # Get the buffer from the function

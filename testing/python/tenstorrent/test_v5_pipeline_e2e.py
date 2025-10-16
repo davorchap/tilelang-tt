@@ -27,9 +27,8 @@ logger = logging.getLogger(__name__)
 
 # Import TVM through tilelang
 try:
-    import tilelang
+    import tilelang  # noqa: F401 - needed for TVM initialization
     from tilelang import tvm
-    from tvm import tir
     from tvm.script import tir as T
     import tvm.script
     TVM_AVAILABLE = True
