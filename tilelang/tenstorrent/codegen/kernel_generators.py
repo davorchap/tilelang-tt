@@ -148,8 +148,7 @@ class EnhancedReaderKernelGenerator(EnhancedKernelGenerator):
 
     def _generate_includes(self):
         """Generate includes for reader kernel"""
-        self.code.writeln('#include "compute_kernel_api/common.h"')
-        self.code.writeln('#include "compute_kernel_api/tile_move_copy.h"')
+        self.code.writeln('#include "dataflow_api.h"')
         self.code.writeln()
 
 
@@ -158,6 +157,7 @@ class EnhancedComputeKernelGenerator(EnhancedKernelGenerator):
 
     def _generate_includes(self):
         """Generate includes for compute kernel"""
+        self.code.writeln('#include "ckernel_include.h"')
         self.code.writeln('#include "compute_kernel_api/common.h"')
 
         # Analyze function to determine needed includes
@@ -222,8 +222,7 @@ class EnhancedWriterKernelGenerator(EnhancedKernelGenerator):
 
     def _generate_includes(self):
         """Generate includes for writer kernel"""
-        self.code.writeln('#include "compute_kernel_api/common.h"')
-        self.code.writeln('#include "compute_kernel_api/tile_move_copy.h"')
+        self.code.writeln('#include "dataflow_api.h"')
         self.code.writeln()
 
 
