@@ -25,9 +25,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Import TVM
+# Import TVM through tilelang
 try:
-    import tvm
+    import tilelang
+    from tilelang import tvm
     from tvm import tir
     from tvm.script import tir as T
     import tvm.script
@@ -139,32 +140,33 @@ class TestE2EPipeline:
                 # Grid of thread blocks
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for bx in T.thread_binding(8, thread="blockIdx.x"):
-                        # Shared memory buffers
-                        A_shared = T.alloc_buffer([32, 32], dtype="float16", scope="shared")
-                        B_shared = T.alloc_buffer([32, 32], dtype="float16", scope="shared")
+                        with T.block("compute"):
+                            # Shared memory buffers
+                            A_shared = T.alloc_buffer([32, 32], dtype="float16", scope="shared")
+                            B_shared = T.alloc_buffer([32, 32], dtype="float16", scope="shared")
 
-                        # Load tiles to shared
-                        for ty in T.thread_binding(8, thread="threadIdx.y"):
-                            for tx in T.thread_binding(8, thread="threadIdx.x"):
-                                A_shared[ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4] = \
-                                    A[by * 32: by * 32 + 32, bx * 32: bx * 32 + 32][
-                                        ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4]
-
-                                B_shared[ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4] = \
-                                    B[by * 32: by * 32 + 32, bx * 32: bx * 32 + 32][
-                                        ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4]
-
-                        # Compute
-                        for k in T.serial(8):
+                            # Load tiles to shared
                             for ty in T.thread_binding(8, thread="threadIdx.y"):
                                 for tx in T.thread_binding(8, thread="threadIdx.x"):
-                                    for i, j in T.grid(4, 4):
-                                        # Tile-level matmul intrinsic
-                                        T.evaluate(
-                                            T.call_extern("void", "tt.tile.matmul", A_shared.data,
-                                                          B_shared.data, C.data,
-                                                          by * 32 + ty * 4 + i,
-                                                          bx * 32 + tx * 4 + j, k * 32))
+                                    A_shared[ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4] = \
+                                        A[by * 32: by * 32 + 32, bx * 32: bx * 32 + 32][
+                                            ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4]
+
+                                    B_shared[ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4] = \
+                                        B[by * 32: by * 32 + 32, bx * 32: bx * 32 + 32][
+                                            ty * 4: ty * 4 + 4, tx * 4: tx * 4 + 4]
+
+                            # Compute
+                            for k in T.serial(8):
+                                for ty in T.thread_binding(8, thread="threadIdx.y"):
+                                    for tx in T.thread_binding(8, thread="threadIdx.x"):
+                                        for i, j in T.grid(4, 4):
+                                            # Tile-level matmul intrinsic
+                                            T.evaluate(
+                                                T.call_extern("void", "tt.tile.matmul", A_shared.data,
+                                                              B_shared.data, C.data,
+                                                              by * 32 + ty * 4 + i,
+                                                              bx * 32 + tx * 4 + j, k * 32))
 
         # Apply full pipeline
         result = apply_full_pipeline(GemmModule)
@@ -222,27 +224,28 @@ class TestE2EPipeline:
                 T.func_attr({"global_symbol": "add"})
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for bx in T.thread_binding(8, thread="blockIdx.x"):
-                        # Shared memory
-                        A_shared = T.alloc_buffer([32, 32], dtype="float16", scope="shared")
-                        B_shared = T.alloc_buffer([32, 32], dtype="float16", scope="shared")
+                        with T.block("compute"):
+                            # Shared memory
+                            A_shared = T.alloc_buffer([32, 32], dtype="float16", scope="shared")
+                            B_shared = T.alloc_buffer([32, 32], dtype="float16", scope="shared")
 
-                        # Load to shared
-                        for ty in T.thread_binding(8, thread="threadIdx.y"):
-                            for tx in T.thread_binding(8, thread="threadIdx.x"):
-                                for i, j in T.grid(4, 4):
-                                    A_shared[ty * 4 + i, tx * 4 + j] = \
-                                        A[by * 32 + ty * 4 + i, bx * 32 + tx * 4 + j]
-                                    B_shared[ty * 4 + i, tx * 4 + j] = \
-                                        B[by * 32 + ty * 4 + i, bx * 32 + tx * 4 + j]
+                            # Load to shared
+                            for ty in T.thread_binding(8, thread="threadIdx.y"):
+                                for tx in T.thread_binding(8, thread="threadIdx.x"):
+                                    for i, j in T.grid(4, 4):
+                                        A_shared[ty * 4 + i, tx * 4 + j] = \
+                                            A[by * 32 + ty * 4 + i, bx * 32 + tx * 4 + j]
+                                        B_shared[ty * 4 + i, tx * 4 + j] = \
+                                            B[by * 32 + ty * 4 + i, bx * 32 + tx * 4 + j]
 
-                        # Compute
-                        for ty in T.thread_binding(8, thread="threadIdx.y"):
-                            for tx in T.thread_binding(8, thread="threadIdx.x"):
-                                # Tile-level add intrinsic
-                                T.evaluate(
-                                    T.call_extern("void", "tt.tile.add", A_shared.data,
-                                                  B_shared.data, C.data, by * 32 + ty * 4,
-                                                  bx * 32 + tx * 4))
+                            # Compute
+                            for ty in T.thread_binding(8, thread="threadIdx.y"):
+                                for tx in T.thread_binding(8, thread="threadIdx.x"):
+                                    # Tile-level add intrinsic
+                                    T.evaluate(
+                                        T.call_extern("void", "tt.tile.add", A_shared.data,
+                                                      B_shared.data, C.data, by * 32 + ty * 4,
+                                                      bx * 32 + tx * 4))
 
         # Apply full pipeline
         result = apply_full_pipeline(AddModule)

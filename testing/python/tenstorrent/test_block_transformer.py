@@ -30,7 +30,7 @@ class TestBlockTransformer:
 
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                T.alloc_buffer((32, 32), "float16", scope="shared")
+                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
                 T.evaluate(0)
 
         # Create a simple transformer that counts blocks
@@ -66,8 +66,8 @@ class TestBlockTransformer:
 
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                T.alloc_buffer((32, 32), "float16", scope="shared")
-                T.alloc_buffer((16, 16), "float16", scope="local")
+                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
+                B_local = T.alloc_buffer((16, 16), "float16", scope="local")
                 T.evaluate(0)
 
         class SharedBufferCollector(BlockTransformer):
@@ -105,7 +105,7 @@ class TestBlockTransformer:
 
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
-                T.alloc_buffer((32, 32), "float16", scope="shared")
+                A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
                 T.evaluate(0)
 
         class SharedToCBTransformer(BlockTransformer):
@@ -134,7 +134,7 @@ class TestBlockTransformer:
                 return alloc_buffers, cb_metadata
 
             def create_cb_allocation(self, cb_info):
-                return T.Evaluate(
+                return tvm.tir.Evaluate(
                     create_cb_intrinsic(cb_info['cb_name'], cb_info['shape'], cb_info['dtype']))
 
         func = TestModule["func"]
@@ -190,9 +190,9 @@ class TestBlockTransformer:
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 with T.block("outer"):
-                    T.alloc_buffer((64, 64), "float16", scope="shared")
+                    A_shared_outer = T.alloc_buffer((64, 64), "float16", scope="shared")
                     with T.block("inner"):
-                        T.alloc_buffer((32, 32), "float16", scope="shared")
+                        A_shared_inner = T.alloc_buffer((32, 32), "float16", scope="shared")
                         T.evaluate(0)
 
         class NestedBlockCounter(BlockTransformer):
@@ -221,15 +221,17 @@ class TestCBIntrinsicGeneration:
         intrinsic = create_cb_intrinsic("cb_test", [32, 32], "float16")
 
         assert isinstance(intrinsic, tvm.tir.Call)
-        assert "tt.alloc_cb" in str(intrinsic.op)
+        # The call_extern op is 'tir.call_extern', function name is first arg
+        assert str(intrinsic.op) == "Op(tir.call_extern)"
 
-        # Check arguments
+        # Check arguments: [function_name, cb_name, dim1, dim2, dtype]
         args = intrinsic.args
-        assert len(args) == 4  # name, dim1, dim2, dtype
-        assert args[0].value == "cb_test"
-        assert args[1].value == 32
-        assert args[2].value == 32
-        assert args[3].value == "float16"
+        assert len(args) == 5  # function_name, cb_name, dim1, dim2, dtype
+        assert args[0] == "tt.alloc_cb"  # Function name
+        assert args[1].value == "cb_test"  # CB name
+        assert args[2].value == 32  # dim1
+        assert args[3].value == 32  # dim2
+        assert args[4].value == "float16"  # dtype
 
     def test_buffer_info_extraction(self):
         """Test extracting buffer information"""
@@ -239,7 +241,7 @@ class TestCBIntrinsicGeneration:
 
             @T.prim_func
             def func():
-                T.alloc_buffer((128, 64), "float32", scope="shared")
+                A = T.alloc_buffer((128, 64), "float32", scope="shared")
                 T.evaluate(0)
 
         # Get the buffer from the function
