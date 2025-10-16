@@ -102,3 +102,7 @@ tilelang/jit/adapter/cython/.cycache
 tt.plan.json
 *.plan.json
 tt_gemm_artifacts/
+
+# Binary artifacts - should not be tracked
+*.so
+*.a
