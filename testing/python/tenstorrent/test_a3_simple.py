@@ -10,7 +10,9 @@ import os
 # Add passes directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../../tilelang/tenstorrent/passes"))
 
-import tvm
+# Import tilelang first to get proper TVM
+import tilelang
+from tilelang import tvm
 from tvm.script import tir as T
 import tvm.script
 

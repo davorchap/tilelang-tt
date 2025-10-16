@@ -5,7 +5,9 @@ in the new metadata-driven architecture. All tests are skipped.
 """
 
 import pytest
-import tvm
+# Import tilelang first to get proper TVM
+import tilelang
+from tilelang import tvm
 from tvm import tir
 
 # Skip the entire module - legacy tests not relevant to new architecture

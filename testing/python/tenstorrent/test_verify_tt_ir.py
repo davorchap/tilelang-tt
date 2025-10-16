@@ -7,7 +7,9 @@ All tests in this file are skipped.
 """
 
 import pytest
-import tvm
+# Import tilelang first to get proper TVM
+import tilelang
+from tilelang import tvm
 from tvm import tir
 
 # Skip the entire module

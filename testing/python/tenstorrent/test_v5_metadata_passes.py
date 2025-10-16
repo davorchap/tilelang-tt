@@ -7,7 +7,9 @@ Tests the updated passes:
 """
 
 import pytest
-import tvm
+# Import tilelang first to get proper TVM
+import tilelang
+from tilelang import tvm
 from tvm.script import tir as T
 import tvm.script
 import sys

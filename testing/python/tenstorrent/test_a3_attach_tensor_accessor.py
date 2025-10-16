@@ -4,11 +4,14 @@ Tests the tensor accessor attachment functionality following v5 specification.
 """
 
 import pytest
-import tvm
-from tvm.script import tir as T
-import tvm.script
 import sys
 import os
+
+# Import tilelang first to get proper TVM
+import tilelang
+from tilelang import tvm
+from tvm.script import tir as T
+import tvm.script
 
 # Add passes directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../../tilelang/tenstorrent/passes"))

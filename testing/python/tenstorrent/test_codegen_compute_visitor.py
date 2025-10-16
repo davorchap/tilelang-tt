@@ -1,6 +1,8 @@
 """Test TTComputeCodegenVisitor (Task 2: IR-Driven Codegen)."""
 
-import tvm
+# Import tilelang first to get proper TVM
+import tilelang
+from tilelang import tvm
 from tvm import tir
 
 
