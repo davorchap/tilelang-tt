@@ -1,8 +1,8 @@
 # TileLang Tenstorrent Backend Architecture
 
-**Version:** 2.0
-**Date:** 2025-10-08
-**Status:** Production
+**Version:** 3.0 (v5 Pipeline)
+**Date:** 2025-10-16
+**Status:** Production (Python-only backend)
 
 ## Overview
 
@@ -73,14 +73,18 @@ TT-Metalium C++ Code
 
 **Purpose:** Ensure GPU-style kernels run on TT with sensible defaults.
 
-### Phase 2.5: Layout-Aware Metadata (Planned)
+### Phase 2.5: Layout-Aware Metadata (v5 Stages A-B)
 
-**Why add a new stage?** Default schedule/shard metadata does not capture user intent for DRAM vs L1 residency, ND sharding, or tile-order annotations. The layout-aware stage introduces explicit buffer- and function-level attributes that downstream passes and codegen can rely on.
+**Why needed?** Default schedule/shard metadata does not capture user intent for DRAM vs L1 residency, ND sharding, or tile-order annotations. The layout-aware stage introduces explicit buffer- and function-level attributes that downstream passes and codegen can rely on.
 
-**Passes (new):**
-- `InferTTLayout` – Normalize user annotations (`annotate_tt_layout`) and emit `tt.buffer.<name>` dictionaries with memory space, layout, dtype, tile shape, and optional N‑D shard metadata. Validates L1 shards and rejects halo hints.
-- `PropagateTTLayout` – Reads buffer metadata and stamps `tt.cb.<name>` attributes describing circular buffer geometry (`page_size`, `depth`, `data_format`) for each DRAM↔L1 copy.
-- `LayoutAwareWorkPartitionTT` – Chooses per-core work assignments based on buffer residency. Emits `tt.partition_mode` (`global` vs `local_shard`), `tt.core_ranges`, `tt.grid_tiles`, `tt.shard_grid`, `tt.local_shape_tiles`, and canonical `tt.runtime_args`.
+**v5 Stage A: Metadata (3 passes)**
+- `infer_tt_layout_v5` – Normalize user annotations (`annotate_tt_layout`) and emit `tt.buffer.<name>` dictionaries with memory space, layout, dtype, tile shape, and optional N‑D shard metadata. Validates L1 shards and rejects halo hints.
+- `propagate_tt_layout_v5` – Reads buffer metadata and stamps `tt.cb.<name>` attributes describing circular buffer geometry (`page_size`, `depth`, `data_format`) for each DRAM↔L1 copy.
+- `attach_tensor_accessor_tt` – Attaches TensorAccessor metadata for buffer addressing.
+
+**v5 Stage B: Partitioning (2 passes)**
+- `layout_aware_work_partition_tt_v5` – Chooses per-core work assignments based on buffer residency. Emits `tt.partition_mode` (`global` vs `local_shard`), `tt.core_ranges`, `tt.grid_tiles`, `tt.shard_grid`, `tt.local_shape_tiles`, and canonical `tt.runtime_args`.
+- `grid_to_core_grid_v5` – Maps logical grid coordinates to physical core coordinates.
 
 **PrimFunc Attributes after this stage:**
 ```json
@@ -115,47 +119,50 @@ TT-Metalium C++ Code
 
 This metadata becomes the authoritative source for later stages.
 
-### Phase 3: TT-Specific Optimization
+### Phase 3: v5 TT-Specific Transform Pipeline
 
 **Entry Point:** `tilelang/engine/tenstorrent/lower.py` → `OptimizeForTargetTT()`
 
-**TT-Specific Transform Passes (updated set):**
+**v5 Pipeline: 14 Passes in Stages A-E (All Python)**
 
-1. **`InferTTLayout`** *(new)* – Canonicalize buffer layout schema, validate N‑D sharding, enforce L1 constraints.
-2. **`PropagateTTLayout`** *(new)* – Derive circular buffer (`tt.cb.*`) metadata from layout information.
-3. **`LayoutAwareWorkPartitionTT`** *(new)* – Select cores and runtime ranges based on residency (`global` vs `local_shard`).
-4. **`grid_to_persistent_tt`** *(updated)* – Transform GPU grid to persistent loop using shard-aware `(m, n)` recovery.
-   - Input: GPU-style grid kernel (`with T.Kernel(8, 8) as (bx, by)`)
-   - Output: Persistent kernel with tile iteration
-   ```python
-   # Before
-   with T.Kernel(8, 8) as (bx, by):
-       C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
+**Stage A: Metadata (3 passes)**
+1. `infer_tt_layout_v5` - Canonicalize buffer layout schema, validate N-D sharding
+2. `propagate_tt_layout_v5` - Derive circular buffer metadata from layout
+3. `attach_tensor_accessor_tt` - Attach TensorAccessor metadata for buffer addressing
 
-   # After
-   core_id = get_core_id()
-   start_tile, count = get_tile_assignment(core_id)
-   for tile_id in range(start_tile, start_tile + count):
-       bx = tile_id // 8
-       by = tile_id % 8
-       C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
-   ```
+**Stage B: Partitioning (2 passes)**
+4. `layout_aware_work_partition_tt_v5` - Select cores and runtime ranges based on residency
+5. `grid_to_core_grid_v5` - Map logical grid to physical core coordinates
 
-5. **`memory_space_lower_tt`** - Lower DRAM to L1 circular buffers
-   - Input: DRAM buffer allocations
-   - Output: L1 circular buffer allocations
-   ```python
-   # Before
-   A = T.Buffer((256, 256), "float16")  # DRAM
+**Stage C: Protocol-less Lowering (3 passes)**
+6. `lower_shared_to_cb_v5` - Lower shared memory to circular buffers (no NOC/CB protocol yet)
+7. `lower_tt_tile_intrinsics_v5` - Lower TT tile operations (matmul, elementwise) to intrinsics
+8. `build_tile_dfg_tt` - Build tile dataflow graph for optimization
 
-   # After
-   cb_in0 = CircularBuffer(cb_id=0, num_pages=2, page_size=2048)  # L1
-   ```
+**Stage D: Late Split & Protocol (5 passes)**
+9. `split_device_kernel` - Split single kernel into reader/compute/writer kernels
+10. `configure_tensor_accessor_tt` - Configure TensorAccessor for each kernel
+11. `lower_cb_intrinsics` - Lower circular buffer operations to NOC/CB API calls
+12. `insert_compute_init_tt` - Insert compute initialization (DST acquire, mm_init)
+13. `insert_dst_management_tt` - Insert DST lifecycle (acquire→commit→pack→release)
 
-6. **`tile_pad_tt`** - Pad buffers to 32×32 tile boundaries
-   - Input: Arbitrary buffer shapes
-   - Output: Tile-aligned shapes (multiples of 32)
+**Stage E: Finalization (1 pass)**
+14. `finalize_persistent_signature_tt` - Finalize runtime signature and metadata
 
+**Example: Grid to Persistent Transformation**
+```python
+# Before (GPU-style grid)
+with T.Kernel(8, 8) as (bx, by):
+    C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
+
+# After (persistent loop)
+core_id = get_core_id()
+start_tile, count = get_tile_assignment(core_id)
+for tile_id in range(start_tile, start_tile + count):
+    bx = tile_id // 8
+    by = tile_id % 8
+    C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
+```
 
 **Common Optimization Passes (11, shared with CUDA):**
 - `FlattenBuffer` - Flatten multi-dim buffers to 1D
@@ -173,7 +180,9 @@ This metadata becomes the authoritative source for later stages.
 **Verification Pass:**
 - **`verify_tt_ir`** - Verify TT constraints (grid size, CB counts)
 
-**Total:** 6 TT-specific + 11 shared + 1 verification = 18 passes
+**Total:** 14 v5 TT-specific + 11 shared + 1 verification = 26 passes
+
+**Key Architectural Decision:** All TT backend passes remain in Python for maintainability and rapid iteration. No C++ migration planned.
 
 ---
 
@@ -530,21 +539,34 @@ for (uint32_t tile_idx = 0; tile_idx < num_output_tiles; ++tile_idx) {
 
 ## 4. Current Status & Gaps
 
-### ✅ Complete (95 tests passing)
+### ✅ Complete (v5 Pipeline - 120 tests passing, 21 skipped)
+
+**v5 Pipeline (14 Passes):**
+- ✅ Stage A: Metadata (infer_tt_layout_v5, propagate_tt_layout_v5, attach_tensor_accessor_tt)
+- ✅ Stage B: Partitioning (layout_aware_work_partition_tt_v5, grid_to_core_grid_v5)
+- ✅ Stage C: Protocol-less Lowering (lower_shared_to_cb_v5, lower_tt_tile_intrinsics_v5, build_tile_dfg_tt)
+- ✅ Stage D: Late Split & Protocol (split_device_kernel, configure_tensor_accessor_tt, lower_cb_intrinsics, insert_compute_init_tt, insert_dst_management_tt)
+- ✅ Stage E: Finalization (finalize_persistent_signature_tt)
+
+**Python-Only Architecture:**
+- ✅ All 14 passes implemented in Python
+- ✅ Old 5-pass pipeline removed (PR #135)
+- ✅ No C++ migration planned - Python provides maintainability and rapid iteration
 
 **IR Pipeline:**
 - ✅ Target registration
 - ✅ Default annotations (schedule, shard)
-- ✅ Metadata inference (tile assignments, DRAM layout)
-- ✅ Transform pipeline (6 TT-specific + 11 shared passes)
+- ✅ Layout-aware metadata (buffer residency, ND sharding)
+- ✅ Transform pipeline (14 v5 + 11 shared + 1 verification = 26 passes)
 - ✅ Verification (TT IR constraints)
 
 **Codegen:**
 - ✅ IR-driven visitor infrastructure
 - ✅ 3-kernel architecture (reader/compute/writer)
-- ✅ Host program generation
+- ✅ Host program generation with TensorAccessor metadata
 - ✅ Conditional compilation (real/mock modes)
 - ✅ DST lifecycle (acquire→compute→commit→pack→release)
+- ✅ Per-core runtime metadata tables
 
 **SDK Integration:**
 - ✅ External SDK approach (like CUDA/ROCm)
@@ -552,22 +574,22 @@ for (uint32_t tile_idx = 0; tile_idx < num_output_tiles; ++tile_idx) {
 - ✅ Real vs Mock build modes
 - ✅ CI workflows (mock + SDK validation)
 
-### 🚧 Incomplete (Next Steps)
+**Test Suite:**
+- ✅ 120 tests passing
+- ✅ 21 tests skipped (TVM bugs, hardware-specific features)
+- ✅ 85.1% pass rate
 
-- **Pattern Detection:**
-- ✅ `LowerGemmToTTIntrinsics` pass rewrites frontend `T.gemm()` regions into TT intrinsics
-- ❌ Manual matmul loops without GEMM markers remain unsupported
-- ❌ Element-wise operations not annotated
-- ⚠️ Codegen uses heuristics (variable name "kt" → K-loop) instead of annotations
+### 🎯 Next Steps
 
-**Issue:** Handwritten matmul loops (without `T.gemm`) still lower to raw array operations instead of TT intrinsics.
-
-**Solution:** Either express matmuls through `T.gemm` (preferred) or extend `lower_gemm_to_tt_intrinsics.cc` with a guarded fallback in a future milestone. See [TT_BACKEND_TASKS.md](./TT_BACKEND_TASKS.md) for the current plan.
+**SFPU Support (Future):**
+- ⚠️ `LowerToSFPU` pass not yet implemented (Python implementation planned)
+- ⚠️ T.Parallel (threadIdx) constructs not supported yet
+- ✅ Tile-level parallelism (blockIdx) fully working
 
 **SDK Validation:**
 - ⚠️ Pending SDK access for hardware testing
-- ⚠️ API gaps may exist (EnqueueWriteBuffer, SetRuntimeArgs)
-- ⚠️ Performance tuning needed
+- ⚠️ API validation needed (EnqueueWriteBuffer, SetRuntimeArgs)
+- ⚠️ Performance tuning and optimization
 
 ---
 
@@ -743,7 +765,7 @@ cmake --build build -j$(nproc)
 - ✅ No hardware required
 - ✅ Fast iteration
 - ✅ Complete code generation
-- ✅ All 95 tests pass
+- ✅ 120 tests passing (21 skipped)
 
 **Limitations:**
 - ❌ Cannot execute on hardware
@@ -817,17 +839,21 @@ See [METALIUM_SETUP_GUIDE.md](./METALIUM_SETUP_GUIDE.md) for SDK setup.
 ### Testing
 
 ```bash
-# All TT backend tests
+# All TT backend tests (120 passing, 21 skipped)
 pytest testing/python/tenstorrent/ -v
 
+# Quick summary
+pytest testing/python/tenstorrent/ --tb=no -q
+
 # Specific categories
-pytest testing/python/tenstorrent/test_metadata_inference.py -v     # Metadata inference
-pytest testing/python/tenstorrent/test_persistent_lowering.py -v    # Persistent loop
-pytest testing/python/tenstorrent/test_codegen_pipeline.py -v       # Code generation
+pytest testing/python/tenstorrent/test_target_registration.py -v     # Target registration
+pytest testing/python/tenstorrent/test_v5_passes_integration.py -v   # v5 pipeline integration
+pytest testing/python/tenstorrent/test_codegen_pipeline.py -v        # Code generation
+pytest testing/python/tenstorrent/test_jit_decorator.py -v           # JIT decorator
 ```
 
 ---
 
-**Last Updated:** 2025-10-08
+**Last Updated:** 2025-10-16
 **Maintainer:** TileLang Tenstorrent Team
 **Repository:** https://github.com/davorchap/tilelang-tt
