@@ -11,7 +11,7 @@ from typing import Dict, Any
 import logging
 
 from .tir_visitor import TIRToMetaliumVisitor
-from .codegen_tt import CodeBuffer
+from .codegen_tt import CodeBuffer, use_real_metalium
 
 try:
     import tvm
@@ -148,7 +148,13 @@ class EnhancedReaderKernelGenerator(EnhancedKernelGenerator):
 
     def _generate_includes(self):
         """Generate includes for reader kernel"""
-        self.code.writeln('#include "dataflow_api.h"')
+        if use_real_metalium():
+            # Real SDK uses dataflow_api.h
+            self.code.writeln('#include "dataflow_api.h"')
+        else:
+            # Mock mode uses compute_kernel_api headers
+            self.code.writeln('#include "compute_kernel_api/common.h"')
+            self.code.writeln('#include "compute_kernel_api/tile_move_copy.h"')
         self.code.writeln()
 
 
@@ -157,18 +163,33 @@ class EnhancedComputeKernelGenerator(EnhancedKernelGenerator):
 
     def _generate_includes(self):
         """Generate includes for compute kernel"""
-        self.code.writeln('#include "ckernel_include.h"')
-        self.code.writeln('#include "compute_kernel_api/common.h"')
+        if use_real_metalium():
+            # Real SDK requires ckernel_include.h first
+            self.code.writeln('#include "ckernel_include.h"')
+            self.code.writeln('#include "compute_kernel_api/common.h"')
 
-        # Analyze function to determine needed includes
-        includes_needed = self._analyze_compute_ops()
+            # Analyze function to determine needed includes
+            includes_needed = self._analyze_compute_ops()
 
-        if "matmul" in includes_needed:
-            self.code.writeln('#include "compute_kernel_api/matmul.h"')
-        if "binary" in includes_needed:
-            self.code.writeln('#include "compute_kernel_api/eltwise_binary.h"')
-        if "unary" in includes_needed:
-            self.code.writeln('#include "compute_kernel_api/eltwise_unary.h"')
+            if "matmul" in includes_needed:
+                self.code.writeln('#include "compute_kernel_api/matmul.h"')
+            if "binary" in includes_needed:
+                self.code.writeln('#include "compute_kernel_api/eltwise_binary.h"')
+            if "unary" in includes_needed:
+                self.code.writeln('#include "compute_kernel_api/eltwise_unary.h"')
+        else:
+            # Mock mode
+            self.code.writeln('#include "compute_kernel_api/common.h"')
+
+            # Analyze function to determine needed includes
+            includes_needed = self._analyze_compute_ops()
+
+            if "matmul" in includes_needed:
+                self.code.writeln('#include "compute_kernel_api/matmul.h"')
+            if "binary" in includes_needed:
+                self.code.writeln('#include "compute_kernel_api/eltwise_binary.h"')
+            if "unary" in includes_needed:
+                self.code.writeln('#include "compute_kernel_api/eltwise_unary.h"')
 
         self.code.writeln()
 
@@ -222,7 +243,13 @@ class EnhancedWriterKernelGenerator(EnhancedKernelGenerator):
 
     def _generate_includes(self):
         """Generate includes for writer kernel"""
-        self.code.writeln('#include "dataflow_api.h"')
+        if use_real_metalium():
+            # Real SDK uses dataflow_api.h
+            self.code.writeln('#include "dataflow_api.h"')
+        else:
+            # Mock mode uses compute_kernel_api headers
+            self.code.writeln('#include "compute_kernel_api/common.h"')
+            self.code.writeln('#include "compute_kernel_api/tile_move_copy.h"')
         self.code.writeln()
 
 
