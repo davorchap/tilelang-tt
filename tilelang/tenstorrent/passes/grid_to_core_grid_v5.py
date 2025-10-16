@@ -121,9 +121,8 @@ def GridToCoreGrid_v5(func, mod, ctx):
                 if isinstance(node, tir.For):
                     if self._is_grid_loop(node):
                         self.grid_loops_found.append(node)
-                elif isinstance(node, tir.AttrStmt):
-                    if self._is_kernel_attr(node) or self._is_thread_binding_attr(node):
-                        self.grid_loops_found.append(node)
+                elif isinstance(node, tir.AttrStmt) and (self._is_kernel_attr(node) or self._is_thread_binding_attr(node)):
+                    self.grid_loops_found.append(node)
 
             stmt_functor.post_order_visit(block.body, visitor)
 
@@ -162,12 +161,10 @@ def GridToCoreGrid_v5(func, mod, ctx):
         def _extract_grid_dims(self, kernel_attr):
             """Extract grid dimensions from T.Kernel"""
             # T.Kernel typically stores grid size in the value
-            if hasattr(kernel_attr, 'value'):
-                # Try to extract dimensions from the value
-                if isinstance(kernel_attr.value, tir.IntImm):
-                    # Single dimension
-                    return [kernel_attr.value.value, 1]
-                # Default to core grid if can't extract
+            if hasattr(kernel_attr, 'value') and isinstance(kernel_attr.value, tir.IntImm):
+                # Single dimension
+                return [kernel_attr.value.value, 1]
+            # Default to core grid if can't extract
 
             return self.core_grid
 
@@ -531,10 +528,8 @@ def validate_core_launch(func):
                     if "launch_core" in call_name:
                         self.has_launch_core = True
                         self.launch_calls.append(call_name)
-                elif isinstance(node, tir.AttrStmt):
-                    if hasattr(node, 'attr_key'):
-                        if "kernel" in str(node.attr_key).lower():
-                            self.has_kernel_block = True
+                elif isinstance(node, tir.AttrStmt) and hasattr(node, 'attr_key') and "kernel" in str(node.attr_key).lower():
+                    self.has_kernel_block = True
 
             stmt_functor.post_order_visit(stmt, visitor)
 

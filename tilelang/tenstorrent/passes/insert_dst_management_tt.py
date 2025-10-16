@@ -137,11 +137,7 @@ class ComputePatternAnalyzer:
                 return arg.value != 0
 
         # Check for comparisons like kt > 0
-        if hasattr(arg, 'op') and hasattr(arg.op, 'name'):
-            if arg.op.name in ["GT", "GE", "NE"]:
-                return True
-
-        return False
+        return hasattr(arg, 'op') and hasattr(arg.op, 'name') and arg.op.name in ["GT", "GE", "NE"]
 
     def _extract_cb_name(self, arg) -> Optional[str]:
         """Extract CB name from argument"""
@@ -201,12 +197,11 @@ class DSTProtocolInserter:
         """Wrap loops with DST management for accumulation pattern"""
 
         # Check if this is the K-loop to wrap
-        if self.dst_pattern == DSTPattern.ACCUMULATION and not self.dst_wrapped:
-            if self._is_reduction_loop(op):
-                # Wrap entire K-loop with DST management
-                wrapped_body = self._wrap_accumulation_loop(op)
-                self.dst_wrapped = True
-                return wrapped_body
+        if self.dst_pattern == DSTPattern.ACCUMULATION and not self.dst_wrapped and self._is_reduction_loop(op):
+            # Wrap entire K-loop with DST management
+            wrapped_body = self._wrap_accumulation_loop(op)
+            self.dst_wrapped = True
+            return wrapped_body
 
         return op
 
@@ -233,12 +228,11 @@ class DSTProtocolInserter:
     def visit_evaluate(self, op):
         """Wrap single compute operations if not in loop"""
 
-        if self.dst_pattern == DSTPattern.SINGLE_TILE and not self.dst_wrapped:
-            if self._is_compute_op(op):
-                # Wrap with DST protocol
-                wrapped = self._wrap_single_tile_compute(op)
-                self.dst_wrapped = True
-                return wrapped
+        if self.dst_pattern == DSTPattern.SINGLE_TILE and not self.dst_wrapped and self._is_compute_op(op):
+            # Wrap with DST protocol
+            wrapped = self._wrap_single_tile_compute(op)
+            self.dst_wrapped = True
+            return wrapped
 
         return op
 

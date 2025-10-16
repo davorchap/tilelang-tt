@@ -246,33 +246,28 @@ class InferTTLayout_v5:
         def extract_from_node(node):
             nonlocal grid_x, grid_y
 
-            if isinstance(node, tir.AttrStmt):
-                if node.attr_key == "thread_extent":
-                    if hasattr(node.node, "thread_tag"):
-                        tag = node.node.thread_tag
-                        extent = node.value
+            if isinstance(node, tir.AttrStmt) and node.attr_key == "thread_extent" and hasattr(node.node, "thread_tag"):
+                tag = node.node.thread_tag
+                extent = node.value
 
-                        # Extract integer value
-                        if hasattr(extent, "value"):
-                            extent_val = int(extent.value)
-                        elif isinstance(extent, int):
-                            extent_val = extent
-                        else:
-                            try:
-                                extent_val = int(extent)
-                            except (ValueError, TypeError):
-                                extent_val = 1
+                # Extract integer value
+                if hasattr(extent, "value"):
+                    extent_val = int(extent.value)
+                elif isinstance(extent, int):
+                    extent_val = extent
+                else:
+                    try:
+                        extent_val = int(extent)
+                    except (ValueError, TypeError):
+                        extent_val = 1
 
-                        if tag == "blockIdx.x":
-                            grid_x = extent_val
-                        elif tag == "blockIdx.y":
-                            grid_y = extent_val
+                if tag == "blockIdx.x":
+                    grid_x = extent_val
+                elif tag == "blockIdx.y":
+                    grid_y = extent_val
 
-                # Continue traversal
-                if hasattr(node, "body"):
-                    extract_from_node(node.body)
-
-            elif hasattr(node, "body"):
+            # Continue traversal
+            if hasattr(node, "body"):
                 extract_from_node(node.body)
 
         try:

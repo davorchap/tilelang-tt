@@ -198,14 +198,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             value = buffer_store.value
 
             # Check for Add node with multiplication
-            if isinstance(value, tir.Add):
-                # Check if adding to same buffer (accumulation)
-                if isinstance(value.a, tir.BufferLoad):
-                    if value.a.buffer == buffer_store.buffer:
-                        # Check if b is multiplication
-                        if isinstance(value.b, tir.Mul):
-                            return True
-            return False
+            return isinstance(value, tir.Add) and isinstance(value.a, tir.BufferLoad) and value.a.buffer == buffer_store.buffer and isinstance(value.b, tir.Mul)
 
         def _is_binary_operation(self, buffer_store):
             """Detect binary operations (add, sub, mul, div)"""
@@ -225,11 +218,8 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                     self.has_reduction = False
 
                 def check(self, stmt):
-                    if isinstance(stmt, tir.BufferStore):
-                        # Check for accumulation pattern
-                        if isinstance(stmt.value, tir.Add):
-                            if self._uses_var(stmt.value, self.var):
-                                self.has_reduction = True
+                    if isinstance(stmt, tir.BufferStore) and isinstance(stmt.value, tir.Add) and self._uses_var(stmt.value, self.var):
+                        self.has_reduction = True
                     elif isinstance(stmt, tir.SeqStmt):
                         for s in stmt.seq:
                             self.check(s)
@@ -489,12 +479,11 @@ def validate_no_heuristics(func):
                 if isinstance(node, tir.Call):
                     # Check arguments for hard-coded patterns
                     for arg in node.args:
-                        if isinstance(arg, tir.StringImm):
+                        if isinstance(arg, tir.StringImm) and arg.value in ["cb0", "cb1", "cb2", "cb16", "cb24", "cb32"]:
                             # Check for suspicious hard-coded CB IDs
                             # (cb_in0, cb_in1, cb_out0 are OK as defaults)
-                            if arg.value in ["cb0", "cb1", "cb2", "cb16", "cb24", "cb32"]:
-                                self.has_heuristics = True
-                                self.issues.append(f"Hard-coded CB ID: {arg.value}")
+                            self.has_heuristics = True
+                            self.issues.append(f"Hard-coded CB ID: {arg.value}")
 
             stmt_functor.post_order_visit(stmt, visitor)
 

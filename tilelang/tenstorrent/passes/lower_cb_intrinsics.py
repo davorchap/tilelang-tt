@@ -253,11 +253,7 @@ class CBProtocolInserter:
                     return True
 
         # Check loop variable name
-        if hasattr(loop, 'loop_var') and hasattr(loop.loop_var, 'name'):
-            if any(x in loop.loop_var.name.lower() for x in ["pipe", "stage"]):
-                return True
-
-        return False
+        return hasattr(loop, 'loop_var') and hasattr(loop.loop_var, 'name') and any(x in loop.loop_var.name.lower() for x in ["pipe", "stage"])
 
     def _extract_cb_name(self, arg) -> Optional[str]:
         """Extract CB name from argument"""
@@ -281,9 +277,8 @@ class CBProtocolInserter:
         if hasattr(buffer_slice, 'buffer'):
             if hasattr(buffer_slice.buffer, 'name'):
                 return buffer_slice.buffer.name
-            elif hasattr(buffer_slice.buffer, 'data'):
-                if hasattr(buffer_slice.buffer.data, 'name'):
-                    return buffer_slice.buffer.data.name
+            elif hasattr(buffer_slice.buffer, 'data') and hasattr(buffer_slice.buffer.data, 'name'):
+                return buffer_slice.buffer.data.name
         elif hasattr(buffer_slice, 'name'):
             return buffer_slice.name
 

@@ -77,12 +77,13 @@ class TensorAccessorBinder:
         # Use access_pattern if available
         if "access_pattern" in accessor:
             pattern = accessor["access_pattern"]
-            if pattern == "input":
-                return AccessorRole.INPUT
-            elif pattern == "output":
-                return AccessorRole.OUTPUT
-            elif pattern == "weight":
-                return AccessorRole.WEIGHT
+            pattern_to_role = {
+                "input": AccessorRole.INPUT,
+                "output": AccessorRole.OUTPUT,
+                "weight": AccessorRole.WEIGHT,
+            }
+            if pattern in pattern_to_role:
+                return pattern_to_role[pattern]
 
         # Fall back to name-based detection
         name_lower = buffer_name.lower()
