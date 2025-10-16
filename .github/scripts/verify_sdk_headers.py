@@ -16,18 +16,20 @@ import tvm.script
 
 print("=== Verifying Real Metalium Kernel API Usage ===")
 
+
 # Create a proper test module with compute operations
 @tvm.script.ir_module
 class TestModule:
+
     @T.prim_func
-    def gemm(A: T.Buffer((64, 64), "float16"),
-            B: T.Buffer((64, 64), "float16"),
-            C: T.Buffer((64, 64), "float16")):
+    def gemm(A: T.Buffer((64, 64), "float16"), B: T.Buffer((64, 64), "float16"), C: T.Buffer(
+        (64, 64), "float16")):
         T.func_attr({"global_symbol": "gemm"})
         for i, j in T.grid(64, 64):
             C[i, j] = T.float16(0)
             for k in T.serial(64):
                 C[i, j] = C[i, j] + A[i, k] * B[k, j]
+
 
 mod = TestModule
 
