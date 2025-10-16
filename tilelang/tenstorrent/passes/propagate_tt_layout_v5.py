@@ -289,6 +289,15 @@ class PropagateTTLayout_v5:
             return value.value
         elif isinstance(value, (int, float, str, bool)):
             return value
+        elif isinstance(value, (list, tuple)):
+            # Already a Python list/tuple, return as-is
+            return list(value)
+        elif hasattr(value, "__iter__") and not isinstance(value, str):
+            # TVM Array or other iterable - convert to list
+            try:
+                return [self._convert_value(x) for x in value]
+            except (TypeError, AttributeError):
+                return str(value)
         else:
             return str(value)
 
