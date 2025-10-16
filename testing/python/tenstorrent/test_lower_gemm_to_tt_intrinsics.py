@@ -4,7 +4,6 @@ This pass lowers high-level matmul operations to TT intrinsics.
 """
 
 # Import tilelang first to get proper TVM
-import tilelang
 from tilelang import tvm
 from tvm import tir
 from tvm.tir import stmt_functor

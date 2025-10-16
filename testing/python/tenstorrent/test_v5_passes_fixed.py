@@ -11,7 +11,6 @@ import sys
 import os
 
 # Import tilelang first to get proper TVM
-import tilelang
 from tilelang import tvm
 from tvm.script import tir as T
 import tvm.script
@@ -32,6 +31,7 @@ class TestLowerSharedToCB:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
@@ -53,6 +53,7 @@ class TestLowerSharedToCB:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16"), C: T.Buffer((256, 256), "float16")):
                 A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
@@ -75,6 +76,7 @@ class TestLowerSharedToCB:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16")):
                 A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
@@ -95,6 +97,7 @@ class TestLowerSharedToCB:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")  # noqa: F841
@@ -109,8 +112,8 @@ class TestLowerSharedToCB:
 
         # Should NOT contain these protocol operations
         protocol_ops = [
-            "noc_async_read", "noc_async_write", "cb_reserve_back", "cb_push_back",
-            "cb_wait_front", "cb_pop_front"
+            "noc_async_read", "noc_async_write", "cb_reserve_back", "cb_push_back", "cb_wait_front",
+            "cb_pop_front"
         ]
 
         for op in protocol_ops:
@@ -125,10 +128,10 @@ class TestLowerTTTileIntrinsics:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
-            def func(A: T.Buffer((256, 256), "float16"),
-                    B: T.Buffer((256, 256), "float16"),
-                    C: T.Buffer((256, 256), "float16")):
+            def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 # Simulate matmul pattern
                 for i, j, k in T.grid(256, 256, 256):
                     if k == 0:
@@ -138,11 +141,18 @@ class TestLowerTTTileIntrinsics:
         func = Before["func"]
 
         # Add CB metadata as if C1 pass ran
-        func = func.with_attr("tt.conceptual_cbs", {
-            "cb_in0": {"original_buffer": "A"},
-            "cb_in1": {"original_buffer": "B"},
-            "cb_out0": {"original_buffer": "C"}
-        })
+        func = func.with_attr(
+            "tt.conceptual_cbs", {
+                "cb_in0": {
+                    "original_buffer": "A"
+                },
+                "cb_in1": {
+                    "original_buffer": "B"
+                },
+                "cb_out0": {
+                    "original_buffer": "C"
+                }
+            })
 
         # Apply the pass
         Before["func"] = func
@@ -161,10 +171,10 @@ class TestLowerTTTileIntrinsics:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
-            def func(X: T.Buffer((256, 256), "float16"),
-                    Y: T.Buffer((256, 256), "float16"),
-                    Z: T.Buffer((256, 256), "float16")):
+            def func(X: T.Buffer((256, 256), "float16"), Y: T.Buffer((256, 256), "float16"),
+                     Z: T.Buffer((256, 256), "float16")):
                 # Simulate element-wise add
                 for i, j in T.grid(256, 256):
                     Z[i, j] = X[i, j] + Y[i, j]
@@ -172,11 +182,18 @@ class TestLowerTTTileIntrinsics:
         func = Before["func"]
 
         # Add CB metadata
-        func = func.with_attr("tt.conceptual_cbs", {
-            "cb_in0": {"original_buffer": "X"},
-            "cb_in1": {"original_buffer": "Y"},
-            "cb_out0": {"original_buffer": "Z"}
-        })
+        func = func.with_attr(
+            "tt.conceptual_cbs", {
+                "cb_in0": {
+                    "original_buffer": "X"
+                },
+                "cb_in1": {
+                    "original_buffer": "Y"
+                },
+                "cb_out0": {
+                    "original_buffer": "Z"
+                }
+            })
 
         # Apply the pass
         Before["func"] = func
@@ -192,8 +209,10 @@ class TestLowerTTTileIntrinsics:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
-            def func(A_tile: T.Buffer((32, 32), "float16"),  # Has _tile suffix
+            def func(
+                    A_tile: T.Buffer((32, 32), "float16"),  # Has _tile suffix
                     B_tile: T.Buffer((32, 32), "float16"),  # Has _tile suffix
                     C: T.Buffer((32, 32), "float16")):
                 for i, j, k in T.grid(32, 32, 32):
@@ -204,11 +223,18 @@ class TestLowerTTTileIntrinsics:
         func = Before["func"]
 
         # Add proper CB metadata (not based on names)
-        func = func.with_attr("tt.conceptual_cbs", {
-            "cb_in0": {"original_buffer": "A_tile"},
-            "cb_in1": {"original_buffer": "B_tile"},
-            "cb_out0": {"original_buffer": "C"}
-        })
+        func = func.with_attr(
+            "tt.conceptual_cbs", {
+                "cb_in0": {
+                    "original_buffer": "A_tile"
+                },
+                "cb_in1": {
+                    "original_buffer": "B_tile"
+                },
+                "cb_out0": {
+                    "original_buffer": "C"
+                }
+            })
 
         # Apply the pass
         Before["func"] = func
@@ -223,10 +249,10 @@ class TestLowerTTTileIntrinsics:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
-            def func(A: T.Buffer((256, 256), "float16"),
-                    B: T.Buffer((256, 256), "float16"),
-                    C: T.Buffer((256, 256), "float16")):
+            def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 for k in T.serial(8):
                     for i, j in T.grid(32, 32):
                         if k == 0:
@@ -234,11 +260,18 @@ class TestLowerTTTileIntrinsics:
                         C[i, j] = C[i, j] + A[i, k] * B[k, j]
 
         func = Before["func"]
-        func = func.with_attr("tt.conceptual_cbs", {
-            "cb_in0": {"original_buffer": "A"},
-            "cb_in1": {"original_buffer": "B"},
-            "cb_out0": {"original_buffer": "C"}
-        })
+        func = func.with_attr(
+            "tt.conceptual_cbs", {
+                "cb_in0": {
+                    "original_buffer": "A"
+                },
+                "cb_in1": {
+                    "original_buffer": "B"
+                },
+                "cb_out0": {
+                    "original_buffer": "C"
+                }
+            })
 
         # Apply the pass
         Before["func"] = func
@@ -262,6 +295,7 @@ class TestGridToCoreGrid:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -294,6 +328,7 @@ class TestGridToCoreGrid:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(C: T.Buffer((256, 256), "float16")):
                 for bx in T.thread_binding(8, thread="blockIdx.x"):
@@ -326,6 +361,7 @@ class TestGridToCoreGrid:
 
         @tvm.script.ir_module
         class Before:
+
             @T.prim_func
             def func(A: T.Buffer((256, 256), "float16")):
                 for bx in T.thread_binding(4, thread="blockIdx.x"):
@@ -359,6 +395,7 @@ class TestGridToCoreGrid:
 
         @tvm.script.ir_module
         class Module:
+
             @T.prim_func
             def func():
                 T.evaluate(0)
@@ -388,10 +425,10 @@ class TestPassIntegration:
 
         @tvm.script.ir_module
         class Original:
+
             @T.prim_func
-            def gemm(A: T.Buffer((256, 256), "float16"),
-                    B: T.Buffer((256, 256), "float16"),
-                    C: T.Buffer((256, 256), "float16")):
+            def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
+                     C: T.Buffer((256, 256), "float16")):
                 for bx in T.thread_binding(8, thread="blockIdx.x"):
                     for by in T.thread_binding(8, thread="blockIdx.y"):
                         with T.block("compute"):
@@ -410,9 +447,7 @@ class TestPassIntegration:
                                 if k == 0:
                                     C[by * 32 + i, bx * 32 + j] = T.float16(0)
                                 C[by * 32 + i, bx * 32 + j] = (
-                                    C[by * 32 + i, bx * 32 + j] +
-                                    A_shared[i, k] * B_shared[k, j]
-                                )
+                                    C[by * 32 + i, bx * 32 + j] + A_shared[i, k] * B_shared[k, j])
 
         func = Original["gemm"]
 
@@ -450,7 +485,8 @@ class TestPassIntegration:
         assert "tt.core_map_x" in func.attrs, "Missing tt.core_map_x from B2 pass"
         assert "tt.core_map_y" in func.attrs, "Missing tt.core_map_y from B2 pass"
         assert "tt.transformed_to_core" in func.attrs, "Missing tt.transformed_to_core from B2 pass"
-        assert func.attrs["tt.transformed_to_core"] is True, "Core transformation flag should be True"
+        assert func.attrs[
+            "tt.transformed_to_core"] is True, "Core transformation flag should be True"
 
         # All passes completed successfully - this is the key validation
         # Note: We don't check the IR string representation because after multiple

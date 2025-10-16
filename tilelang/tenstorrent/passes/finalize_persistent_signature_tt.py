@@ -312,11 +312,7 @@ class FinalizePersistentSignatureTT:
                     self.visit(stmt.then_case)
                     if stmt.else_case:
                         self.visit(stmt.else_case)
-                elif isinstance(stmt, tir.Allocate):
-                    self.visit(stmt.body)
-                elif isinstance(stmt, tir.AttrStmt):
-                    self.visit(stmt.body)
-                elif isinstance(stmt, tir.AssertStmt):
+                elif isinstance(stmt, (tir.Allocate, tir.AttrStmt, tir.AssertStmt)):
                     self.visit(stmt.body)
 
         analyzer = Analyzer(analysis)

@@ -6,7 +6,6 @@ Unlike template-based codegen, the visitor walks the actual TIR body structure.
 
 import pytest
 # Import tilelang first to get proper TVM
-import tilelang
 from tilelang import tvm
 from tvm import tir
 

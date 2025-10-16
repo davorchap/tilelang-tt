@@ -150,7 +150,8 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                     # For call_extern, args[0] is the function name
                     if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
                         func_name = call.args[0].value
-                        return any(pattern in func_name for pattern in ["T.gemm", "tir.gemm", "tvm_gemm"])
+                        return any(
+                            pattern in func_name for pattern in ["T.gemm", "tir.gemm", "tvm_gemm"])
                 # Also check op name directly
                 elif hasattr(call, 'op'):
                     op_name = str(call.op)
@@ -167,8 +168,8 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                     if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
                         func_name = call.args[0].value
                         elementwise_ops = [
-                            "T.add", "T.multiply", "T.subtract", "T.divide", "tir.add", "tir.multiply",
-                            "tir.subtract", "tir.divide"
+                            "T.add", "T.multiply", "T.subtract", "T.divide", "tir.add",
+                            "tir.multiply", "tir.subtract", "tir.divide"
                         ]
                         return any(op in func_name for op in elementwise_ops)
                 # Also check op name directly
@@ -286,7 +287,8 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             # Determine the operation name
             op_name = ""
             # For call_extern, function name is in args[0]
-            if str(call.op) == "Op(tir.call_extern)" and len(args) >= 1 and isinstance(args[0], tir.StringImm):
+            if str(call.op) == "Op(tir.call_extern)" and len(args) >= 1 and isinstance(
+                    args[0], tir.StringImm):
                 op_name = args[0].value
                 actual_args = args[1:]  # Skip function name
             else:

@@ -5,7 +5,6 @@ This demonstrates how to properly handle TVM Block structures.
 
 import pytest
 # Import tilelang first to get proper TVM
-import tilelang
 from tilelang import tvm
 from tvm.script import tir as T
 import tvm.script

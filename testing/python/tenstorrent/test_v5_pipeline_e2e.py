@@ -218,8 +218,8 @@ class TestE2EPipeline:
         class AddModule:
 
             @T.prim_func
-            def add(A: T.Buffer((64, 64), "float16"), B: T.Buffer((64, 64), "float16"),
-                    C: T.Buffer((64, 64), "float16")):
+            def add(A: T.Buffer((64, 64), "float16"), B: T.Buffer((64, 64), "float16"), C: T.Buffer(
+                (64, 64), "float16")):
                 T.func_attr({"global_symbol": "add"})
                 # Simple element-wise addition
                 for i, j in T.grid(64, 64):

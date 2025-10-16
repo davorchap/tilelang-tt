@@ -6,7 +6,6 @@ in the new metadata-driven architecture. All tests are skipped.
 
 import pytest
 # Import tilelang first to get proper TVM
-import tilelang
 from tilelang import tvm
 from tvm import tir
 
