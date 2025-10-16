@@ -340,7 +340,7 @@ class SplitDeviceKernel:
         new_body = splitter.visit(func.body)
 
         # Determine runtime args needed
-        runtime_args = self._determine_runtime_args(role, splitter.buffer_names)
+        runtime_args = self._determine_runtime_args(role, splitter.buffer_names, func)
 
         return KernelSlice(
             role=role,
@@ -411,16 +411,30 @@ class SplitDeviceKernel:
 
         return new_func
 
-    def _determine_runtime_args(self, role: KernelRole, buffer_names: Set[str]) -> List[str]:
+    def _determine_runtime_args(self,
+                                role: KernelRole,
+                                buffer_names: Set[str],
+                                func: Optional["tir.PrimFunc"] = None) -> List[str]:
         """Determine runtime arguments needed for a kernel role."""
 
         args = []
 
         if role == KernelRole.READER:
             # Reader needs addresses for input buffers
+            # First try detected buffer names from body
+            found_buffers = False
             for buffer_name in buffer_names:
                 if any(x in buffer_name.lower() for x in ["a", "b", "input", "weight"]):
                     args.append(f"{buffer_name}_addr")
+                    found_buffers = True
+
+            # If no buffers found in body, use function parameters as fallback
+            if not found_buffers and func:
+                for param in func.params:
+                    if param in func.buffer_map:
+                        buffer = func.buffer_map[param]
+                        if any(x in buffer.name.lower() for x in ["a", "b", "input", "weight"]):
+                            args.append(f"{buffer.name}_addr")
 
         elif role == KernelRole.COMPUTE:
             # Compute needs tile counts and iteration info
@@ -428,9 +442,20 @@ class SplitDeviceKernel:
 
         elif role == KernelRole.WRITER:
             # Writer needs addresses for output buffers
+            # First try detected buffer names from body
+            found_buffers = False
             for buffer_name in buffer_names:
                 if any(x in buffer_name.lower() for x in ["c", "output", "result"]):
                     args.append(f"{buffer_name}_addr")
+                    found_buffers = True
+
+            # If no buffers found in body, use function parameters as fallback
+            if not found_buffers and func:
+                for param in func.params:
+                    if param in func.buffer_map:
+                        buffer = func.buffer_map[param]
+                        if any(x in buffer.name.lower() for x in ["c", "output", "result"]):
+                            args.append(f"{buffer.name}_addr")
 
         # All kernels need basic runtime args
         args.extend(["start_id", "count", "Mt", "Nt"])

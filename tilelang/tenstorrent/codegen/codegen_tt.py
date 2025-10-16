@@ -180,7 +180,7 @@ class ReaderKernelGenerator(KernelGenerator):
 
     def _generate_main_function(self):
         """Generate reader kernel MAIN function"""
-        self.code.writeln("void MAIN {")
+        self.code.writeln("void MAIN() {")
         self.code.indent()
 
         # Generate runtime arg extraction
@@ -292,7 +292,7 @@ class ComputeKernelGenerator(KernelGenerator):
 
     def _generate_main_function(self):
         """Generate compute kernel MAIN function"""
-        self.code.writeln("void MAIN {")
+        self.code.writeln("void MAIN() {")
         self.code.indent()
 
         # Generate runtime args
@@ -375,7 +375,7 @@ class WriterKernelGenerator(KernelGenerator):
 
     def _generate_main_function(self):
         """Generate writer kernel MAIN function"""
-        self.code.writeln("void MAIN {")
+        self.code.writeln("void MAIN() {")
         self.code.indent()
 
         # Generate runtime args
@@ -601,6 +601,9 @@ class CodegenTT:
         # Import enhanced generators
         from .kernel_generators import create_kernel_generator
 
+        # Check if we have split kernels with roles
+        has_split_kernels = False
+
         # Generate each kernel
         for name, func in mod.functions_items():
             if isinstance(func, tir.PrimFunc):
@@ -611,6 +614,44 @@ class CodegenTT:
                     generator = create_kernel_generator(func, role)
                     outputs[f"{role}.cpp"] = generator.generate()
                     logger.info(f"Generated {role}.cpp from {name}")
+                    has_split_kernels = True
+
+        # If no split kernels were found, generate stub kernels from the main function
+        if not has_split_kernels:
+            logger.warning("No split kernels found, generating stub kernels from main function")
+
+            # Find the main function
+            main_func = None
+            for _name, func in mod.functions_items():
+                if isinstance(func, tir.PrimFunc):
+                    if func.attrs and func.attrs.get("global_symbol") == "main":
+                        main_func = func
+                        break
+                    # Fallback to any function with metadata
+                    if not main_func and func.attrs and "tt.core_grid" in func.attrs:
+                        main_func = func
+
+            if main_func:
+                # Generate stub kernels with appropriate roles
+                # These are simplified templates until kernel splitting is implemented
+
+                # Generate reader kernel
+                reader_func = main_func.with_attr("tt.kernel_role", "reader")
+                generator = create_kernel_generator(reader_func, "reader")
+                outputs["reader.cpp"] = generator.generate()
+                logger.info("Generated stub reader.cpp")
+
+                # Generate compute kernel
+                compute_func = main_func.with_attr("tt.kernel_role", "compute")
+                generator = create_kernel_generator(compute_func, "compute")
+                outputs["compute.cpp"] = generator.generate()
+                logger.info("Generated stub compute.cpp")
+
+                # Generate writer kernel
+                writer_func = main_func.with_attr("tt.kernel_role", "writer")
+                generator = create_kernel_generator(writer_func, "writer")
+                outputs["writer.cpp"] = generator.generate()
+                logger.info("Generated stub writer.cpp")
 
         # Generate host launcher
         host_gen = HostGenerator(mod)
@@ -618,6 +659,9 @@ class CodegenTT:
 
         # Generate CMakeLists.txt
         outputs["CMakeLists.txt"] = self._generate_cmake()
+
+        # Generate tt.plan.json
+        outputs["tt.plan.json"] = self._generate_plan_json(mod)
 
         logger.info(f"Generated {len(outputs)} source files")
 
@@ -660,6 +704,110 @@ target_link_libraries(tt_kernel
 set_property(TARGET tt_kernel PROPERTY CXX_STANDARD 17)
 """
         return cmake
+
+    def _generate_plan_json(self, mod: IRModule) -> str:
+        """Generate tt.plan.json with scheduling metadata"""
+        import json
+
+        plan = {
+            "version": "5.0",
+            "target": "tenstorrent",
+            "generator": "tilelang.tenstorrent.codegen",
+        }
+
+        # Extract metadata from the main function
+        for _name, func in mod.functions_items():
+            if isinstance(func, tir.PrimFunc) and func.attrs:
+                # Extract core grid dimensions - try both old and new attribute names
+                grid_x = None
+                grid_y = None
+
+                # First try new v5 attribute names (tt.core_grid)
+                if "tt.core_grid" in func.attrs:
+                    core_grid = func.attrs["tt.core_grid"]
+                    if hasattr(core_grid, "__getitem__") and len(core_grid) >= 2:
+                        grid_x = int(core_grid[0]) if hasattr(core_grid[0],
+                                                              "__int__") else core_grid[0]
+                        grid_y = int(core_grid[1]) if hasattr(core_grid[1],
+                                                              "__int__") else core_grid[1]
+                # Fall back to old test attributes (tt_grid_x/y)
+                elif "tt_grid_x" in func.attrs and "tt_grid_y" in func.attrs:
+                    grid_x = int(func.attrs["tt_grid_x"]) if hasattr(
+                        func.attrs["tt_grid_x"], "__int__") else func.attrs["tt_grid_x"]
+                    grid_y = int(func.attrs["tt_grid_y"]) if hasattr(
+                        func.attrs["tt_grid_y"], "__int__") else func.attrs["tt_grid_y"]
+
+                # If we found grid dimensions, add them to plan
+                if grid_x is not None and grid_y is not None:
+                    total_tiles = grid_x * grid_y
+                    plan["grid"] = {
+                        "x": grid_x,
+                        "y": grid_y,
+                        "total_tiles": total_tiles,
+                    }
+
+                # Extract core configuration - try both attribute styles
+                num_cores = None
+                if "tt_num_cores" in func.attrs:
+                    num_cores = int(func.attrs["tt_num_cores"]) if hasattr(
+                        func.attrs["tt_num_cores"], "__int__") else func.attrs["tt_num_cores"]
+                elif "tt.core_grid" in func.attrs and grid_x is not None and grid_y is not None:
+                    # If not explicitly set, derive from grid
+                    num_cores = grid_x * grid_y
+
+                if num_cores is not None:
+                    plan["cores"] = {"num_cores": num_cores, "topology": "grid", "assignments": []}
+
+                    # Add tile assignments - try both old and new attribute names
+                    if "tt_tiles_per_core" in func.attrs:
+                        tiles_per_core = func.attrs["tt_tiles_per_core"]
+                        for i, assignment in enumerate(tiles_per_core[:num_cores]):
+                            if hasattr(assignment, "__getitem__") and len(assignment) >= 2:
+                                start_tile = int(assignment[0]) if hasattr(
+                                    assignment[0], "__int__") else assignment[0]
+                                count = int(assignment[1]) if hasattr(assignment[1],
+                                                                      "__int__") else assignment[1]
+                                plan["cores"]["assignments"].append({
+                                    "core_id": i,
+                                    "start_tile": start_tile,
+                                    "count": count,
+                                })
+                    elif "tt.work_partition" in func.attrs:
+                        # Try new v5 work partition format
+                        work_partition = func.attrs["tt.work_partition"]
+                        # Convert to list if it's a TVM container
+                        try:
+                            # Try to iterate directly
+                            max_to_process = num_cores if num_cores else 64
+                            for idx, assignment in enumerate(work_partition):
+                                if idx >= max_to_process:
+                                    break
+                                if hasattr(assignment, "__getitem__") and len(assignment) >= 2:
+                                    start_tile = int(assignment[0]) if hasattr(
+                                        assignment[0], "__int__") else assignment[0]
+                                    count = int(assignment[1]) if hasattr(
+                                        assignment[1], "__int__") else assignment[1]
+                                    plan["cores"]["assignments"].append({
+                                        "core_id": idx,
+                                        "start_tile": start_tile,
+                                        "count": count,
+                                    })
+                        except (TypeError, IndexError):
+                            # If we can't iterate, skip the work partition
+                            pass
+
+                # Add schedule section
+                plan["schedule"] = {"policy": "contiguous", "order": "row_major"}
+
+                # Extract other metadata
+                if "tt_num_tiles" in func.attrs:
+                    plan["num_tiles"] = int(func.attrs["tt_num_tiles"]) if hasattr(
+                        func.attrs["tt_num_tiles"], "__int__") else func.attrs["tt_num_tiles"]
+
+                # Only need metadata from one function (they should all have it)
+                break
+
+        return json.dumps(plan, indent=2)
 
     def __call__(self, mod: IRModule) -> Dict[str, str]:
         """Allow using the class as a function"""

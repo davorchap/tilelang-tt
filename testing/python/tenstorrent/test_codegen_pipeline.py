@@ -4,9 +4,9 @@ artifact generation stage: Code Generation Integration Tests
 Tests for TT kernel codegen and artifact generation.
 """
 
-import pytest
-import tvm
+import json
 from tvm import tir
+import tvm
 import tilelang.tenstorrent as tt
 
 # Skip reason for codegen tests
@@ -42,6 +42,18 @@ def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
         # Convert list elements to IntImm for FFI
         tiles_per_core.append([tvm.tir.IntImm("int32", start_id), tvm.tir.IntImm("int32", count)])
 
+    # Add runtime arguments metadata that would be added by TT passes
+    runtime_args = ["tt_start_tile", "tt_tile_count", "A_addr", "B_addr", "C_addr"]
+    runtime_args_info = {
+        "types": {
+            "tt_start_tile": "uint32_t",
+            "tt_tile_count": "uint32_t",
+            "A_addr": "uint64_t",
+            "B_addr": "uint64_t",
+            "C_addr": "uint64_t"
+        }
+    }
+
     func = func.with_attrs({
         "global_symbol": "main",
         "tt_grid_x": tvm.tir.IntImm("int32", grid_x),
@@ -50,6 +62,8 @@ def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
         "tt_num_tiles": tvm.tir.IntImm("int32", num_tiles),
         "tt_num_cores": tvm.tir.IntImm("int32", num_cores),
         "tt_tiles_per_core": tiles_per_core,
+        "tt.runtime_args": runtime_args,
+        "tt.runtime_args_info": runtime_args_info,
     })
 
     # Create IRModule
@@ -57,7 +71,6 @@ def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
     return mod
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_emit_tt_artifacts_basic():
     """
     Test 1: Basic artifact generation
@@ -106,7 +119,6 @@ def test_emit_tt_artifacts_basic():
     print("✓ Test 1 passed: Basic artifact generation")
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_emit_tt_artifacts_grid_metadata():
     """
     Test 2: Grid metadata in generated code
@@ -124,7 +136,6 @@ def test_emit_tt_artifacts_grid_metadata():
 
     # Check plan JSON grid section
     plan_json = artifacts["tt.plan.json"]
-    import json
 
     plan_data = json.loads(plan_json)
 
@@ -136,7 +147,6 @@ def test_emit_tt_artifacts_grid_metadata():
     print("✓ Test 2 passed: Grid metadata verification")
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_emit_tt_artifacts_scheduling_metadata():
     """
     Test 3: Scheduling metadata in plan.json
@@ -147,8 +157,6 @@ def test_emit_tt_artifacts_scheduling_metadata():
 
     artifacts = tt.emit_tt_artifacts(mod)
     plan_json = artifacts["tt.plan.json"]
-
-    import json
 
     plan_data = json.loads(plan_json)
 
@@ -175,7 +183,6 @@ def test_emit_tt_artifacts_scheduling_metadata():
     print("✓ Test 3 passed: Scheduling metadata verification")
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_emit_tt_artifacts_various_grid_sizes():
     """
     Test 4: Different grid sizes
@@ -197,7 +204,6 @@ def test_emit_tt_artifacts_various_grid_sizes():
         assert "tt.plan.json" in artifacts
 
         # Parse plan.json
-        import json
 
         plan_data = json.loads(artifacts["tt.plan.json"])
 
@@ -211,7 +217,6 @@ def test_emit_tt_artifacts_various_grid_sizes():
         print(f"✓ Test 4 passed for grid {grid_x}x{grid_y} ({expected_tiles} tiles)")
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_write_artifacts_to_disk(tmp_path):
     """
     Test 5: Writing artifacts to disk
