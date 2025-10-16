@@ -26,7 +26,7 @@
 - `bash maint/scripts/local_build_and_test_tt.sh --skip-deps --jobs 4` — full mock-mode build plus Tenstorrent test suite; mirrors Tier‑1 CI.
 - `bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs 4` — build/tests against a real TT‑Metalium SDK (requires `TT_METAL_HOME`).
 - `LD_LIBRARY_PATH=build/tvm:$LD_LIBRARY_PATH pytest testing/python/tenstorrent/ -v` — run backend tests; add `-k <pattern>` for focused runs.
-- `bash format.sh` — invoke yapf, ruff, codespell, and clang-format; run before committing.
+- `source .venv/bin/activate && bash format.sh` — invoke yapf, ruff, codespell, and clang-format; **always run from within the virtual environment** to avoid dependency issues.
 
 ## Coding Style & Naming Conventions
 - Python: 4-space indentation, Ruff-compliant imports, snake_case for functions/modules, PascalCase for classes.

@@ -1,6 +1,7 @@
 """Test memory space lowering (now integrated into GridToPersistentTT)."""
 
-import tvm
+# Import tilelang first to get proper TVM
+from tilelang import tvm
 from tvm import tir
 from tilelang.tenstorrent.passes import GridToPersistentTT
 

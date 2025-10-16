@@ -1,6 +1,7 @@
 """Test tile padding (now integrated into TTTilesToCoreMap)."""
 
-import tvm
+# Import tilelang first to get proper TVM
+from tilelang import tvm
 from tvm import tir
 from tilelang.tenstorrent.passes import TTTilesToCoreMap
 
