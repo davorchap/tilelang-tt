@@ -293,21 +293,31 @@ class FinalizePersistentSignatureTT:
                         self.analysis["compute_ops"].append(op_name)
 
             def visit(self, stmt):
-                """Custom visitor implementation"""
-                if tir is None:
-                    return stmt
+                """Recursive IR traversal (analysis only)"""
+                if tir is None or stmt is None:
+                    return
 
-                def visitor_func(op):
-                    # Handle different statement types
-                    if isinstance(op, tir.Evaluate):
-                        self.visit_evaluate(op)
-                    elif isinstance(op, tir.For):
-                        self.visit_for(op)
-                    return op
-
-                from tvm.tir.stmt_functor import post_order_visit
-                post_order_visit(stmt, visitor_func)
-                return stmt
+                # Handle different statement types
+                if isinstance(stmt, tir.Evaluate):
+                    self.visit_evaluate(stmt)
+                elif isinstance(stmt, tir.For):
+                    self.visit_for(stmt)
+                    self.visit(stmt.body)  # Visit loop body
+                elif isinstance(stmt, tir.SeqStmt):
+                    for s in stmt.seq:
+                        self.visit(s)
+                elif isinstance(stmt, tir.LetStmt):
+                    self.visit(stmt.body)
+                elif isinstance(stmt, tir.IfThenElse):
+                    self.visit(stmt.then_case)
+                    if stmt.else_case:
+                        self.visit(stmt.else_case)
+                elif isinstance(stmt, tir.Allocate):
+                    self.visit(stmt.body)
+                elif isinstance(stmt, tir.AttrStmt):
+                    self.visit(stmt.body)
+                elif isinstance(stmt, tir.AssertStmt):
+                    self.visit(stmt.body)
 
         analyzer = Analyzer(analysis)
         analyzer.visit(func.body)

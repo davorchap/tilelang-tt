@@ -60,7 +60,7 @@ class TestLowerSharedToCB:
                 A_shared = T.alloc_buffer((32, 32), "float16", scope="shared")
                 # This would be T.copy in real TIR
                 # Simulating copy pattern
-                T.evaluate(T.call_extern("void", "tir.copy", A[0:32, 0:32], A_shared))
+                T.evaluate(T.call_extern("void", "tir.copy", A.data, A_shared.data, 0, 32, 0, 32))
 
         # Apply the pass using TVM's pass infrastructure
         transformed_mod = LowerSharedToCB_v5(Before)
@@ -134,7 +134,7 @@ class TestLowerTTTileIntrinsics:
             def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
                      C: T.Buffer((256, 256), "float16")):
                 # Simulate T.gemm call
-                T.evaluate(T.call_extern("void", "T.gemm", A, B, C))
+                T.evaluate(T.call_extern("void", "T.gemm", A.data, B.data, C.data))
 
         func = Before["func"]
 
@@ -174,7 +174,7 @@ class TestLowerTTTileIntrinsics:
             def func(X: T.Buffer((256, 256), "float16"), Y: T.Buffer((256, 256), "float16"),
                      Z: T.Buffer((256, 256), "float16")):
                 # Simulate element-wise add
-                T.evaluate(T.call_extern("void", "T.add", X, Y, Z))
+                T.evaluate(T.call_extern("void", "T.add", X.data, Y.data, Z.data))
 
         func = Before["func"]
 
@@ -212,7 +212,7 @@ class TestLowerTTTileIntrinsics:
                     A_tile: T.Buffer((32, 32), "float16"),  # Has _tile suffix
                     B_tile: T.Buffer((32, 32), "float16"),  # Has _tile suffix
                     C: T.Buffer((32, 32), "float16")):
-                T.evaluate(T.call_extern("void", "T.gemm", A_tile, B_tile, C))
+                T.evaluate(T.call_extern("void", "T.gemm", A_tile.data, B_tile.data, C.data))
 
         func = Before["func"]
 
@@ -248,7 +248,7 @@ class TestLowerTTTileIntrinsics:
             def func(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
                      C: T.Buffer((256, 256), "float16")):
                 for _k in T.serial(8):
-                    T.evaluate(T.call_extern("void", "T.gemm", A, B, C))
+                    T.evaluate(T.call_extern("void", "T.gemm", A.data, B.data, C.data))
 
         func = Before["func"]
         func = func.with_attr(
@@ -291,7 +291,7 @@ class TestGridToCoreGrid:
             def func(A: T.Buffer((256, 256), "float16")):
                 for bx in T.thread_binding(8, thread="blockIdx.x"):
                     for by in T.thread_binding(8, thread="blockIdx.y"):
-                        A[by, bx] = 0.0
+                        A[by, bx] = T.float16(0.0)
 
         func = Before["func"]
 
@@ -324,7 +324,8 @@ class TestGridToCoreGrid:
             def func(C: T.Buffer((256, 256), "float16")):
                 for bx in T.thread_binding(8, thread="blockIdx.x"):
                     for by in T.thread_binding(8, thread="blockIdx.y"):
-                        C[by * 32:(by + 1) * 32, bx * 32:(bx + 1) * 32] = 0.0
+                        for i, j in T.grid(32, 32):
+                            C[by * 32 + i, bx * 32 + j] = T.float16(0.0)
 
         func = Before["func"]
 
@@ -355,7 +356,8 @@ class TestGridToCoreGrid:
             def func(A: T.Buffer((256, 256), "float16")):
                 for bx in T.thread_binding(4, thread="blockIdx.x"):
                     for by in T.thread_binding(4, thread="blockIdx.y"):
-                        A[by * 64:(by + 1) * 64, bx * 64:(bx + 1) * 64] = 0.0
+                        for i, j in T.grid(64, 64):
+                            A[by * 64 + i, bx * 64 + j] = T.float16(0.0)
 
         func = Before["func"]
 

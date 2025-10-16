@@ -227,9 +227,9 @@ def test_sharding_info_extraction():
 
     # Check sharding info
     assert sharding["enabled"] is True, f"Expected sharding enabled, got {sharding['enabled']}"
-    assert sharding["axes"] == ["M", "N"], f"Expected axes=['M', 'N'], got {sharding['axes']}"
-    assert sharding["grid"] == [2, 4], f"Expected grid=[2, 4], got {sharding['grid']}"
-    assert sharding["shard_tiles"] == [
+    assert list(sharding["axes"]) == ["M", "N"], f"Expected axes=['M', 'N'], got {sharding['axes']}"
+    assert list(sharding["grid"]) == [2, 4], f"Expected grid=[2, 4], got {sharding['grid']}"
+    assert list(sharding["shard_tiles"]) == [
         4, 2
     ], f"Expected shard_tiles=[4, 2], got {sharding['shard_tiles']}"
     assert sharding["order"] == "row_major", f"Expected order='row_major', got {sharding['order']}"

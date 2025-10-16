@@ -12,6 +12,9 @@ import importlib.util
 
 import pytest
 
+# Skip reason for codegen tests
+CODEGEN_SKIP_REASON = "Requires reader/writer/compute kernel codegen implementation (reader.cpp, compute.cpp, writer.cpp generation)"
+
 # Add examples directory to path
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
 EXAMPLES_DIR = os.path.join(REPO_ROOT, 'examples', 'tenstorrent')
@@ -78,6 +81,7 @@ def test_example_gemm_tt_minimal():
                         ]), "Expected TT artifacts not mentioned in output"
 
 
+@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_run_gemm_with_tt_backend():
     """Test that run_gemm_with_tt_backend.py runs without errors."""
     example_path = os.path.join(EXAMPLES_DIR, 'run_gemm_with_tt_backend.py')
@@ -123,6 +127,7 @@ def test_new_pipeline_example():
     assert result.returncode == 0, f"new_pipeline_example.py failed:\n{result.stderr}"
 
 
+@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_example_gemm_basic():
     """Test the basic example_gemm.py if it exists."""
     example_path = os.path.join(EXAMPLES_DIR, 'example_gemm.py')

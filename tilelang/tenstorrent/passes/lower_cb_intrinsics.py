@@ -45,28 +45,42 @@ class CBProtocolInserter:
         self.pipeline_depth = 3  # Default pipeline depth
 
     def visit(self, stmt):
-        """Custom visitor implementation"""
-        if tir is None:
+        """Recursive IR transformation"""
+        if tir is None or stmt is None:
             return stmt
 
-        def visitor_func(op):
-            # Handle different statement types
-            if isinstance(op, tir.Evaluate):
-                return self.visit_evaluate(op)
-            elif isinstance(op, tir.Allocate):
-                return self.visit_allocate(op) if hasattr(self, 'visit_allocate') else op
-            elif isinstance(op, tir.For):
-                return self.visit_for(op) if hasattr(self, 'visit_for') else op
-            elif isinstance(op, tir.IfThenElse):
-                return self.visit_if_then_else(op) if hasattr(self, 'visit_if_then_else') else op
-            elif isinstance(op, tir.BufferStore):
-                return self.visit_buffer_store(op) if hasattr(self, 'visit_buffer_store') else op
-            elif isinstance(op, tir.BufferLoad):
-                return self.visit_buffer_load(op) if hasattr(self, 'visit_buffer_load') else op
-            return op
-
-        from tvm.tir.stmt_functor import post_order_visit
-        return post_order_visit(stmt, visitor_func)
+        # Handle different statement types
+        if isinstance(stmt, tir.Evaluate):
+            return self.visit_evaluate(stmt)
+        elif isinstance(stmt, tir.For):
+            return self.visit_for(stmt)
+        elif isinstance(stmt, tir.SeqStmt):
+            # Transform each statement in the sequence
+            new_stmts = [self.visit(s) for s in stmt.seq]
+            return tir.SeqStmt(new_stmts)
+        elif isinstance(stmt, tir.LetStmt):
+            # Transform the body
+            new_body = self.visit(stmt.body)
+            return tir.LetStmt(stmt.var, stmt.value, new_body)
+        elif isinstance(stmt, tir.IfThenElse):
+            new_then = self.visit(stmt.then_case)
+            new_else = self.visit(stmt.else_case) if stmt.else_case else None
+            return tir.IfThenElse(stmt.condition, new_then, new_else)
+        elif isinstance(stmt, tir.Allocate):
+            new_body = self.visit(stmt.body)
+            return tir.Allocate(stmt.buffer_var, stmt.dtype, stmt.extents, stmt.condition, new_body)
+        elif isinstance(stmt, tir.AttrStmt):
+            new_body = self.visit(stmt.body)
+            return tir.AttrStmt(stmt.node, stmt.attr_key, stmt.value, new_body)
+        elif isinstance(stmt, tir.AssertStmt):
+            new_body = self.visit(stmt.body)
+            return tir.AssertStmt(stmt.condition, stmt.message, new_body)
+        elif isinstance(stmt, (tir.BufferStore, tir.BufferRealize, tir.ProducerStore)):
+            # Leaf nodes - return as-is
+            return stmt
+        else:
+            # Unknown node type - return as-is
+            return stmt
 
     def visit_evaluate(self, op):
         """Visit T.evaluate nodes to replace abstract operations"""
@@ -299,9 +313,8 @@ class CBProtocolInserter:
             result = stmts[-1]
             for stmt in reversed(stmts[:-1]):
                 if isinstance(stmt, tir.LetStmt):
-                    # Special handling for LetStmt
-                    stmt.body = result
-                    result = stmt
+                    # Special handling for LetStmt - create new LetStmt with updated body
+                    result = tir.LetStmt(stmt.var, stmt.value, result)
                 else:
                     result = tir.SeqStmt([stmt, result])
             return result

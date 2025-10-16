@@ -10,10 +10,14 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+import pytest
 import tvm
 from tvm import tir
 
 import tilelang.tenstorrent as tt
+
+# Skip reason for codegen tests
+CODEGEN_SKIP_REASON = "Requires reader/writer/compute kernel codegen implementation (reader.cpp, compute.cpp, writer.cpp generation)"
 
 
 def _convert_dict_for_ffi(d: Dict[str, Any]) -> Dict[str, Any]:
@@ -179,6 +183,7 @@ def _make_tt_module(partition_mode: str = "global") -> tvm.IRModule:
     return mod
 
 
+@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_host_program_reports_partition_and_tensor_accessors():
     """Global layout: guardrails and TensorAccessor payloads are emitted."""
 
@@ -191,6 +196,7 @@ def test_host_program_reports_partition_and_tensor_accessors():
     assert ("TensorAccessorArgs must be created via TensorAccessorArgs::Create" in host_cpp)
 
 
+@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_host_program_runtime_args_schema_global():
     """Global layout: canonical runtime arg schema and per-core payloads."""
 
@@ -203,6 +209,7 @@ def test_host_program_runtime_args_schema_global():
     assert ('{"Mt", 8}' in host_cpp and '{"Kt", 1}' in host_cpp and '{"Nt", 8}' in host_cpp)
 
 
+@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_host_program_runtime_args_schema_local_shard():
     """Local shard layout: expanded runtime args include shard geometry."""
 

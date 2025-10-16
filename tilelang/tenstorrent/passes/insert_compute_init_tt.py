@@ -47,28 +47,30 @@ class ComputeOpAnalyzer:
         self.loop_depth = 0
 
     def visit(self, stmt):
-        """Custom visitor implementation"""
-        if tir is None:
-            return stmt
+        """Recursive IR traversal (analysis only)"""
+        if tir is None or stmt is None:
+            return
 
-        def visitor_func(op):
-            # Handle different statement types
-            if isinstance(op, tir.Evaluate):
-                return self.visit_evaluate(op)
-            elif isinstance(op, tir.Allocate):
-                return self.visit_allocate(op) if hasattr(self, 'visit_allocate') else op
-            elif isinstance(op, tir.For):
-                return self.visit_for(op) if hasattr(self, 'visit_for') else op
-            elif isinstance(op, tir.IfThenElse):
-                return self.visit_if_then_else(op) if hasattr(self, 'visit_if_then_else') else op
-            elif isinstance(op, tir.BufferStore):
-                return self.visit_buffer_store(op) if hasattr(self, 'visit_buffer_store') else op
-            elif isinstance(op, tir.BufferLoad):
-                return self.visit_buffer_load(op) if hasattr(self, 'visit_buffer_load') else op
-            return op
-
-        from tvm.tir.stmt_functor import post_order_visit
-        return post_order_visit(stmt, visitor_func)
+        # Handle different statement types
+        if isinstance(stmt, tir.Evaluate):
+            self.visit_evaluate(stmt)
+        elif isinstance(stmt, tir.For):
+            self.visit_for(stmt)
+        elif isinstance(stmt, tir.SeqStmt):
+            for s in stmt.seq:
+                self.visit(s)
+        elif isinstance(stmt, tir.LetStmt):
+            self.visit(stmt.body)
+        elif isinstance(stmt, tir.IfThenElse):
+            self.visit(stmt.then_case)
+            if stmt.else_case:
+                self.visit(stmt.else_case)
+        elif isinstance(stmt, tir.Allocate):
+            self.visit(stmt.body)
+        elif isinstance(stmt, tir.AttrStmt):
+            self.visit(stmt.body)
+        elif isinstance(stmt, tir.AssertStmt):
+            self.visit(stmt.body)
 
     def visit_evaluate(self, op):
         """Visit T.evaluate nodes to find compute operations"""
@@ -93,8 +95,6 @@ class ComputeOpAnalyzer:
                     if cb_name:
                         self.cb_names.add(cb_name)
 
-        # super().visit_evaluate(op) - no parent class
-
     def visit_for(self, op):
         """Track loop nesting and K-loops"""
 
@@ -106,7 +106,9 @@ class ComputeOpAnalyzer:
             if 'k' in var_name or 'reduction' in var_name:
                 self.has_k_loop = True
 
-        # super().visit_for(op) - no parent class
+        # Visit loop body
+        self.visit(op.body)
+
         self.loop_depth -= 1
 
     def _classify_compute_op(self, op_name: str) -> ComputeOpType:
@@ -152,28 +154,37 @@ class ComputeInitInserter:
         self.at_function_start = True
 
     def visit(self, stmt):
-        """Custom visitor implementation"""
-        if tir is None:
+        """Recursive IR transformation"""
+        if tir is None or stmt is None:
             return stmt
 
-        def visitor_func(op):
-            # Handle different statement types
-            if isinstance(op, tir.Evaluate):
-                return self.visit_evaluate(op)
-            elif isinstance(op, tir.Allocate):
-                return self.visit_allocate(op) if hasattr(self, 'visit_allocate') else op
-            elif isinstance(op, tir.For):
-                return self.visit_for(op) if hasattr(self, 'visit_for') else op
-            elif isinstance(op, tir.IfThenElse):
-                return self.visit_if_then_else(op) if hasattr(self, 'visit_if_then_else') else op
-            elif isinstance(op, tir.BufferStore):
-                return self.visit_buffer_store(op) if hasattr(self, 'visit_buffer_store') else op
-            elif isinstance(op, tir.BufferLoad):
-                return self.visit_buffer_load(op) if hasattr(self, 'visit_buffer_load') else op
-            return op
-
-        from tvm.tir.stmt_functor import post_order_visit
-        return post_order_visit(stmt, visitor_func)
+        # Handle different statement types
+        if isinstance(stmt, tir.Evaluate):
+            return self.visit_evaluate(stmt)
+        elif isinstance(stmt, tir.For):
+            return self.visit_for(stmt)
+        elif isinstance(stmt, tir.SeqStmt):
+            return self.visit_seq_stmt(stmt)
+        elif isinstance(stmt, tir.LetStmt):
+            new_body = self.visit(stmt.body)
+            return tir.LetStmt(stmt.var, stmt.value, new_body)
+        elif isinstance(stmt, tir.IfThenElse):
+            new_then = self.visit(stmt.then_case)
+            new_else = self.visit(stmt.else_case) if stmt.else_case else None
+            return tir.IfThenElse(stmt.condition, new_then, new_else)
+        elif isinstance(stmt, tir.Allocate):
+            new_body = self.visit(stmt.body)
+            return tir.Allocate(stmt.buffer_var, stmt.dtype, stmt.extents, stmt.condition, new_body)
+        elif isinstance(stmt, tir.AttrStmt):
+            new_body = self.visit(stmt.body)
+            return tir.AttrStmt(stmt.node, stmt.attr_key, stmt.value, new_body)
+        elif isinstance(stmt, tir.AssertStmt):
+            new_body = self.visit(stmt.body)
+            return tir.AssertStmt(stmt.condition, stmt.message, new_body)
+        elif isinstance(stmt, (tir.BufferStore, tir.BufferRealize, tir.ProducerStore)):
+            return stmt
+        else:
+            return stmt
 
     def visit_seq_stmt(self, op):
         """Visit sequence statements to insert init at the beginning"""

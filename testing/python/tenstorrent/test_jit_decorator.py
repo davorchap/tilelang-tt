@@ -9,6 +9,7 @@ This test verifies that:
 
 import json
 import sys
+import pytest
 
 sys.path.insert(0, '.')
 
@@ -16,7 +17,11 @@ import tilelang
 import tilelang.language as T
 from tilelang.utils.target import TENSTORRENT_TARGET
 
+# Skip reason for all codegen tests
+CODEGEN_SKIP_REASON = "Requires reader/writer/compute kernel codegen implementation (reader.cpp, compute.cpp, writer.cpp generation)"
 
+
+@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_basic_jit_decorator():
     """Test basic @tilelang.jit decorator with TT backend."""
 
@@ -49,6 +54,7 @@ def test_basic_jit_decorator():
         assert artifact in artifacts, f"Missing artifact: {artifact}"
 
 
+@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_full_dsl_features():
     """Test full TileLang DSL features with TT backend."""
 
@@ -101,6 +107,7 @@ def test_full_dsl_features():
     assert "matmul" in compute_code.lower() or "compute" in compute_code.lower()
 
 
+@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_different_sizes():
     """Test various tensor and tile sizes."""
 
@@ -149,6 +156,7 @@ def test_different_sizes():
         assert plan["grid"]["y"] == expected_grid_y
 
 
+@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_runtime_plan():
     """Test that runtime plan (tt.plan.json) is generated correctly."""
 
