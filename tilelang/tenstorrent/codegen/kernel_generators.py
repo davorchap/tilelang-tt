@@ -48,7 +48,7 @@ class EnhancedKernelGenerator:
         self._generate_includes()
 
         # Generate MAIN function
-        self.code.writeln("void MAIN {")
+        self.code.writeln("void MAIN() {")
         self.code.indent()
 
         # Generate runtime args extraction

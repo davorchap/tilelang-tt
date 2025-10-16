@@ -7,6 +7,9 @@ This module provides Python bindings for TT kernel codegen and artifact generati
 from typing import Dict
 import tvm
 from tvm import IRModule
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def emit_tt_artifacts(mod: IRModule, target: str = "tenstorrent") -> Dict[str, str]:
@@ -35,11 +38,14 @@ def emit_tt_artifacts(mod: IRModule, target: str = "tenstorrent") -> Dict[str, s
         >>> print(artifacts["compute.cpp"][:100])
         // Generated TT Compute Kernel...
     """
-    codegen_func = tvm.ffi.get_global_func("tl.codegen.EmitTTArtifacts")
-    result = codegen_func(mod, target)
+    # Use Python codegen instead of C++ FFI
+    # Import the Python implementation from the codegen submodule
+    from .codegen import emit_tt_artifacts as python_emit_tt_artifacts
 
-    # Convert TVM Map to Python dict
-    return dict(result.items())
+    logger.info("Using Python v5 codegen implementation")
+
+    # Call the Python implementation directly
+    return python_emit_tt_artifacts(mod)
 
 
 def write_artifacts_to_disk(artifacts: Dict[str, str], output_dir: str = "."):
