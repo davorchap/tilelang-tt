@@ -69,7 +69,7 @@ tt::sfpu::add_tiles(dst_cb, src0_cb, src1_cb, tile_size);
 ## Dependencies
 
 **Depends On**:
-- `GridToPersistentTT` → leaves threadIdx constructs for this pass to handle
+- `grid_to_core_grid_v5` → transforms grid to persistent cores, leaving threadIdx for SFPU
 
 **Depended On By**:
 - Compute codegen visitor → needs SFPU IR to generate proper kernel code
@@ -96,14 +96,22 @@ tt::sfpu::add_tiles(dst_cb, src0_cb, src1_cb, tile_size);
 
 ## Pipeline Position
 
-LowerToSFPU runs **immediately after GridToPersistentTT** in the transform pipeline:
+LowerToSFPU would run in **Stage B (Partitioning)** after grid transformation:
 
-1. GridToPersistentTT (handles blockIdx → persistent loop)
-2. **LowerToSFPU** (handles threadIdx → SFPU ops) ← This pass
-3. TTTilesToCoreMap
-4. MemorySpaceLowerTT
-5. ... rest of pipeline
+**Stage A: Metadata**
+1. infer_tt_layout_v5
+2. propagate_tt_layout_v5
+3. attach_tensor_accessor_tt
+
+**Stage B: Partitioning**
+1. layout_aware_work_partition_tt_v5
+2. grid_to_core_grid_v5 (transforms blockIdx → persistent cores)
+3. **LowerToSFPU** (would handle threadIdx → SFPU ops) ← Future insertion point
+
+**Stage C-E**: ... rest of v5 pipeline
+
+**Note**: This pass is not yet integrated into the v5 pipeline.
 
 ---
 
-**Last Updated**: 2025-10-14
+**Last Updated**: 2025-10-16
