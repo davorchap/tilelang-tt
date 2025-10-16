@@ -20,7 +20,6 @@ from testing.python.tenstorrent.test_host_program_pipeline import _make_tt_modul
 CODEGEN_SKIP_REASON = "Requires reader/writer/compute kernel codegen implementation (reader.cpp, compute.cpp, writer.cpp generation)"
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_compute_kernel_extracts_shard_coords_when_local():
     """Local shard kernels expose shard coordinates as runtime arguments."""
 
@@ -32,7 +31,6 @@ def test_compute_kernel_extracts_shard_coords_when_local():
     assert "uint32_t tt_shard_coord_x = get_arg_val<uint32_t>" in compute_cpp
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_compute_kernel_omits_shard_coords_when_global():
     """Global kernels should not request shard-local coordinates."""
 
@@ -44,7 +42,6 @@ def test_compute_kernel_omits_shard_coords_when_global():
     assert "tt_shard_coord_x" not in compute_cpp
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_reader_writer_guard_against_missing_shard_coords():
     """Reader/writer kernels still accept shard args but mark them unused."""
 

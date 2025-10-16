@@ -5,7 +5,6 @@ Tests for TT kernel codegen and artifact generation.
 """
 
 import json
-import pytest
 from tvm import tir
 import tvm
 import tilelang.tenstorrent as tt
@@ -218,7 +217,6 @@ def test_emit_tt_artifacts_various_grid_sizes():
         print(f"✓ Test 4 passed for grid {grid_x}x{grid_y} ({expected_tiles} tiles)")
 
 
-@pytest.mark.skip(reason=CODEGEN_SKIP_REASON)
 def test_write_artifacts_to_disk(tmp_path):
     """
     Test 5: Writing artifacts to disk

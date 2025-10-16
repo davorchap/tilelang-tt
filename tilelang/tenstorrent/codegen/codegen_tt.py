@@ -778,10 +778,8 @@ set_property(TARGET tt_kernel PROPERTY CXX_STANDARD 17)
                         # Convert to list if it's a TVM container
                         try:
                             # Try to iterate directly
-                            assignments_to_process = []
                             max_to_process = num_cores if num_cores else 64
-                            idx = 0
-                            for assignment in work_partition:
+                            for idx, assignment in enumerate(work_partition):
                                 if idx >= max_to_process:
                                     break
                                 if hasattr(assignment, "__getitem__") and len(assignment) >= 2:
@@ -794,7 +792,6 @@ set_property(TARGET tt_kernel PROPERTY CXX_STANDARD 17)
                                         "start_tile": start_tile,
                                         "count": count,
                                     })
-                                idx += 1
                         except (TypeError, IndexError):
                             # If we can't iterate, skip the work partition
                             pass
