@@ -5,7 +5,6 @@ These tests validate the complete transformation pipeline from TileLang IR
 to Tenstorrent artifacts on representative GEMM workloads.
 """
 
-import pytest
 import tvm
 from tvm import tir
 import tilelang.tenstorrent as tt

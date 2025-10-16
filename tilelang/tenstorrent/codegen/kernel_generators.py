@@ -163,6 +163,21 @@ class EnhancedComputeKernelGenerator(EnhancedKernelGenerator):
 
     def _generate_includes(self):
         """Generate includes for compute kernel"""
+        self.code.writeln("// Generated TT Compute Kernel (IR-Driven)")
+
+        # Add grid metadata comments if available
+        if self.func.attrs:
+            if "tt_grid_x" in self.func.attrs and "tt_grid_y" in self.func.attrs:
+                grid_x = self.func.attrs["tt_grid_x"]
+                grid_y = self.func.attrs["tt_grid_y"]
+                grid_x_val = int(grid_x) if hasattr(grid_x, "__int__") else grid_x
+                grid_y_val = int(grid_y) if hasattr(grid_y, "__int__") else grid_y
+                self.code.writeln(f"// Grid: {grid_x_val}x{grid_y_val}")
+            if "tt_num_cores" in self.func.attrs:
+                num_cores = self.func.attrs["tt_num_cores"]
+                num_cores_val = int(num_cores) if hasattr(num_cores, "__int__") else num_cores
+                self.code.writeln(f"// Cores: {num_cores_val}")
+
         if use_real_metalium():
             # Real SDK requires ckernel_include.h first
             self.code.writeln('#include "ckernel_include.h"')

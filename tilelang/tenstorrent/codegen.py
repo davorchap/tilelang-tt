@@ -5,7 +5,6 @@ This module provides Python bindings for TT kernel codegen and artifact generati
 """
 
 from typing import Dict
-import tvm
 from tvm import IRModule
 import logging
 
