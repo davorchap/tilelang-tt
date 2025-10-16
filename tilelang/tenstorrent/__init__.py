@@ -36,13 +36,8 @@ from .runtime_plan import (
 
 # New pass pipeline (from passes submodule)
 from .passes import (
-    InferTTLayout,
-    PropagateTTLayout,
-    TTTilesToCoreMap,
-    LowerTTTileIntrinsics,
-    GridToPersistentTT,
-    build_tt_pipeline,
     run_pipeline,
+    build_v5_pipeline,
 )
 
 # Target defaults
@@ -77,13 +72,8 @@ __all__ = [
     "load_tt_plan",
     "validate_plan",
     # New pass pipeline
-    "InferTTLayout",
-    "PropagateTTLayout",
-    "TTTilesToCoreMap",
-    "LowerTTTileIntrinsics",
-    "GridToPersistentTT",
-    "build_tt_pipeline",
     "run_pipeline",
+    "build_v5_pipeline",
     # Target and code generation
     "apply_tt_defaults",
     "emit_tt_artifacts",
