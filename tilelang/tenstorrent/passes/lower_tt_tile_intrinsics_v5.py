@@ -269,7 +269,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
         def _lower_fill(self, evaluate_node):
             """Lower T.fill / tl.fill to initialization (protocol-less)"""
             # T.fill is typically used to zero-initialize output buffers
-            # At this stage (protocol-less), we can just remove it
+            # At this protocol-less stage, we can just remove it
             # The actual initialization will be handled by compute init pass
             # For now, return a no-op or keep the call as-is for later passes
             # to recognize
@@ -277,12 +277,15 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
 
             # Create a protocol-less fill marker that later passes can use
             # This just marks that a buffer needs initialization
+            arg0 = call.args[0] if len(call.args) > 0 else tir.IntImm("int32", 0)
+            arg1 = call.args[1] if len(call.args) > 1 else tir.IntImm("int32", 0)
+
             return tir.Evaluate(
                 tir.call_extern(
                     "void",
                     "tt.fill.zero",  # Protocol-less fill marker
-                    call.args[0] if len(call.args) > 0 else tir.IntImm("int32", 0),
-                    call.args[1] if len(call.args) > 1 else tir.IntImm("int32", 0)
+                    arg0,
+                    arg1
                 ))
 
         def _lower_copy(self, evaluate_node):
@@ -296,16 +299,16 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             # args typically are: source_region, dest_region, mask, predicate, cache_hint
             # For now, create a protocol-less copy marker
             # Extract source and dest buffer info if possible
-            src = args[0] if len(args) > 0 else None
-            dst = args[1] if len(args) > 1 else None
+            src = args[0] if len(args) > 0 else tir.IntImm("int32", 0)
+            dst = args[1] if len(args) > 1 else tir.IntImm("int32", 0)
 
             # Create protocol-less copy marker
             return tir.Evaluate(
                 tir.call_extern(
                     "void",
                     "tt.copy.protocol_less",  # Marker for later lowering
-                    src if src else tir.IntImm("int32", 0),
-                    dst if dst else tir.IntImm("int32", 0)
+                    src,
+                    dst
                 ))
 
         def _lower_gemm(self, evaluate_node):
