@@ -212,7 +212,6 @@ def test_stage_c_matmul():
 ## References
 
 - [v5_pipeline.md](../../architecture/v5_pipeline.md)
-- [PASS_TABLE_TT.md](../../reference/PASS_TABLE_TT.md)
 - [metadata.md](./metadata.md), [partitioning.md](./partitioning.md)
 
 ---

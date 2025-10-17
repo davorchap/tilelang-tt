@@ -407,7 +407,6 @@ def test_stage_b_partitioning():
 ## References
 
 - [v5_pipeline.md](../../architecture/v5_pipeline.md) - Complete v5 reference
-- [PASS_TABLE_TT.md](../../reference/PASS_TABLE_TT.md) - Pass reference table
 - [metadata.md](./metadata.md) - Stage A (prerequisite)
 
 **Individual Pass Documentation:**

@@ -65,7 +65,7 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 |----------|---------|----------|
 | **[reference/PASS_TABLE_SHARED.md](reference/PASS_TABLE_SHARED.md)** | Shared lowering/optimization passes | Transform developers |
 | **[reference/PASS_TABLE_GPU.md](reference/PASS_TABLE_GPU.md)** | CUDA/ROCm-only pass reference | GPU backend developers |
-| **[reference/PASS_TABLE_TT.md](reference/PASS_TABLE_TT.md)** | Tenstorrent pass reference | TT backend developers |
+| **[passes/README.md](passes/README.md)** | Tenstorrent pass index and reference | TT backend developers |
 | **[reference/TT_Pass_Specifications.md](reference/TT_Pass_Specifications.md)** | Detailed pass specifications | Implementation team |
 
 ### 🔄 Pass Documentation

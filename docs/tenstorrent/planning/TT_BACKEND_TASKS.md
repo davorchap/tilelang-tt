@@ -111,7 +111,6 @@ This document captures the task tracker for the TileLang Tenstorrent (TT) backen
 - ✅ Created authoritative v5_pipeline.md reference (800+ lines)
 
 **In Progress (Week 2):**
-- 🚧 PASS_TABLE_TT.md updated with v5 14-pass pipeline
 - 🚧 Planning docs cleanup (TT_Pass_Status.md, TT_BACKEND_TASKS.md)
 - 🚧 Stage-based pass documentation
 - 🚧 passes/README.md update with v5 navigation
@@ -249,8 +248,7 @@ This document captures the task tracker for the TileLang Tenstorrent (TT) backen
 
 ### Pass Documentation
 - [passes/README.md](../passes/README.md) - Pass documentation index
-- [PASS_TABLE_TT.md](../reference/PASS_TABLE_TT.md) - v5 pass reference table
-- Individual pass docs in `docs/tenstorrent/passes/`
+- Individual pass docs in `docs/tenstorrent/passes/stages/`
 
 ### Planning
 - [METALIUM_SDK_VALIDATION_PLAN.md](./METALIUM_SDK_VALIDATION_PLAN.md) - SDK validation phases
