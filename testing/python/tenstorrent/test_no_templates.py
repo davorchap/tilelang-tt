@@ -9,14 +9,11 @@ import os
 
 sys.path.insert(0, os.path.abspath('.'))
 
-from tilelang.tenstorrent.codegen.kernel_generators import (
-    EnhancedReaderKernelGenerator,
-    EnhancedWriterKernelGenerator,
-    EnhancedComputeKernelGenerator
-)
+from tilelang.tenstorrent.codegen.kernel_generators import (EnhancedReaderKernelGenerator,
+                                                            EnhancedWriterKernelGenerator,
+                                                            EnhancedComputeKernelGenerator)
 
 import tvm
-from tvm import tir
 from tvm.script import tir as T
 
 
@@ -25,6 +22,7 @@ def test_empty_ir_fails_loudly():
 
     @tvm.script.ir_module
     class EmptyModule:
+
         @T.prim_func
         def empty_func():
             T.evaluate(T.int32(0))  # Empty body
@@ -56,6 +54,7 @@ def test_no_template_markers_in_generated_code():
     # Create a module with actual operations
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
         def test_func():
             # Simulate some operations from C1/C2
@@ -75,14 +74,9 @@ def test_no_template_markers_in_generated_code():
 
     # Check no template markers
     template_markers = [
-        "// Reader loop with CB/NOC operations",
-        "// Writer loop with CB/NOC operations",
-        "uint32_t num_out_tiles = tt_tile_count; // Use runtime arg",
-        "// Read input A",
-        "// Read input B",
-        "// Write output C",
-        "// TODO: Generate from IR",
-        "TEMPLATE"
+        "// Reader loop with CB/NOC operations", "// Writer loop with CB/NOC operations",
+        "uint32_t num_out_tiles = tt_tile_count; // Use runtime arg", "// Read input A",
+        "// Read input B", "// Write output C", "// TODO: Generate from IR", "TEMPLATE"
     ]
 
     for marker in template_markers:
@@ -118,6 +112,7 @@ def test_visitor_handles_call_extern():
 
     @tvm.script.ir_module
     class TestModule:
+
         @T.prim_func
         def test_func():
             # Simulate call_extern from C1/C2

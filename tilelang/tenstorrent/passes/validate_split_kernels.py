@@ -12,7 +12,7 @@ Output: Validated IR or raises ValueError on incomplete IR
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
@@ -52,8 +52,12 @@ class ValidationReport:
     issues: List[ValidationIssue] = field(default_factory=list)
     stats: Dict[str, Any] = field(default_factory=dict)
 
-    def add_issue(self, level: ValidationLevel, kernel_role: str, message: str,
-                  location: Optional[str] = None, suggestion: Optional[str] = None):
+    def add_issue(self,
+                  level: ValidationLevel,
+                  kernel_role: str,
+                  message: str,
+                  location: Optional[str] = None,
+                  suggestion: Optional[str] = None):
         """Add a validation issue"""
         self.issues.append(ValidationIssue(level, kernel_role, message, location, suggestion))
         if level == ValidationLevel.ERROR:
@@ -96,11 +100,14 @@ class IRInspector:
                 self.has_noc_write = True
                 self.has_cb_ops = True
 
-            if any(x in op_name for x in ["cb_reserve_back", "cb_push_back", "cb_wait_front", "cb_pop_front"]):
+            if any(x in op_name
+                   for x in ["cb_reserve_back", "cb_push_back", "cb_wait_front", "cb_pop_front"]):
                 self.has_cb_ops = True
 
-            if any(x in op_name for x in ["mm_init", "matmul_tiles", "pack_tile", "tile_regs_commit",
-                                          "mm.mma", "fpu.", "sfpu.", "gemm", "add", "mul"]):
+            if any(x in op_name for x in [
+                    "mm_init", "matmul_tiles", "pack_tile", "tile_regs_commit", "mm.mma", "fpu.",
+                    "sfpu.", "gemm", "add", "mul"
+            ]):
                 self.has_compute_op = True
 
 
@@ -136,8 +143,7 @@ class SplitKernelValidator:
                     ValidationLevel.ERROR,
                     role,
                     f"No {role} kernel found after split_device_kernel",
-                    suggestion="Check if D1 (split_device_kernel) was applied correctly"
-                )
+                    suggestion="Check if D1 (split_device_kernel) was applied correctly")
 
         # Validate each kernel
         for role, kernels in kernels_by_role.items():
@@ -145,7 +151,7 @@ class SplitKernelValidator:
                 self._validate_kernel(name, func, role, report)
 
     def _validate_kernel(self, name: str, func: "tir.PrimFunc", role: str,
-                        report: ValidationReport):
+                         report: ValidationReport):
         """Validate a single kernel"""
 
         # Check that body exists
@@ -155,8 +161,7 @@ class SplitKernelValidator:
                 role,
                 f"Kernel {name} has no body",
                 location=name,
-                suggestion=f"Check Stage D passes - {role} kernel body is missing"
-            )
+                suggestion=f"Check Stage D passes - {role} kernel body is missing")
             return
 
         # Check that body is not just Evaluate(0)
@@ -166,8 +171,7 @@ class SplitKernelValidator:
                 role,
                 f"Kernel {name} has empty body (only Evaluate(0))",
                 location=name,
-                suggestion=f"Check Stage D passes - {role} kernel has no actual operations"
-            )
+                suggestion=f"Check Stage D passes - {role} kernel has no actual operations")
             return
 
         # Inspect the IR structure
@@ -188,7 +192,8 @@ class SplitKernelValidator:
 
         # Log intrinsics found (for debugging)
         if inspector.intrinsic_calls:
-            logger.debug(f"{name} ({role}) intrinsics: {inspector.intrinsic_calls[:10]}")  # First 10
+            logger.debug(
+                f"{name} ({role}) intrinsics: {inspector.intrinsic_calls[:10]}")  # First 10
 
     def _validate_reader(self, name: str, inspector: IRInspector, report: ValidationReport):
         """Validate reader kernel has NOC read operations"""
@@ -208,8 +213,7 @@ class SplitKernelValidator:
                 "reader",
                 f"Reader kernel {name} has no CB operations",
                 location=name,
-                suggestion="Reader should have cb_reserve_back/cb_push_back operations"
-            )
+                suggestion="Reader should have cb_reserve_back/cb_push_back operations")
 
         if inspector.statement_count < 2:
             report.add_issue(
@@ -217,8 +221,7 @@ class SplitKernelValidator:
                 "reader",
                 f"Reader kernel {name} has very few statements ({inspector.statement_count})",
                 location=name,
-                suggestion="Verify that all read operations were included in the split"
-            )
+                suggestion="Verify that all read operations were included in the split")
 
     def _validate_compute(self, name: str, inspector: IRInspector, report: ValidationReport):
         """Validate compute kernel has compute operations"""
@@ -238,8 +241,7 @@ class SplitKernelValidator:
                 "compute",
                 f"Compute kernel {name} has no statements",
                 location=name,
-                suggestion="Check Stage D split - compute kernel body is empty"
-            )
+                suggestion="Check Stage D split - compute kernel body is empty")
 
     def _validate_writer(self, name: str, inspector: IRInspector, report: ValidationReport):
         """Validate writer kernel has NOC write operations"""
@@ -259,8 +261,7 @@ class SplitKernelValidator:
                 "writer",
                 f"Writer kernel {name} has no CB operations",
                 location=name,
-                suggestion="Writer should have cb_wait_front/cb_pop_front operations"
-            )
+                suggestion="Writer should have cb_wait_front/cb_pop_front operations")
 
         if inspector.statement_count < 2:
             report.add_issue(
@@ -268,8 +269,7 @@ class SplitKernelValidator:
                 "writer",
                 f"Writer kernel {name} has very few statements ({inspector.statement_count})",
                 location=name,
-                suggestion="Verify that all write operations were included in the split"
-            )
+                suggestion="Verify that all write operations were included in the split")
 
     def _manual_inspect(self, stmt, inspector: IRInspector):
         """Manually traverse IR tree when stmt_functor is not available"""
@@ -286,14 +286,13 @@ class SplitKernelValidator:
 
     def _is_empty_body(self, body) -> bool:
         """Check if body is effectively empty (only Evaluate(0))"""
-        if isinstance(body, tir.Evaluate):
-            if hasattr(body, 'value'):
-                # Check if it's just a constant 0
-                if isinstance(body.value, (tir.IntImm, tir.FloatImm)):
-                    return body.value.value == 0
-                # Check if it's a string literal (also considered empty)
-                if isinstance(body.value, tir.StringImm):
-                    return True
+        if isinstance(body, tir.Evaluate) and hasattr(body, 'value'):
+            # Check if it's just a constant 0
+            if isinstance(body.value, (tir.IntImm, tir.FloatImm)):
+                return body.value.value == 0
+            # Check if it's a string literal (also considered empty)
+            if isinstance(body.value, tir.StringImm):
+                return True
         return False
 
 
@@ -347,9 +346,8 @@ class ValidateSplitKernels:
                 f"[{i.kernel_role}] {i.message}" for i in report.issues
                 if i.level == ValidationLevel.ERROR
             ]
-            raise ValueError(
-                "Split kernel validation failed - IR is incomplete:\n" + "\n".join(error_messages)
-            )
+            raise ValueError("Split kernel validation failed - IR is incomplete:\n" +
+                             "\n".join(error_messages))
 
         return mod
 

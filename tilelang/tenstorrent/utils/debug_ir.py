@@ -82,8 +82,7 @@ class IRDebugger:
 
         logger.debug(f"Dumped IR after pass {pass_name} to {filepath}")
 
-    def show_diff(self, pass1_idx: int = -2, pass2_idx: int = -1,
-                  context_lines: int = 3) -> str:
+    def show_diff(self, pass1_idx: int = -2, pass2_idx: int = -1, context_lines: int = 3) -> str:
         """
         Show diff between two passes in the history.
 
@@ -105,13 +104,13 @@ class IRDebugger:
             return "Invalid pass indices"
 
         # Generate diff
-        diff_lines = list(difflib.unified_diff(
-            ir1.splitlines(keepends=True),
-            ir2.splitlines(keepends=True),
-            fromfile=f"After {pass1_name}",
-            tofile=f"After {pass2_name}",
-            n=context_lines
-        ))
+        diff_lines = list(
+            difflib.unified_diff(
+                ir1.splitlines(keepends=True),
+                ir2.splitlines(keepends=True),
+                fromfile=f"After {pass1_name}",
+                tofile=f"After {pass2_name}",
+                n=context_lines))
 
         return "".join(diff_lines)
 
@@ -127,7 +126,13 @@ class IRDebugger:
 
         stats = {
             "total_functions": 0,
-            "kernels_by_role": {"reader": [], "compute": [], "writer": [], "host": [], "unknown": []},
+            "kernels_by_role": {
+                "reader": [],
+                "compute": [],
+                "writer": [],
+                "host": [],
+                "unknown": []
+            },
             "empty_bodies": [],
             "statement_counts": {},
             "intrinsics_used": set(),
@@ -164,12 +169,11 @@ class IRDebugger:
 
     def _is_empty_body(self, body) -> bool:
         """Check if body is effectively empty"""
-        if isinstance(body, tir.Evaluate):
-            if hasattr(body, 'value'):
-                if isinstance(body.value, (tir.IntImm, tir.FloatImm)):
-                    return body.value.value == 0
-                if isinstance(body.value, tir.StringImm):
-                    return True
+        if isinstance(body, tir.Evaluate) and hasattr(body, 'value'):
+            if isinstance(body.value, (tir.IntImm, tir.FloatImm)):
+                return body.value.value == 0
+            if isinstance(body.value, tir.StringImm):
+                return True
         return False
 
     def _count_statements(self, stmt) -> int:
@@ -196,12 +200,12 @@ class IRDebugger:
                 intrinsics.update(self._collect_intrinsics(s))
         elif hasattr(stmt, 'body'):
             intrinsics.update(self._collect_intrinsics(stmt.body))
-        elif isinstance(stmt, tir.Evaluate):
-            if hasattr(stmt, 'value') and hasattr(stmt.value, 'op'):
-                call = stmt.value
-                op_name = str(call.op) if hasattr(call.op, 'name') else str(call.op)
-                if "tir." in op_name or "T." in op_name:
-                    intrinsics.add(op_name)
+        elif isinstance(stmt, tir.Evaluate) and hasattr(stmt, 'value') and hasattr(
+                stmt.value, 'op'):
+            call = stmt.value
+            op_name = str(call.op) if hasattr(call.op, 'name') else str(call.op)
+            if "tir." in op_name or "T." in op_name:
+                intrinsics.add(op_name)
 
         return intrinsics
 
@@ -251,8 +255,9 @@ class IRDebugger:
         logger.info(f"Saved analysis summary to {filepath}")
 
 
-def create_pipeline_wrapper(pipeline: List, dump_ir: bool = False,
-                           dump_dir: str = "ir_dumps") -> List:
+def create_pipeline_wrapper(pipeline: List,
+                            dump_ir: bool = False,
+                            dump_dir: str = "ir_dumps") -> List:
     """
     Wrap a pipeline with IR dumping capability.
 
@@ -311,6 +316,7 @@ def create_pipeline_wrapper(pipeline: List, dump_ir: bool = False,
 
         # Create wrapper
         def make_wrapper(original_pass, name, stage_letter):
+
             def wrapper(mod):
                 result = original_pass(mod)
                 debugger.dump_ir(result, name, stage_letter)
@@ -323,10 +329,12 @@ def create_pipeline_wrapper(pipeline: List, dump_ir: bool = False,
 
                     # Log warnings if we find issues
                     if analysis.get("empty_bodies"):
-                        logger.warning(f"Found {len(analysis['empty_bodies'])} kernels with empty bodies: "
-                                     f"{analysis['empty_bodies']}")
+                        logger.warning(
+                            f"Found {len(analysis['empty_bodies'])} kernels with empty bodies: "
+                            f"{analysis['empty_bodies']}")
 
                 return result
+
             return wrapper
 
         wrapped_pipeline.append(make_wrapper(pass_instance, pass_name, stage))

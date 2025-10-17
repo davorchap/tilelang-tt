@@ -35,237 +35,237 @@ class IntrinsicRegistry:
         """Initialize all intrinsic mappings"""
 
         # ========== CB Management Operations ==========
-        self.register(Intrinsic(
-            ir_name="tt.alloc_cb",
-            cpp_func="cb_reserve_back",
-            template="cb_reserve_back({cb_id}, {num_tiles});",
-            arg_count=-1,  # Variable: cb_name, shape (1-2 args), dtype (3-4 total)
-            category="cb"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tt.alloc_cb",
+                cpp_func="cb_reserve_back",
+                template="cb_reserve_back({cb_id}, {num_tiles});",
+                arg_count=-1,  # Variable: cb_name, shape (1-2 args), dtype (3-4 total)
+                category="cb"))
 
-        self.register(Intrinsic(
-            ir_name="tir.cb_reserve_back",
-            cpp_func="cb_reserve_back",
-            template="cb_reserve_back({0}, {1});",
-            arg_count=2,
-            category="cb"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.cb_reserve_back",
+                cpp_func="cb_reserve_back",
+                template="cb_reserve_back({0}, {1});",
+                arg_count=2,
+                category="cb"))
 
-        self.register(Intrinsic(
-            ir_name="tir.cb_push_back",
-            cpp_func="cb_push_back",
-            template="cb_push_back({0}, {1});",
-            arg_count=2,
-            category="cb"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.cb_push_back",
+                cpp_func="cb_push_back",
+                template="cb_push_back({0}, {1});",
+                arg_count=2,
+                category="cb"))
 
-        self.register(Intrinsic(
-            ir_name="tir.cb_pop_front",
-            cpp_func="cb_pop_front",
-            template="cb_pop_front({0}, {1});",
-            arg_count=2,
-            category="cb"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.cb_pop_front",
+                cpp_func="cb_pop_front",
+                template="cb_pop_front({0}, {1});",
+                arg_count=2,
+                category="cb"))
 
-        self.register(Intrinsic(
-            ir_name="tir.cb_wait_front",
-            cpp_func="cb_wait_front",
-            template="cb_wait_front({0}, {1});",
-            arg_count=2,
-            category="cb"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.cb_wait_front",
+                cpp_func="cb_wait_front",
+                template="cb_wait_front({0}, {1});",
+                arg_count=2,
+                category="cb"))
 
         # ========== NOC Operations ==========
-        self.register(Intrinsic(
-            ir_name="tt.read_to_cb",
-            cpp_func="noc_async_read_tile",
-            template="noc_async_read_tile({src_addr}, {cb_id});",
-            arg_count=2,
-            category="noc"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tt.read_to_cb",
+                cpp_func="noc_async_read_tile",
+                template="noc_async_read_tile({src_addr}, {cb_id});",
+                arg_count=2,
+                category="noc"))
 
-        self.register(Intrinsic(
-            ir_name="tt.write_from_cb",
-            cpp_func="noc_async_write_tile",
-            template="noc_async_write_tile({cb_id}, {dst_addr});",
-            arg_count=2,
-            category="noc"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tt.write_from_cb",
+                cpp_func="noc_async_write_tile",
+                template="noc_async_write_tile({cb_id}, {dst_addr});",
+                arg_count=2,
+                category="noc"))
 
-        self.register(Intrinsic(
-            ir_name="tir.noc_async_read_tile",
-            cpp_func="noc_async_read_tile",
-            template="noc_async_read_tile({0}, {1}, {2});",
-            arg_count=3,
-            category="noc"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.noc_async_read_tile",
+                cpp_func="noc_async_read_tile",
+                template="noc_async_read_tile({0}, {1}, {2});",
+                arg_count=3,
+                category="noc"))
 
-        self.register(Intrinsic(
-            ir_name="tir.noc_async_write_tile",
-            cpp_func="noc_async_write_tile",
-            template="noc_async_write_tile({0}, {1}, {2});",
-            arg_count=3,
-            category="noc"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.noc_async_write_tile",
+                cpp_func="noc_async_write_tile",
+                template="noc_async_write_tile({0}, {1}, {2});",
+                arg_count=3,
+                category="noc"))
 
-        self.register(Intrinsic(
-            ir_name="tir.noc_async_read_barrier",
-            cpp_func="noc_async_read_barrier",
-            template="noc_async_read_barrier();",
-            arg_count=0,
-            category="noc"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.noc_async_read_barrier",
+                cpp_func="noc_async_read_barrier",
+                template="noc_async_read_barrier();",
+                arg_count=0,
+                category="noc"))
 
-        self.register(Intrinsic(
-            ir_name="tir.noc_async_write_barrier",
-            cpp_func="noc_async_write_barrier",
-            template="noc_async_write_barrier();",
-            arg_count=0,
-            category="noc"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.noc_async_write_barrier",
+                cpp_func="noc_async_write_barrier",
+                template="noc_async_write_barrier();",
+                arg_count=0,
+                category="noc"))
 
         # ========== Compute Operations ==========
         # Matrix multiply
-        self.register(Intrinsic(
-            ir_name="tt.mm.mma",
-            cpp_func="matmul_tiles",
-            template="matmul_tiles({cb_in0}, {cb_in1}, {num_tiles}, {dst_reg}, {accumulate});",
-            arg_count=4,  # cb_in0, cb_in1, dst_reg, accumulate
-            category="compute"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tt.mm.mma",
+                cpp_func="matmul_tiles",
+                template="matmul_tiles({cb_in0}, {cb_in1}, {num_tiles}, {dst_reg}, {accumulate});",
+                arg_count=4,  # cb_in0, cb_in1, dst_reg, accumulate
+                category="compute"))
 
-        self.register(Intrinsic(
-            ir_name="tir.mm_init",
-            cpp_func="mm_init",
-            template="mm_init();",
-            arg_count=0,
-            category="compute"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.mm_init",
+                cpp_func="mm_init",
+                template="mm_init();",
+                arg_count=0,
+                category="compute"))
 
-        self.register(Intrinsic(
-            ir_name="tir.matmul_tiles",
-            cpp_func="matmul_tiles",
-            template="matmul_tiles({0}, {1}, {2}, {3}, {4});",
-            arg_count=5,
-            category="compute"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.matmul_tiles",
+                cpp_func="matmul_tiles",
+                template="matmul_tiles({0}, {1}, {2}, {3}, {4});",
+                arg_count=5,
+                category="compute"))
 
         # FPU binary operations
-        self.register(Intrinsic(
-            ir_name="tt.fpu.add",
-            cpp_func="add_tiles",
-            template="add_tiles({cb_in0}, {cb_in1}, {num_tiles});",
-            arg_count=3,
-            category="compute"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tt.fpu.add",
+                cpp_func="add_tiles",
+                template="add_tiles({cb_in0}, {cb_in1}, {num_tiles});",
+                arg_count=3,
+                category="compute"))
 
-        self.register(Intrinsic(
-            ir_name="tt.fpu.multiply",
-            cpp_func="mul_tiles",
-            template="mul_tiles({cb_in0}, {cb_in1}, {num_tiles});",
-            arg_count=3,
-            category="compute"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tt.fpu.multiply",
+                cpp_func="mul_tiles",
+                template="mul_tiles({cb_in0}, {cb_in1}, {num_tiles});",
+                arg_count=3,
+                category="compute"))
 
-        self.register(Intrinsic(
-            ir_name="tt.fpu.subtract",
-            cpp_func="sub_tiles",
-            template="sub_tiles({cb_in0}, {cb_in1}, {num_tiles});",
-            arg_count=3,
-            category="compute"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tt.fpu.subtract",
+                cpp_func="sub_tiles",
+                template="sub_tiles({cb_in0}, {cb_in1}, {num_tiles});",
+                arg_count=3,
+                category="compute"))
 
-        self.register(Intrinsic(
-            ir_name="tir.add_tiles",
-            cpp_func="add_tiles",
-            template="add_tiles({0}, {1}, {2}, {3});",
-            arg_count=4,
-            category="compute"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.add_tiles",
+                cpp_func="add_tiles",
+                template="add_tiles({0}, {1}, {2}, {3});",
+                arg_count=4,
+                category="compute"))
 
-        self.register(Intrinsic(
-            ir_name="tir.mul_tiles",
-            cpp_func="mul_tiles",
-            template="mul_tiles({0}, {1}, {2}, {3});",
-            arg_count=4,
-            category="compute"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.mul_tiles",
+                cpp_func="mul_tiles",
+                template="mul_tiles({0}, {1}, {2}, {3});",
+                arg_count=4,
+                category="compute"))
 
         # SFPU unary operations
-        self.register(Intrinsic(
-            ir_name="tt.sfpu.unary",
-            cpp_func="sfpu_unary",
-            template="sfpu_{op_type}({cb_in}, {dst_reg});",
-            arg_count=3,  # op_type, cb_in, dst_reg
-            category="compute"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tt.sfpu.unary",
+                cpp_func="sfpu_unary",
+                template="sfpu_{op_type}({cb_in}, {dst_reg});",
+                arg_count=3,  # op_type, cb_in, dst_reg
+                category="compute"))
 
-        self.register(Intrinsic(
-            ir_name="tir.sfpu_relu",
-            cpp_func="relu_tiles",
-            template="relu_tiles({0}, {1});",
-            arg_count=2,
-            category="compute"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.sfpu_relu",
+                cpp_func="relu_tiles",
+                template="relu_tiles({0}, {1});",
+                arg_count=2,
+                category="compute"))
 
-        self.register(Intrinsic(
-            ir_name="tir.sfpu_gelu",
-            cpp_func="gelu_tiles",
-            template="gelu_tiles({0}, {1});",
-            arg_count=2,
-            category="compute"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.sfpu_gelu",
+                cpp_func="gelu_tiles",
+                template="gelu_tiles({0}, {1});",
+                arg_count=2,
+                category="compute"))
 
         # DST management
-        self.register(Intrinsic(
-            ir_name="tir.acquire_dst",
-            cpp_func="acquire_dst",
-            template="acquire_dst(tt::DstMode::Half);",
-            arg_count=0,
-            category="dst"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.acquire_dst",
+                cpp_func="acquire_dst",
+                template="acquire_dst(tt::DstMode::Half);",
+                arg_count=0,
+                category="dst"))
 
-        self.register(Intrinsic(
-            ir_name="tir.release_dst",
-            cpp_func="release_dst",
-            template="release_dst(tt::DstMode::Half);",
-            arg_count=0,
-            category="dst"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.release_dst",
+                cpp_func="release_dst",
+                template="release_dst(tt::DstMode::Half);",
+                arg_count=0,
+                category="dst"))
 
-        self.register(Intrinsic(
-            ir_name="tir.pack_tile",
-            cpp_func="pack_tile",
-            template="pack_tile({0}, {1});",
-            arg_count=2,
-            category="dst"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.pack_tile",
+                cpp_func="pack_tile",
+                template="pack_tile({0}, {1});",
+                arg_count=2,
+                category="dst"))
 
         # ========== Synchronization Operations ==========
-        self.register(Intrinsic(
-            ir_name="tir.barrier",
-            cpp_func="barrier",
-            template="barrier();",
-            arg_count=0,
-            category="sync"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.barrier",
+                cpp_func="barrier",
+                template="barrier();",
+                arg_count=0,
+                category="sync"))
 
-        self.register(Intrinsic(
-            ir_name="tir.get_noc_addr",
-            cpp_func="get_noc_addr",
-            template="get_noc_addr({0}, {1});",
-            arg_count=2,
-            category="sync"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.get_noc_addr",
+                cpp_func="get_noc_addr",
+                template="get_noc_addr({0}, {1});",
+                arg_count=2,
+                category="sync"))
 
         # ========== Helper/Utility Operations ==========
-        self.register(Intrinsic(
-            ir_name="tir.get_tile_index",
-            cpp_func="get_tile_index",
-            template="get_tile_index({0});",
-            arg_count=1,
-            category="util"
-        ))
+        self.register(
+            Intrinsic(
+                ir_name="tir.get_tile_index",
+                cpp_func="get_tile_index",
+                template="get_tile_index({0});",
+                arg_count=1,
+                category="util"))
 
     def register(self, intrinsic: Intrinsic):
         """Register an intrinsic mapping"""
@@ -293,10 +293,8 @@ class IntrinsicRegistry:
 
         # Validate argument count
         if intrinsic.arg_count >= 0 and len(args) != intrinsic.arg_count:
-            logger.warning(
-                f"Argument count mismatch for {ir_name}: "
-                f"expected {intrinsic.arg_count}, got {len(args)}"
-            )
+            logger.warning(f"Argument count mismatch for {ir_name}: "
+                           f"expected {intrinsic.arg_count}, got {len(args)}")
 
         # Format the template
         if "{" in intrinsic.template:
@@ -324,7 +322,7 @@ class IntrinsicRegistry:
 
             try:
                 return intrinsic.template.format(**kwargs)
-            except KeyError as e:
+            except KeyError:
                 # Fall back to positional
                 return intrinsic.template.format(*args)
         else:
@@ -353,10 +351,6 @@ def is_intrinsic_registered(ir_name: str) -> bool:
 
 # Export key functions
 __all__ = [
-    'Intrinsic',
-    'IntrinsicRegistry',
-    'INTRINSIC_REGISTRY',
-    'get_intrinsic',
-    'generate_cpp_for_intrinsic',
-    'is_intrinsic_registered'
+    'Intrinsic', 'IntrinsicRegistry', 'INTRINSIC_REGISTRY', 'get_intrinsic',
+    'generate_cpp_for_intrinsic', 'is_intrinsic_registered'
 ]

@@ -34,8 +34,7 @@ def create_complete_ir_module_with_split_kernels(grid_x=8, grid_y=8, num_cores=6
             # Get write pointer
             T.evaluate(T.call_extern("int32", "get_write_ptr", T.int32(0)))
             # NOC read
-            T.evaluate(T.call_extern("void", "noc_async_read_tile",
-                                     tt_start_tile + i, T.int32(0)))
+            T.evaluate(T.call_extern("void", "noc_async_read_tile", tt_start_tile + i, T.int32(0)))
             # Wait for read completion
             T.evaluate(T.call_extern("void", "noc_async_read_barrier"))
             # Push to CB
@@ -48,8 +47,7 @@ def create_complete_ir_module_with_split_kernels(grid_x=8, grid_y=8, num_cores=6
             # Get write pointer
             T.evaluate(T.call_extern("int32", "get_write_ptr", T.int32(1)))
             # NOC read
-            T.evaluate(T.call_extern("void", "noc_async_read_tile",
-                                     tt_start_tile + i, T.int32(1)))
+            T.evaluate(T.call_extern("void", "noc_async_read_tile", tt_start_tile + i, T.int32(1)))
             # Wait for read completion
             T.evaluate(T.call_extern("void", "noc_async_read_barrier"))
             # Push to CB
@@ -66,7 +64,7 @@ def create_complete_ir_module_with_split_kernels(grid_x=8, grid_y=8, num_cores=6
         T.evaluate(T.call_extern("void", "mm_init"))
 
         # Main compute loop - using proper integer cb indices
-        for i in T.serial(tt_tile_count):
+        for _i in T.serial(tt_tile_count):
             # Wait for input tiles
             T.evaluate(T.call_extern("void", "cb_wait_front", T.int32(0), T.int32(1)))
             T.evaluate(T.call_extern("void", "cb_wait_front", T.int32(1), T.int32(1)))
@@ -75,7 +73,9 @@ def create_complete_ir_module_with_split_kernels(grid_x=8, grid_y=8, num_cores=6
             T.evaluate(T.call_extern("void", "tile_regs_acquire"))
 
             # Perform matmul - cb_in0=0, cb_in1=1
-            T.evaluate(T.call_extern("void", "matmul_tiles", T.int32(0), T.int32(1), T.int32(0), T.int32(0), T.int32(0)))
+            T.evaluate(
+                T.call_extern("void", "matmul_tiles", T.int32(0), T.int32(1), T.int32(0),
+                              T.int32(0), T.int32(0)))
 
             # Commit DST registers
             T.evaluate(T.call_extern("void", "tile_regs_commit"))
@@ -108,8 +108,8 @@ def create_complete_ir_module_with_split_kernels(grid_x=8, grid_y=8, num_cores=6
             # Get read pointer
             T.evaluate(T.call_extern("int32", "get_read_ptr", T.int32(16)))
             # NOC write
-            T.evaluate(T.call_extern("void", "noc_async_write_tile",
-                                     T.int32(16), tt_start_tile + i))
+            T.evaluate(
+                T.call_extern("void", "noc_async_write_tile", T.int32(16), tt_start_tile + i))
             # Wait for write completion
             T.evaluate(T.call_extern("void", "noc_async_write_barrier"))
             # Pop output tile
@@ -175,37 +175,48 @@ def create_complete_ir_module(grid_x=8, grid_y=8, num_cores=64):
     body_stmts = []
 
     # Add compute initialization
-    body_stmts.append(
-        tir.Evaluate(tir.call_extern("void", "mm_init"))
-    )
+    body_stmts.append(tir.Evaluate(tir.call_extern("void", "mm_init")))
 
     # Create a simple loop with TT operations
     loop_var = tir.Var("i", "int32")
     loop_body = tir.SeqStmt([
         # CB wait operations - using integer indices
-        tir.Evaluate(tir.call_extern("void", "cb_wait_front", tir.IntImm("int32", 0), tir.IntImm("int32", 1))),
-        tir.Evaluate(tir.call_extern("void", "cb_wait_front", tir.IntImm("int32", 1), tir.IntImm("int32", 1))),
+        tir.Evaluate(
+            tir.call_extern("void", "cb_wait_front", tir.IntImm("int32", 0), tir.IntImm("int32",
+                                                                                        1))),
+        tir.Evaluate(
+            tir.call_extern("void", "cb_wait_front", tir.IntImm("int32", 1), tir.IntImm("int32",
+                                                                                        1))),
 
         # DST management
         tir.Evaluate(tir.call_extern("void", "tile_regs_acquire")),
 
         # Matmul operation
-        tir.Evaluate(tir.call_extern("void", "matmul_tiles",
-                                      tir.IntImm("int32", 0), tir.IntImm("int32", 1),
-                                      tir.IntImm("int32", 0), tir.IntImm("int32", 0),
-                                      tir.IntImm("int32", 0))),
+        tir.Evaluate(
+            tir.call_extern("void", "matmul_tiles", tir.IntImm("int32", 0), tir.IntImm("int32", 1),
+                            tir.IntImm("int32", 0), tir.IntImm("int32", 0), tir.IntImm("int32",
+                                                                                       0))),
 
         # DST commit
         tir.Evaluate(tir.call_extern("void", "tile_regs_commit")),
 
         # CB pop operations
-        tir.Evaluate(tir.call_extern("void", "cb_pop_front", tir.IntImm("int32", 0), tir.IntImm("int32", 1))),
-        tir.Evaluate(tir.call_extern("void", "cb_pop_front", tir.IntImm("int32", 1), tir.IntImm("int32", 1))),
+        tir.Evaluate(
+            tir.call_extern("void", "cb_pop_front", tir.IntImm("int32", 0), tir.IntImm("int32",
+                                                                                       1))),
+        tir.Evaluate(
+            tir.call_extern("void", "cb_pop_front", tir.IntImm("int32", 1), tir.IntImm("int32",
+                                                                                       1))),
 
         # Output operations
-        tir.Evaluate(tir.call_extern("void", "cb_reserve_back", tir.IntImm("int32", 16), tir.IntImm("int32", 1))),
-        tir.Evaluate(tir.call_extern("void", "pack_tile", tir.IntImm("int32", 0), tir.IntImm("int32", 16))),
-        tir.Evaluate(tir.call_extern("void", "cb_push_back", tir.IntImm("int32", 16), tir.IntImm("int32", 1))),
+        tir.Evaluate(
+            tir.call_extern("void", "cb_reserve_back", tir.IntImm("int32", 16),
+                            tir.IntImm("int32", 1))),
+        tir.Evaluate(
+            tir.call_extern("void", "pack_tile", tir.IntImm("int32", 0), tir.IntImm("int32", 16))),
+        tir.Evaluate(
+            tir.call_extern("void", "cb_push_back", tir.IntImm("int32", 16), tir.IntImm("int32",
+                                                                                        1))),
     ])
 
     # Create for loop
@@ -214,8 +225,7 @@ def create_complete_ir_module(grid_x=8, grid_y=8, num_cores=64):
         min_val=tir.IntImm("int32", 0),
         extent=tir.IntImm("int32", 8),  # Simple fixed loop count
         kind=tir.ForKind.SERIAL,
-        body=loop_body
-    )
+        body=loop_body)
     body_stmts.append(loop)
 
     # Create complete body
