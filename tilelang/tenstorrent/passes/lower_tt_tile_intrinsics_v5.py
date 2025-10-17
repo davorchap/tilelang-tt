@@ -36,6 +36,7 @@ def _transform_tile_intrinsics(func, mod, ctx):
     3. Does NOT use naming heuristics
     4. Does NOT insert DST management or engine init
     """
+    print(f"[_transform_tile_intrinsics] CALLED for function {func.attrs.get('global_symbol', 'unknown')}")
 
     class TileIntrinsicLowerer(BlockTransformer):
 
@@ -94,15 +95,25 @@ def _transform_tile_intrinsics(func, mod, ctx):
 
             # Check for T.fill / tl.fill pattern
             if self._is_fill_intrinsic(evaluate_node):
-                return self._lower_fill(evaluate_node)
+                lowered = self._lower_fill(evaluate_node)
+                # Debug what we created
+                print(f"[visit_evaluate] Lowered fill:")
+                if hasattr(lowered.value, 'args'):
+                    for i, arg in enumerate(lowered.value.args):
+                        print(f"[visit_evaluate]   args[{i}]: {arg}, type={type(arg)}")
+                return lowered
 
             # Check for T.copy / tl.copy pattern
             elif self._is_copy_intrinsic(evaluate_node):
-                return self._lower_copy(evaluate_node)
+                lowered = self._lower_copy(evaluate_node)
+                print(f"[visit_evaluate] Lowering copy: {evaluate_node.value.op.name if hasattr(evaluate_node.value.op, 'name') else 'unknown'} -> {type(lowered)}")
+                return lowered
 
             # Check for T.gemm / tl.gemm pattern
             elif self._is_gemm_intrinsic(evaluate_node):
-                return self._lower_gemm(evaluate_node)
+                lowered = self._lower_gemm(evaluate_node)
+                print(f"[visit_evaluate] Lowering gemm: {evaluate_node.value.op.name if hasattr(evaluate_node.value.op, 'name') else 'unknown'} -> {type(lowered)}")
+                return lowered
 
             # Check for element-wise operations
             elif self._is_elementwise_op(evaluate_node):
@@ -543,8 +554,40 @@ def _transform_tile_intrinsics(func, mod, ctx):
     lowerer = TileIntrinsicLowerer(cb_metadata)
     new_body = lowerer.visit(func.body)
 
+    # DEBUG: Check what's in new_body BEFORE with_body
+    calls_before = []
+    def scan_before(stmt):
+        if isinstance(stmt, tir.Evaluate) and isinstance(stmt.value, tir.Call):
+            if hasattr(stmt.value.op, 'name'):
+                op_name = stmt.value.op.name
+                op_str = str(stmt.value.op)
+                print(f"[scan_before DEBUG] op_name={op_name}, op_str={op_str}, args len={len(stmt.value.args)}")
+                # For call_extern with void return type, function name is in args[0]!
+                if op_str == "Op(tir.call_extern)" and len(stmt.value.args) > 0:
+                    print(f"[scan_before DEBUG] Matched call_extern, args[0]={stmt.value.args[0]}, type={type(stmt.value.args[0])}")
+                    if isinstance(stmt.value.args[0], tir.StringImm):
+                        calls_before.append(f"[extern:{stmt.value.args[0].value}]")
+                else:
+                    calls_before.append(op_name)
+    tir.stmt_functor.post_order_visit(new_body, scan_before)
+    print(f"[_transform] new_body BEFORE with_body: {calls_before[:5]}")
+
     # Update function with transformed body
     func = func.with_body(new_body)
+
+    # DEBUG: Check what's in func.body AFTER with_body
+    calls_after = []
+    def scan_after(stmt):
+        if isinstance(stmt, tir.Evaluate) and isinstance(stmt.value, tir.Call):
+            if hasattr(stmt.value.op, 'name'):
+                op_name = stmt.value.op.name
+                if str(stmt.value.op) == "Op(tir.call_extern)" and len(stmt.value.args) > 0:
+                    if isinstance(stmt.value.args[0], tir.StringImm):
+                        calls_after.append(f"[extern:{stmt.value.args[0].value}]")
+                else:
+                    calls_after.append(op_name)
+    tir.stmt_functor.post_order_visit(func.body, scan_after)
+    print(f"[_transform] func.body AFTER with_body: {calls_after[:5]}")
 
     # Add metadata about compute patterns found
     if lowerer.compute_patterns:
@@ -665,15 +708,27 @@ if __name__ == "__main__":
 # Module-level wrapper function for compatibility with test imports
 def lower_tt_tile_intrinsics_v5(mod):
     """Apply LowerTTTileIntrinsics v5 pass to a module."""
-    # Manually iterate over functions and apply the transformation
-    # (This ensures consistent behavior with other v5 passes)
-    new_funcs = {}
-    for gvar, func in mod.functions.items():
-        if isinstance(func, tir.PrimFunc):
-            # Apply the core transformation function directly
-            transformed_func = _transform_tile_intrinsics(func, mod, None)
-            new_funcs[gvar] = transformed_func
-        else:
-            new_funcs[gvar] = func
+    print("[Pass C2] lower_tt_tile_intrinsics_v5 wrapper CALLED")
 
-    return tvm.IRModule(new_funcs)
+    # Call the decorated version (like Pass C1 does)
+    result = LowerTTTileIntrinsics_v5(mod)
+
+    # Verify what we're returning
+    for gvar, func in result.functions.items():
+        if isinstance(func, tir.PrimFunc):
+            calls_in_result = []
+            def scan(stmt):
+                if isinstance(stmt, tir.Evaluate) and isinstance(stmt.value, tir.Call):
+                    call = stmt.value
+                    if hasattr(call.op, 'name'):
+                        op_name = call.op.name
+                        # Check if this is call_extern - function name is in args[0] for void return type!
+                        if str(call.op) == "Op(tir.call_extern)" and len(call.args) > 0:
+                            if isinstance(call.args[0], tir.StringImm):
+                                calls_in_result.append(f"{call.args[0].value}")
+                        else:
+                            calls_in_result.append(op_name)
+            tir.stmt_functor.post_order_visit(func.body, scan)
+            print(f"[Pass C2] Wrapper returning function {gvar.name_hint} with calls: {calls_in_result[:5]}")
+
+    return result
