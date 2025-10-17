@@ -4,10 +4,14 @@ This directory contains architectural documentation for the Tenstorrent backend.
 
 ## Documents
 
-- **TT_ARCHITECTURE.md**: Complete TT backend architecture overview, including pass pipeline, code generation, and runtime integration
-- **IR_LOWERING_ANALYSIS.md**: Comprehensive comparison between GPU and Tenstorrent lowering pipelines, execution models, and memory hierarchies
-- **TileLang_TT_TIR_Lowering_Guide_v5.md**: V5 pass pipeline specification with late protocol insertion design
-- **RUNTIME_PLAN.md**: Runtime plan specification defining the tt.plan.json format and host-device coordination
+### Core Architecture
+- **[TT_ARCHITECTURE.md](TT_ARCHITECTURE.md)**: Complete TT backend architecture overview, including compilation pipeline, code generation, 3-kernel architecture, and runtime integration. Includes runtime plan specification in Appendix A.
+
+### Pipeline Reference
+- **[v5_pipeline.md](v5_pipeline.md)**: Authoritative v5 pipeline reference with all 14 passes in 5 stages (A-E). Includes transformation examples, intrinsic quick reference, and complete dependency graphs.
+
+### Comparative Analysis
+- **[GPU_vs_Tenstorrent_Analysis.md](GPU_vs_Tenstorrent_Analysis.md)**: Comprehensive comparison between GPU and Tenstorrent architectures, including execution models, memory hierarchies, compiler pipelines, and code generation strategies.
 
 ## Key Concepts
 

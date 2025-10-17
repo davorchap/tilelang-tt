@@ -32,11 +32,9 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[architecture/TT_ARCHITECTURE.md](architecture/TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture | All developers |
-| **[architecture/v5_pipeline.md](architecture/v5_pipeline.md)** ⭐ | Authoritative v5 pipeline reference (14 passes) | Backend developers |
+| **[architecture/TT_ARCHITECTURE.md](architecture/TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture with runtime plan spec | All developers |
+| **[architecture/v5_pipeline.md](architecture/v5_pipeline.md)** ⭐ | Authoritative v5 pipeline reference with examples & intrinsics | Backend developers |
 | **[architecture/GPU_vs_Tenstorrent_Analysis.md](architecture/GPU_vs_Tenstorrent_Analysis.md)** ⭐ | GPU vs TT architecture & compiler comparison | Compiler engineers |
-| **[architecture/TileLang_TT_TIR_Lowering_Guide_v5.md](architecture/TileLang_TT_TIR_Lowering_Guide_v5.md)** | V5 pass pipeline lowering guide | Backend developers |
-| **[architecture/RUNTIME_PLAN.md](architecture/RUNTIME_PLAN.md)** | Runtime plan specification (tt.plan.json) | Backend developers |
 
 ### 📚 Development Guides
 

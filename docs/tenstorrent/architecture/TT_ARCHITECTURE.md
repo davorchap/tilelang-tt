@@ -123,46 +123,14 @@ This metadata becomes the authoritative source for later stages.
 
 **Entry Point:** `tilelang/engine/tenstorrent/lower.py` → `OptimizeForTargetTT()`
 
-**v5 Pipeline: 14 Passes in Stages A-E (All Python)**
+The v5 pipeline consists of **14 passes organized into 5 stages (A-E)**, all implemented in Python for maintainability and rapid iteration. For complete details including pass-by-pass transformations, dependency graphs, and code examples, see [v5_pipeline.md](v5_pipeline.md).
 
-**Stage A: Metadata (3 passes)**
-1. `infer_tt_layout_v5` - Canonicalize buffer layout schema, validate N-D sharding
-2. `propagate_tt_layout_v5` - Derive circular buffer metadata from layout
-3. `attach_tensor_accessor_tt` - Attach TensorAccessor metadata for buffer addressing
-
-**Stage B: Partitioning (2 passes)**
-4. `layout_aware_work_partition_tt_v5` - Select cores and runtime ranges based on residency
-5. `grid_to_core_grid_v5` - Map logical grid to physical core coordinates
-
-**Stage C: Protocol-less Lowering (3 passes)**
-6. `lower_shared_to_cb_v5` - Lower shared memory to circular buffers (no NOC/CB protocol yet)
-7. `lower_tt_tile_intrinsics_v5` - Lower TT tile operations (matmul, elementwise) to intrinsics
-8. `build_tile_dfg_tt` - Build tile dataflow graph for optimization
-
-**Stage D: Late Split & Protocol (5 passes)**
-9. `split_device_kernel` - Split single kernel into reader/compute/writer kernels
-10. `configure_tensor_accessor_tt` - Configure TensorAccessor for each kernel
-11. `lower_cb_intrinsics` - Lower circular buffer operations to NOC/CB API calls
-12. `insert_compute_init_tt` - Insert compute initialization (DST acquire, mm_init)
-13. `insert_dst_management_tt` - Insert DST lifecycle (acquire→commit→pack→release)
-
-**Stage E: Finalization (1 pass)**
-14. `finalize_persistent_signature_tt` - Finalize runtime signature and metadata
-
-**Example: Grid to Persistent Transformation**
-```python
-# Before (GPU-style grid)
-with T.Kernel(8, 8) as (bx, by):
-    C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
-
-# After (persistent loop)
-core_id = get_core_id()
-start_tile, count = get_tile_assignment(core_id)
-for tile_id in range(start_tile, start_tile + count):
-    bx = tile_id // 8
-    by = tile_id % 8
-    C[bx*32:(bx+1)*32, by*32:(by+1)*32] = ...
-```
+**Pipeline Summary:**
+- **Stage A:** Metadata (3 passes) - Buffer layout inference and CB configuration
+- **Stage B:** Partitioning (2 passes) - Work distribution and core mapping
+- **Stage C:** Protocol-less Lowering (3 passes) - Abstract tile operations
+- **Stage D:** Late Split & Protocol (5 passes) - Kernel splitting and protocol insertion
+- **Stage E:** Finalization (1 pass) - Runtime signature and validation
 
 **Common Optimization Passes (11, shared with CUDA):**
 - `FlattenBuffer` - Flatten multi-dim buffers to 1D
@@ -186,41 +154,19 @@ for tile_id in range(start_tile, start_tile + count):
 
 ---
 
-## Layout Attribute Schema (Details)
+## Attribute Schema
 
-### Buffer Attributes (`tt.buffer.<name>`)
+For complete buffer and PrimFunc attribute schemas, see the detailed tables in [v5_pipeline.md](v5_pipeline.md#stage-a-metadata-3-passes). The v5 pipeline maintains comprehensive metadata throughout compilation including:
 
-| Field | Meaning | Notes |
-|-------|---------|-------|
-| `memory` | `"DRAM"` or `"L1"` | Drives buffer residency and host API choice. |
-| `layout` | `"interleaved"` or `"sharded"` | Mirrors TT-Metalium layout enums. |
-| `tile_shape` | `[height, width]` | Defaults to `[32, 32]`; configurable in future. |
-| `dtype` | Element type | `bf16`, `fp16`, `fp32`, etc. |
-| `nd_shard.axes` | Logical axis labels | User-defined names to keep intent clear. |
-| `nd_shard.grid` | Cores per axis | Product equals total shards. |
-| `nd_shard.shard_shape_elems` | Elements per shard per axis | Prior to tilization. |
-| `nd_shard.order` | Traversal hint | `row_major`, `match_shard`, `block_linear(k)`. |
-| `nd_shard.align_tiles` | Bool | Must be true for L1 shards in v1. |
-| `nd_shard.projected_grid` | `[Gy, Gx]` | 2-D projection on compute plane (derived). |
-| `nd_shard.projected_shard_tiles` | `[Sm, Sn]` | Tiles per shard over compute plane (derived). |
+- **Buffer attributes** (`tt.buffer.<name>`): Memory space, layout, tile shape, dtype, ND sharding
+- **CB attributes** (`tt.cb.<name>`): Page size, depth, data format
+- **PrimFunc attributes**: Partition mode, grid tiles, core ranges, runtime args
+- **TensorAccessor metadata**: Addressing and stride information
 
-### PrimFunc Attributes
-
-| Attribute | Source Pass | Consumer | Description |
-|-----------|-------------|----------|-------------|
-| `tt.partition_mode` | LayoutAwareWorkPartitionTT | GridToPersistentTT, host | `"global"` vs `"local_shard"`. |
-| `tt.grid_tiles` | LayoutAwareWorkPartitionTT | GridToPersistentTT, kernels | `[Mt, Nt]` global tile counts. |
-| `tt.shard_grid` | LayoutAwareWorkPartitionTT | Host + kernels | `[Gy, Gx]` shard projection dims. |
-| `tt.local_shape_tiles` | LayoutAwareWorkPartitionTT | Kernels | `[Sm, Sn]` tiles within one shard. |
-| `tt.core_ranges` | LayoutAwareWorkPartitionTT | Host | CoreRangeSet for launches. |
-| `tt.runtime_args` | LayoutAwareWorkPartitionTT | Host + kernels | Ordered runtime arg names. |
-| `tt.cb.<buffer>` | PropagateTTLayout | MemorySpaceLowerTT, kernels | Circular buffer geometry. |
-
-### Diagnostics & Guardrails
-
-- Halo metadata is rejected (*"halo unsupported"*).
-- L1 shards must be tile-aligned and fit within capacity (*"L1 shard exceeds capacity"*).
-- Host generator emits `TensorAccessorArgs::Create(...)` per buffer and throws if a default-constructed accessor leaks through.
+**Diagnostics & Guardrails:**
+- Halo metadata is rejected (*"halo unsupported"*)
+- L1 shards must be tile-aligned and fit within capacity
+- Host generator validates TensorAccessor construction
 
 ---
 
@@ -854,6 +800,241 @@ pytest testing/python/tenstorrent/test_jit_decorator.py -v           # JIT decor
 
 ---
 
-**Last Updated:** 2025-10-16
+## Appendix A: Runtime Plan Specification
+
+The `tt.plan.json` file is the single source of truth for coordinating host and device execution in the Tenstorrent backend. It contains all necessary information for launching kernels, configuring data movement, and managing core resources.
+
+### File Format
+
+The runtime plan is a JSON file with the following structure:
+
+```json
+{
+  "core_grid": [gx, gy],
+  "core_ranges": [...],
+  "work_partition": {...},
+  "layouts": {...}
+}
+```
+
+### Field Descriptions
+
+#### core_grid
+**Type:** `[int, int]`
+
+Specifies the dimensions of the core grid.
+
+```json
+"core_grid": [4, 4]  // 4×4 grid of cores (16 cores total)
+```
+
+#### core_ranges
+**Type:** `Array<CoreRange>`
+
+Defines the active rectangular regions of cores. Multiple disjoint ranges are supported.
+
+```json
+// Single range covering entire grid:
+"core_ranges": [
+  {"start": [0, 0], "extent": [4, 4]}
+]
+
+// Multiple disjoint ranges:
+"core_ranges": [
+  {"start": [0, 0], "extent": [2, 2]},
+  {"start": [2, 2], "extent": [2, 2]}
+]
+```
+
+#### work_partition
+**Type:** `Map<string, Array<WorkItem>>`
+
+Maps core coordinates to lists of work items. Keys are stringified coordinates `"(cx,cy)"`.
+
+**WorkItem Structure:**
+- `io`: M-dimension tile index
+- `jo`: N-dimension tile index
+- `len_k`: Optional K-dimension extent
+- `tile_order`: Optional traversal order (`"row_major"`, `"column_major"`, `"match_shard"`, `"z_order"`)
+
+```json
+"work_partition": {
+  "(0,0)": [
+    {"io": 0, "jo": 0, "len_k": 128, "tile_order": "row_major"},
+    {"io": 0, "jo": 1, "len_k": 128, "tile_order": "row_major"}
+  ],
+  "(0,1)": [
+    {"io": 1, "jo": 0, "len_k": 128, "tile_order": "row_major"}
+  ]
+}
+```
+
+#### layouts
+**Type:** `Map<string, LayoutDescriptor>`
+
+Describes memory layout and sharding for each buffer.
+
+```json
+"layouts": {
+  "A": {
+    "shard": "DRAM",
+    "interleave": true,
+    "stride": [1024, 32]
+  },
+  "B": {
+    "shard": "DRAM",
+    "interleave": false
+  },
+  "C": {
+    "shard": "L1",
+    "tile_id_order": "row_major"
+  }
+}
+```
+
+### Complete Example
+
+Runtime plan for a 128×128 matrix multiplication on a 2×2 core grid:
+
+```json
+{
+  "core_grid": [2, 2],
+  "core_ranges": [
+    {"start": [0, 0], "extent": [2, 2]}
+  ],
+  "work_partition": {
+    "(0,0)": [
+      {"io": 0, "jo": 0, "len_k": 128, "tile_order": "row_major"},
+      {"io": 0, "jo": 1, "len_k": 128, "tile_order": "row_major"}
+    ],
+    "(0,1)": [
+      {"io": 0, "jo": 2, "len_k": 128, "tile_order": "row_major"},
+      {"io": 0, "jo": 3, "len_k": 128, "tile_order": "row_major"}
+    ],
+    "(1,0)": [
+      {"io": 1, "jo": 0, "len_k": 128, "tile_order": "row_major"},
+      {"io": 1, "jo": 1, "len_k": 128, "tile_order": "row_major"}
+    ],
+    "(1,1)": [
+      {"io": 1, "jo": 2, "len_k": 128, "tile_order": "row_major"},
+      {"io": 1, "jo": 3, "len_k": 128, "tile_order": "row_major"}
+    ]
+  },
+  "layouts": {
+    "A": {"shard": "DRAM", "interleave": true},
+    "B": {"shard": "DRAM", "interleave": true},
+    "C": {"shard": "L1", "tile_id_order": "row_major"}
+  }
+}
+```
+
+### Python API
+
+#### Creating a Plan
+```python
+from tilelang.tenstorrent import (
+    CoreRange, WorkItem, plan_dict
+)
+
+# Define components
+core_grid = (4, 4)
+core_ranges = [CoreRange((0, 0), (4, 4))]
+work_partition = {
+    "(0,0)": [WorkItem(io=0, jo=0, len_k=128)]
+}
+layouts = {
+    "A": {"shard": "DRAM"},
+    "B": {"shard": "DRAM"},
+    "C": {"shard": "L1"}
+}
+
+# Create plan dictionary
+plan = plan_dict(core_grid, core_ranges, work_partition, layouts)
+```
+
+#### Emitting from IR
+```python
+from tilelang.tenstorrent import emit_tt_plan
+
+# Emit plan from a PrimFunc with metadata
+emit_tt_plan(func, out_path="my_plan.json")
+```
+
+#### Loading and Validation
+```python
+from tilelang.tenstorrent import load_tt_plan, validate_plan
+
+# Load plan from file
+plan = load_tt_plan("my_plan.json")
+
+# Validate plan structure
+errors = validate_plan(plan)
+if errors:
+    print("Plan validation failed:")
+    for error in errors:
+        print(f"  - {error}")
+```
+
+### Host Runtime Usage
+
+The host runtime reads the plan to configure core activation, memory allocations, DMA engines, and kernel launches:
+
+```cpp
+// Pseudo-code for host runtime
+TTRuntimePlan plan = LoadPlan("tt.plan.json");
+
+// Activate cores based on core_ranges
+for (auto& range : plan.core_ranges) {
+    ActivateCores(range.start, range.extent);
+}
+
+// Allocate buffers based on layouts
+for (auto& [name, layout] : plan.layouts) {
+    if (layout.shard == "DRAM") {
+        AllocateDRAM(name, layout);
+    } else {
+        AllocateL1(name, layout);
+    }
+}
+
+// Launch kernels with work assignments
+for (auto& [core, work_items] : plan.work_partition) {
+    LaunchKernel(core, work_items);
+}
+```
+
+### Device Kernel Usage
+
+Device kernels use the plan to determine their work assignment:
+
+```cpp
+// Pseudo-code for device kernel
+uint32_t core_id = GetCoreID();
+WorkList my_work = GetWorkForCore(core_id);
+
+for (auto& work_item : my_work) {
+    ProcessTile(work_item.io, work_item.jo, work_item.len_k);
+}
+```
+
+### Validation Rules
+
+The runtime plan must satisfy:
+1. **Core ranges within grid bounds**: All core ranges must fit within grid dimensions
+2. **Non-overlapping ranges**: Core ranges should not overlap (unless intentionally replicated)
+3. **Complete tile coverage**: All required output tiles must be assigned to cores
+4. **Valid layout shards**: Shard values must be "DRAM" or "L1"
+5. **Consistent buffer references**: All buffers in layouts must correspond to function parameters
+
+### Performance Considerations
+
+- **Work balance**: Distribute work items evenly across cores
+- **Memory locality**: Place frequently accessed buffers in L1
+- **Interleaving**: Enable for better bank utilization
+- **Tile order**: Match computation pattern for cache efficiency
+
+---
+
+**Last Updated:** 2025-10-17
 **Maintainer:** TileLang Tenstorrent Team
 **Repository:** https://github.com/davorchap/tilelang-tt
