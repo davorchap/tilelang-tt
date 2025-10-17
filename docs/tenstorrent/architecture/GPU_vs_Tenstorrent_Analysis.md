@@ -17,7 +17,6 @@ This document provides a comprehensive analysis comparing GPU (CUDA/ROCm) and Te
 **Related Documents:**
 - [v5_pipeline.md](v5_pipeline.md) - Current TT backend pipeline reference
 - [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md) - Complete TT backend architecture
-- [TileLang_TT_TIR_Lowering_Guide_v5.md](TileLang_TT_TIR_Lowering_Guide_v5.md) - v5 lowering guide
 
 ---
 
@@ -294,21 +293,24 @@ CUDA-specific passes:
 
 **How GPU Detects TensorCore Operations:**
 
-```cpp
-// GPU approach: Look for intrinsic calls in the IR
-class FragmentGetter : public StmtExprVisitor {
-  void VisitExpr_(const CallNode* op) final {
-    // Detect TensorCore load/store intrinsics
-    if (op->op.same_as(builtin::tvm_load_matrix_sync()) ||
-        op->op.same_as(builtin::tvm_store_matrix_sync())) {
-      // Extract shape: m, n, k
-      // Get memory scope (wmma.matrix_a, wmma.matrix_b, wmma.accumulator)
-      // Store fragment metadata
-      FragmentInfo info(m, n, k, layout, scope);
-      fragments[buffer_var] = info;
-    }
-  }
-};
+```python
+# GPU approach: Look for intrinsic calls in the IR
+class FragmentGetter(tvm.tir.stmt_functor.StmtExprVisitor):
+    def __init__(self):
+        super().__init__()
+        self.fragments = {}
+
+    def visit_call(self, op):
+        # Detect TensorCore load/store intrinsics
+        if op.op.name in ["tvm_load_matrix_sync", "tvm_store_matrix_sync"]:
+            # Extract shape: m, n, k from call args
+            m, n, k = self._extract_shape(op.args)
+            # Get memory scope (wmma.matrix_a, wmma.matrix_b, wmma.accumulator)
+            scope = self._get_memory_scope(op.args)
+            layout = self._get_layout(op.args)
+            # Store fragment metadata
+            buffer_var = op.args[0]
+            self.fragments[buffer_var] = FragmentInfo(m, n, k, layout, scope)
 ```
 
 The transform pass annotates these with metadata (`fragment_shape`, `fragment_layout`) that codegen later uses to emit PTX assembly.
@@ -503,8 +505,7 @@ The backend handles the transformation to Tenstorrent's execution model transpar
 
 ### Tenstorrent Documentation
 - [v5_pipeline.md](v5_pipeline.md) - Current v5 pipeline reference (14 passes, 5 stages)
-- [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md) - Complete backend architecture
-- [TileLang_TT_TIR_Lowering_Guide_v5.md](TileLang_TT_TIR_Lowering_Guide_v5.md) - v5 lowering guide
+- [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md) - Complete backend architecture with runtime plan spec
 - [passes/README.md](../passes/README.md) - Pass documentation index
 
 ### External Resources

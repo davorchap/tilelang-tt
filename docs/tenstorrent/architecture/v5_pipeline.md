@@ -710,9 +710,176 @@ build/
 
 ---
 
-## Testing
+## Section 4: Transformation Examples
 
-### Integration Tests
+### GEMM Progressive Lowering
+
+This section demonstrates how a matrix multiplication kernel evolves through the v5 pipeline passes.
+
+#### Initial (User Code)
+```python
+@T.prim_func
+def gemm(A: T.Buffer((M,K), "bf16"), B: T.Buffer((K,N), "bf16"), C: T.Buffer((M,N), "bf16")):
+    with T.Kernel(T.ceildiv(N,128), T.ceildiv(M,128)) as (bx, by):
+        A_sh = T.alloc_shared((128, 32), "bf16")
+        B_sh = T.alloc_shared((32, 128), "bf16")
+        C_frag = T.alloc_fragment((128, 128), "bf16")
+        T.clear(C_frag)
+        for kt in T.Pipelined(T.ceildiv(K, 32), num_stages=3):
+            T.copy(A[by*128, kt*32], A_sh)
+            T.copy(B[kt*32, bx*128], B_sh)
+            T.gemm(A_sh, B_sh, C_frag)
+        T.copy(C_frag, C[by*128, bx*128])
+```
+
+#### After Stage B (Work Partition + Core Launch)
+```python
+@T.prim_func
+def gemm_core(A, B, C):
+    # attrs: tt.core_grid=[gx,gy], tt.grid_tiles=[Mt,Nt], tt.work_partition=...
+    cx = T.launch_core("coreIdx.x", gx)
+    cy = T.launch_core("coreIdx.y", gy)
+    # Body unchanged (still using shared memory)
+```
+
+#### After Stage C1 (Lower Shared to CB - Abstract)
+```python
+@T.prim_func
+def gemm_cb(A,B,C):
+    cx,cy = T.launch_core(...), T.launch_core(...)
+    A_cb = tt.alloc_cb("cb_in0", (128,32), "bf16")
+    B_cb = tt.alloc_cb("cb_in1", (32,128), "bf16")
+    C_cb = tt.alloc_cb("cb_out", (128,128), "bf16")
+    for kt in T.Pipelined(T.ceildiv(K,32), num_stages=3):
+        T.evaluate(tt.read_to_cb(A[by*128, kt*32], A_cb))      # abstract
+        T.evaluate(tt.read_to_cb(B[kt*32, bx*128], B_cb))      # abstract
+        T.gemm(A_cb, B_cb, C_cb)                               # still high-level
+    T.evaluate(tt.write_from_cb(C_cb, C[by*128, bx*128]))      # abstract
+```
+
+#### After Stage C2 (Lower to Tile Intrinsics - Protocol-less)
+```python
+@T.prim_func
+def gemm_tiles(A,B,C):
+    cx,cy = T.launch_core(...), T.launch_core(...)
+    A_cb,B_cb,C_cb = ... # CB allocations
+    for kt in T.Pipelined(T.ceildiv(K,32)):
+        T.evaluate(tt.read_to_cb(...))  # abstract read
+        T.evaluate(tt.read_to_cb(...))  # abstract read
+        T.evaluate(tt.mm.mma(A_cb, B_cb, dst=0, accumulate=(kt>0)))  # no DST yet
+    T.evaluate(tt.write_from_cb(C_cb, C[...]))
+```
+
+#### After Stage D1 (Split Device Kernel)
+```python
+# KERNEL 1: READER
+@T.prim_func
+def gemm_reader(A,B):
+    # attrs: tt.kernel_role="reader"
+    cx,cy = T.launch_core(...), T.launch_core(...)
+    T.evaluate(tt.read_to_cb(A[...], "cb_in0"))
+    T.evaluate(tt.read_to_cb(B[...], "cb_in1"))
+
+# KERNEL 2: COMPUTE
+@T.prim_func
+def gemm_compute():
+    # attrs: tt.kernel_role="compute"
+    cx,cy = T.launch_core(...), T.launch_core(...)
+    for kt in T.serial(Kt):
+        T.evaluate(tt.mm.mma("cb_in0","cb_in1", dst=0, accumulate=(kt>0)))
+
+# KERNEL 3: WRITER
+@T.prim_func
+def gemm_writer(C):
+    # attrs: tt.kernel_role="writer"
+    cx,cy = T.launch_core(...), T.launch_core(...)
+    T.evaluate(tt.write_from_cb("cb_out", C[...]))
+```
+
+#### After Stage D3-D5 (Protocol Insertion)
+
+**Reader with NOC/CB Protocol:**
+```python
+T.evaluate(cb_reserve_back("cb_in0", 1))
+T.evaluate(cb_reserve_back("cb_in1", 1))
+T.evaluate(noc_async_read_tile(tile_id_A, A_accessor, get_write_ptr("cb_in0")))
+T.evaluate(noc_async_read_tile(tile_id_B, B_accessor, get_write_ptr("cb_in1")))
+T.evaluate(noc_async_read_barrier())
+T.evaluate(cb_push_back("cb_in0", 1))
+T.evaluate(cb_push_back("cb_in1", 1))
+```
+
+**Compute with Engine Init + DST Lifecycle:**
+```python
+# D4: Engine initialization
+T.evaluate(tt.engine.init_common("cb_in0","cb_in1","cb_out"))
+T.evaluate(tt.fpu.matmul_init("cb_in0","cb_in1","cb_out"))
+
+# D5: DST lifecycle wrapping K-loop
+T.evaluate(tt.dst.acquire())
+for kt in T.serial(Kt):
+    T.evaluate(cb_wait_front("cb_in0", 1))
+    T.evaluate(cb_wait_front("cb_in1", 1))
+    T.evaluate(tt.mm.mma("cb_in0","cb_in1", dst=0, accumulate=(kt>0)))
+    T.evaluate(cb_pop_front("cb_in0", 1))
+    T.evaluate(cb_pop_front("cb_in1", 1))
+T.evaluate(cb_reserve_back("cb_out", 1))
+T.evaluate(tt.dst.commit())
+T.evaluate(tt.dst.wait())
+T.evaluate(pack_tile(dst=0, cb="cb_out", tile_index=0))
+T.evaluate(tt.dst.release())
+T.evaluate(cb_push_back("cb_out", 1))
+```
+
+### Eltwise Add Progressive Lowering
+
+#### Initial (User Code)
+```python
+@T.prim_func
+def eadd(A: T.Buffer((M,N), "bf16"), B: T.Buffer((M,N), "bf16"), C: T.Buffer((M,N), "bf16")):
+    with T.Kernel(T.ceildiv(N,128), T.ceildiv(M,128)) as (bx, by):
+        ShA = T.alloc_shared((128,128),"bf16")
+        ShB = T.alloc_shared((128,128),"bf16")
+        ShC = T.alloc_shared((128,128),"bf16")
+        T.copy(A[by*128, bx*128], ShA)
+        T.copy(B[by*128, bx*128], ShB)
+        for i, j in T.Parallel(128,128):
+            ShC[i,j] = ShA[i,j] + ShB[i,j]
+        T.copy(ShC, C[by*128, bx*128])
+```
+
+#### After Stage C2 (Tile Intrinsics)
+```python
+@T.prim_func
+def eadd_tiles(A,B,C):
+    cx,cy = T.launch_core(...), T.launch_core(...)
+    A_cb,B_cb,C_cb = ... # CB allocations
+    T.evaluate(tt.read_to_cb(A[...], A_cb))
+    T.evaluate(tt.read_to_cb(B[...], B_cb))
+    T.evaluate(tt.fpu.add(A_cb, B_cb, dst=0))   # protocol-less
+    T.evaluate(tt.write_from_cb(C_cb, C[...]))
+```
+
+#### After Stage D5 (Complete Protocol - Per-Tile Pattern)
+```python
+# Elementwise has different DST pattern (per-tile, no K-loop)
+T.evaluate(cb_wait_front("cb_in0", 1))
+T.evaluate(cb_wait_front("cb_in1", 1))
+T.evaluate(tt.dst.acquire())                    # Acquire per tile
+T.evaluate(tt.fpu.add("cb_in0","cb_in1", dst=0))
+T.evaluate(cb_pop_front("cb_in0", 1))
+T.evaluate(cb_pop_front("cb_in1", 1))
+T.evaluate(cb_reserve_back("cb_out", 1))
+T.evaluate(tt.dst.commit())                     # Commit per tile
+T.evaluate(tt.dst.wait())
+T.evaluate(pack_tile(dst=0, cb="cb_out", tile_index=0))
+T.evaluate(tt.dst.release())                    # Release per tile
+T.evaluate(cb_push_back("cb_out", 1))
+```
+
+---
+
+## Testing
 
 **File:** `testing/python/tenstorrent/test_v5_passes_integration.py`
 
@@ -770,7 +937,6 @@ Tests for each stage:
 ### Architecture Documents
 - [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md) - Complete backend architecture
 - [GPU_vs_Tenstorrent_Analysis.md](GPU_vs_Tenstorrent_Analysis.md) - GPU vs TT comparison
-- [TileLang_TT_TIR_Lowering_Guide_v5.md](TileLang_TT_TIR_Lowering_Guide_v5.md) - v5 lowering guide
 
 ### Pass Documentation
 - [passes/README.md](../passes/README.md) - Pass documentation index
@@ -786,7 +952,115 @@ Tests for each stage:
 
 ---
 
+## Appendix A: Intrinsic Quick Reference
+
+### Abstract Intrinsics (Protocol-less, Early Stages)
+
+These intrinsics are used in Stages A-C before protocol insertion:
+
+| Intrinsic | Purpose | Stage | Example |
+|-----------|---------|-------|---------|
+| `tt.alloc_cb(name, shape, dtype)` | Conceptual CB allocation | C1 | `tt.alloc_cb("cb_in0", (128,32), "bf16")` |
+| `tt.read_to_cb(tensor_slice, cb)` | Abstract DRAM→CB read | C1 | `tt.read_to_cb(A[0:32,0:32], cb_in0)` |
+| `tt.write_from_cb(cb, tensor_slice)` | Abstract CB→DRAM write | C1 | `tt.write_from_cb(cb_out, C[0:32,0:32])` |
+| `tt.mm.mma(cb_a, cb_b, dst, accumulate)` | Matrix multiply-accumulate | C2 | `tt.mm.mma(cb_in0, cb_in1, dst=0, accumulate=True)` |
+| `tt.fpu.add(cb_x, cb_y, dst)` | Binary addition | C2 | `tt.fpu.add(cb_in0, cb_in1, dst=0)` |
+| `tt.sfpu.unary(op, dst)` | Unary operations | C2 | `tt.sfpu.unary("exp", dst=0)` |
+
+### Protocol Intrinsics - CB/NOC (Late Stage D, Reader/Writer)
+
+These are inserted by pass D3 (`lower_cb_intrinsics`):
+
+| Intrinsic | Purpose | Kernel | Description |
+|-----------|---------|--------|-------------|
+| `cb_reserve_back(cb, n)` | Reserve output pages | Reader, Compute | Reserve n pages in CB for writing |
+| `get_write_ptr(cb)` | Get CB write pointer | Reader | Returns L1 address for NOC write |
+| `noc_async_read_tile(...)` | DRAM→L1 transfer | Reader | Async read tile from DRAM |
+| `noc_async_read_barrier()` | Wait for reads | Reader | Ensures all reads complete |
+| `cb_push_back(cb, n)` | Publish pages | Reader, Compute | Make n pages available to consumer |
+| `cb_wait_front(cb, n)` | Wait for input | Compute, Writer | Block until n pages available |
+| `get_read_ptr(cb)` | Get CB read pointer | Writer | Returns L1 address for NOC read |
+| `noc_async_write_tile(...)` | L1→DRAM transfer | Writer | Async write tile to DRAM |
+| `noc_async_write_barrier()` | Wait for writes | Writer | Ensures all writes complete |
+| `cb_pop_front(cb, n)` | Release pages | Compute, Writer | Free n consumed pages |
+
+### Protocol Intrinsics - Compute Engine (Late Stage D, Compute Only)
+
+#### Engine Initialization (D4: `insert_compute_init_tt`)
+
+| Intrinsic | Purpose | Usage |
+|-----------|---------|-------|
+| `tt.engine.init_common(cb_in0, cb_in1, cb_out)` | Initialize unpack/math/pack | Before tile operations |
+| `tt.fpu.matmul_init(cb_a, cb_b, cb_out)` | Initialize for matmul | Before matmul K-loop |
+| `tt.fpu.binary_init(cb_a, cb_b, cb_out, op)` | Initialize for binary ops | Before element-wise ops |
+| `tt.sfpu.init(op, cb_in, cb_out)` | Initialize SFPU | Before SFPU operations |
+| `tt.pack.init(cb_out)` | Initialize packer | Part of engine init |
+
+#### DST Management (D5: `insert_dst_management_tt`)
+
+| Intrinsic | Purpose | Pattern |
+|-----------|---------|---------|
+| `tt.dst.acquire()` | Reserve DST half for FPU | Before computation |
+| `tt.dst.commit()` | Signal computation done | After computation |
+| `tt.dst.wait()` | Wait for FPU completion | Before packing |
+| `pack_tile(dst_idx, cb_out)` | Pack DST to CB | Transfer result to CB |
+| `tt.dst.release()` | Release DST to packer | After packing |
+
+### DST Lifecycle Patterns
+
+#### Pattern 1: K-Loop Accumulation (GEMM)
+```
+acquire_dst()
+mm_init()
+for k in range(Kt):
+    cb_wait_front() × 2
+    matmul_tiles()
+    cb_pop_front() × 2
+cb_reserve_back()
+commit_dst()
+wait_dst()  # Internal to pack_tile
+pack_tile()
+cb_push_back()
+release_dst()
+```
+
+#### Pattern 2: Per-Tile Operations (Elementwise)
+```
+for each tile:
+    acquire_dst()
+    cb_wait_front() × 2
+    add_tiles()
+    cb_pop_front() × 2
+    cb_reserve_back()
+    commit_dst()
+    wait_dst()  # Internal to pack_tile
+    pack_tile()
+    cb_push_back()
+    release_dst()
+```
+
+### Intrinsic Wrapping Convention
+
+All effect-only intrinsics (those that produce side effects rather than values) are wrapped in `T.evaluate()` to preserve ordering in TIR:
+
+```python
+# Correct - preserves sequencing
+T.evaluate(cb_reserve_back("cb_in0", 1))
+T.evaluate(noc_async_read_tile(...))
+
+# Incorrect - would be optimized away
+cb_reserve_back("cb_in0", 1)  # No T.evaluate wrapper
+```
+
+---
+
 ## Changelog
+
+### Version 1.1 (2025-10-17)
+- Added Section 4: Transformation Examples (GEMM and Eltwise progressive lowering)
+- Added Appendix A: Intrinsic Quick Reference
+- Extracted valuable content from TileLang_TT_TIR_Lowering_Guide_v5.md before deletion
+- Added DST lifecycle patterns and intrinsic wrapping conventions
 
 ### Version 1.0 (2025-10-16)
 - Initial v5 pipeline reference document
