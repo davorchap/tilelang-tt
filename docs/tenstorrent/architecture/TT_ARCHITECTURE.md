@@ -748,7 +748,7 @@ See [METALIUM_SETUP_GUIDE.md](./METALIUM_SETUP_GUIDE.md) for SDK setup.
 - [PASS_TABLE_GPU.md](./PASS_TABLE_GPU.md) - CUDA/ROCm-specific passes
 - [passes/README.md](../passes/README.md) - Tenstorrent pass index and reference
 - [architecture/v5_pipeline.md](./v5_pipeline.md) - Authoritative v5 pipeline reference
-- [TT_BACKEND_TASKS.md](./TT_BACKEND_TASKS.md) - Pattern detection implementation tasks
+- [planning/future-enhancements.md](../planning/future-enhancements.md) - Future enhancements and roadmap
 
 **Setup & Usage:**
 - [METALIUM_SETUP_GUIDE.md](./METALIUM_SETUP_GUIDE.md) - SDK installation
@@ -756,7 +756,7 @@ See [METALIUM_SETUP_GUIDE.md](./METALIUM_SETUP_GUIDE.md) for SDK setup.
 - [CI.md](./CI.md) - Continuous integration
 
 **Validation:**
-- [METALIUM_SDK_VALIDATION_PLAN.md](./METALIUM_SDK_VALIDATION_PLAN.md) - SDK validation phases
+- [planning/sdk-validation-plan.md](../planning/sdk-validation-plan.md) - SDK validation phases
 
 ---
 

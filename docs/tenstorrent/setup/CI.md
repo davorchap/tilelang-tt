@@ -477,6 +477,6 @@ Potential optimizations:
 ## Related Documentation
 
 - **SDK Setup:** [`METALIUM_SETUP_GUIDE.md`](METALIUM_SETUP_GUIDE.md)
-- **SDK Validation:** [`METALIUM_SDK_VALIDATION_PLAN.md`](METALIUM_SDK_VALIDATION_PLAN.md)
+- **SDK Validation:** [`sdk-validation-plan.md`](sdk-validation-plan.md)
 - **External SDK Implementation:** [`EXTERNAL_SDK_IMPLEMENTATION_PLAN.md`](EXTERNAL_SDK_IMPLEMENTATION_PLAN.md)
 - **Local Build Guide:** [`local_build_guide.md`](local_build_guide.md)

@@ -499,7 +499,7 @@ cmake --install build
 
 After successful setup:
 
-1. **Validate SDK Integration**: See `METALIUM_SDK_VALIDATION_PLAN.md`
+1. **Validate SDK Integration**: See `sdk-validation-plan.md`
    - Phase 1: Dry-run compilation
    - Phase 2: API completion
    - Phase 3: Hardware execution
@@ -528,7 +528,7 @@ After successful setup:
 **Documentation**:
 - This guide: Setup instructions
 - `FindMetalium.cmake`: CMake module (automatic)
-- `METALIUM_SDK_VALIDATION_PLAN.md`: Validation phases
+- `sdk-validation-plan.md`: Validation phases
 - `CLAUDE.md`: Build reference
 
 ---

@@ -56,8 +56,8 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[planning/TT_BACKEND_TASKS.md](planning/TT_BACKEND_TASKS.md)** | Backend tasks and future enhancements | Contributors |
-| **[planning/METALIUM_SDK_VALIDATION_PLAN.md](planning/METALIUM_SDK_VALIDATION_PLAN.md)** | SDK validation phases | Hardware team |
+| **[planning/future-enhancements.md](planning/future-enhancements.md)** | Backend tasks and future enhancements | Contributors |
+| **[planning/sdk-validation-plan.md](planning/sdk-validation-plan.md)** | SDK validation phases | Hardware team |
 
 ### 📖 Reference
 
@@ -98,7 +98,7 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 - Additional diagnostics (halo hints, L1 capacity checks)
 
 ### ⏸️ Blocked
-- Real hardware validation and performance profiling (see [planning/METALIUM_SDK_VALIDATION_PLAN.md](planning/METALIUM_SDK_VALIDATION_PLAN.md))
+- Real hardware validation and performance profiling (see [planning/sdk-validation-plan.md](planning/sdk-validation-plan.md))
 
 ---
 
@@ -273,7 +273,7 @@ pytest testing/python/tenstorrent/test_jit_decorator.py -v           # JIT decor
 - **Build issues**: See [setup/local_build_guide.md](setup/local_build_guide.md)
 - **SDK setup**: See [setup/METALIUM_SETUP_GUIDE.md](setup/METALIUM_SETUP_GUIDE.md)
 - **GPU vs TT comparison**: See [architecture/GPU_vs_Tenstorrent_Analysis.md](architecture/GPU_vs_Tenstorrent_Analysis.md)
-- **Backend tasks**: See [planning/TT_BACKEND_TASKS.md](planning/TT_BACKEND_TASKS.md)
+- **Backend tasks**: See [planning/future-enhancements.md](planning/future-enhancements.md)
 
 ---
 
