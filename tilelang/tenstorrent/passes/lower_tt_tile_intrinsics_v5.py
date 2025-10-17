@@ -26,12 +26,11 @@ sys.path.append(os.path.dirname(__file__))
 from block_transformer import BlockTransformer
 
 
-@tvm.tir.transform.prim_func_pass(opt_level=0)
-def LowerTTTileIntrinsics_v5(func, mod, ctx):
+def _transform_tile_intrinsics(func, mod, ctx):
     """
-    Tensorize compute operations to protocol-less TT intrinsics.
+    Core transformation logic for tensorizing compute operations.
 
-    This pass:
+    This function:
     1. Detects compute patterns (GEMM, element-wise, etc.)
     2. Replaces them with protocol-less TT intrinsics
     3. Does NOT use naming heuristics
@@ -84,7 +83,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             # Pop loop info
             self.loop_stack.pop()
 
-            if new_body != for_node.body:
+            if new_body is not for_node.body:  # Use object identity, not equality!
                 return tir.For(for_node.loop_var, for_node.min, for_node.extent, for_node.kind,
                                new_body, for_node.thread_binding, for_node.annotations,
                                for_node.span)
@@ -544,7 +543,7 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
     lowerer = TileIntrinsicLowerer(cb_metadata)
     new_body = lowerer.visit(func.body)
 
-    # Update function
+    # Update function with transformed body
     func = func.with_body(new_body)
 
     # Add metadata about compute patterns found
@@ -552,6 +551,13 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
         func = func.with_attr("tt.compute_patterns", lowerer.compute_patterns)
 
     return func
+
+
+# Decorated version for TVM pass infrastructure
+@tvm.tir.transform.prim_func_pass(opt_level=0)
+def LowerTTTileIntrinsics_v5(func, mod, ctx):
+    """TVM pass wrapper for tile intrinsic lowering."""
+    return _transform_tile_intrinsics(func, mod, ctx)
 
 
 def validate_no_heuristics(func):
@@ -659,4 +665,15 @@ if __name__ == "__main__":
 # Module-level wrapper function for compatibility with test imports
 def lower_tt_tile_intrinsics_v5(mod):
     """Apply LowerTTTileIntrinsics v5 pass to a module."""
-    return LowerTTTileIntrinsics_v5(mod)
+    # Manually iterate over functions and apply the transformation
+    # (This ensures consistent behavior with other v5 passes)
+    new_funcs = {}
+    for gvar, func in mod.functions.items():
+        if isinstance(func, tir.PrimFunc):
+            # Apply the core transformation function directly
+            transformed_func = _transform_tile_intrinsics(func, mod, None)
+            new_funcs[gvar] = transformed_func
+        else:
+            new_funcs[gvar] = func
+
+    return tvm.IRModule(new_funcs)
