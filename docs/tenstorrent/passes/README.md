@@ -146,14 +146,6 @@ Codegen (reader.cpp, compute.cpp, writer.cpp, main.cpp, tt.plan.json)
 - [lower_to_sfpu.md](./lower_to_sfpu.md) - Future SFPU pass (Python implementation needed)
 - [verify_tt_ir.md](./verify_tt_ir.md) - IR verification
 
-### Deprecated Documentation (Archived)
-
-The following docs describe the old 5-pass pipeline (removed in PR #135):
-- [infer_tt_layout.md](../archive/old-passes/infer_tt_layout.md) - Replaced by infer_tt_layout_v5
-- [propagate_tt_layout.md](../archive/old-passes/propagate_tt_layout.md) - Replaced by propagate_tt_layout_v5
-- [grid_to_persistent_tt.md](../archive/old-passes/grid_to_persistent_tt.md) - Replaced by grid_to_core_grid_v5
-- [memory_space_lower_tt.md](../archive/old-passes/memory_space_lower_tt.md) - Replaced by lower_shared_to_cb_v5
-
 ---
 
 ## Pass Categories

@@ -72,7 +72,7 @@ This document captures the task tracker for the TileLang Tenstorrent (TT) backen
 - ✅ Made v5 pipeline the default implementation
 - ✅ Removed old 5-pass pipeline (1,245 lines of implementation)
 - ✅ Deleted deprecated test files (1,882 lines)
-- ✅ Archived old documentation to `docs/tenstorrent/archive/pre-v5/`
+- ✅ Deleted old documentation (superseded by v5 docs)
 - ✅ Updated all documentation to reflect v5 as current reality
 - ✅ Created comprehensive v5_pipeline.md reference (800+ lines)
 
@@ -105,7 +105,7 @@ This document captures the task tracker for the TileLang Tenstorrent (TT) backen
 **Goal**: Complete documentation cleanup and create comprehensive references
 
 **Completed (Week 1):**
-- ✅ Archive structure created (`docs/tenstorrent/archive/pre-v5/`)
+- ✅ Deleted old documentation (superseded by v5 docs)
 - ✅ Main README.md updated to reflect v5
 - ✅ TT_ARCHITECTURE.md updated with 14-pass v5 pipeline
 - ✅ Created authoritative v5_pipeline.md reference (800+ lines)
@@ -253,8 +253,6 @@ This document captures the task tracker for the TileLang Tenstorrent (TT) backen
 - Individual pass docs in `docs/tenstorrent/passes/`
 
 ### Planning
-- [TT_Pass_Status.md](./TT_Pass_Status.md) - v5 implementation status (historical)
-- [TT_Implementation_Plan.md](../archive/pre-v5/planning/TT_Implementation_Plan.md) - Original plan (archived)
 - [METALIUM_SDK_VALIDATION_PLAN.md](./METALIUM_SDK_VALIDATION_PLAN.md) - SDK validation phases
 
 ### Setup

@@ -56,11 +56,8 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 
 | Document | Purpose | Audience |
 |----------|---------|----------|
-| **[planning/TT_Pass_Status.md](planning/TT_Pass_Status.md)** | v5 pipeline implementation status (historical) | Contributors |
-| **[planning/TT_Implementation_Plan.md](planning/TT_Implementation_Plan.md)** | v5 implementation roadmap (historical, superseded) | Project team |
-| **[planning/TT_BACKEND_TASKS.md](planning/TT_BACKEND_TASKS.md)** | Backend consolidation tasks (historical) | Contributors |
+| **[planning/TT_BACKEND_TASKS.md](planning/TT_BACKEND_TASKS.md)** | Backend tasks and future enhancements | Contributors |
 | **[planning/METALIUM_SDK_VALIDATION_PLAN.md](planning/METALIUM_SDK_VALIDATION_PLAN.md)** | SDK validation phases | Hardware team |
-| **[archive/pre-v5/](archive/pre-v5/)** | Pre-v5 planning docs, progress reports, old pipeline | Historical reference |
 
 ### 📖 Reference
 
@@ -276,8 +273,7 @@ pytest testing/python/tenstorrent/test_jit_decorator.py -v           # JIT decor
 - **Build issues**: See [setup/local_build_guide.md](setup/local_build_guide.md)
 - **SDK setup**: See [setup/METALIUM_SETUP_GUIDE.md](setup/METALIUM_SETUP_GUIDE.md)
 - **GPU vs TT comparison**: See [architecture/GPU_vs_Tenstorrent_Analysis.md](architecture/GPU_vs_Tenstorrent_Analysis.md)
-- **Pass status**: See [planning/TT_Pass_Status.md](planning/TT_Pass_Status.md)
-- **Historical docs**: See [archive/pre-v5/](archive/pre-v5/)
+- **Backend tasks**: See [planning/TT_BACKEND_TASKS.md](planning/TT_BACKEND_TASKS.md)
 
 ---
 
