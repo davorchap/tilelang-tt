@@ -188,7 +188,9 @@ class DSTProtocolInserter:
         elif isinstance(stmt, tir.AssertStmt):
             new_body = self.visit(stmt.body)
             return tir.AssertStmt(stmt.condition, stmt.message, new_body)
-        elif isinstance(stmt, (tir.BufferStore, tir.BufferRealize, tir.ProducerStore)):
+        elif isinstance(stmt, (tir.BufferStore, tir.BufferRealize)):
+            return stmt
+        elif hasattr(tir, 'ProducerStore') and isinstance(stmt, tir.ProducerStore):
             return stmt
         else:
             return stmt

@@ -88,15 +88,25 @@ class IRInspector:
 
         if hasattr(op, 'value') and hasattr(op.value, 'op'):
             call = op.value
-            op_name = str(call.op) if hasattr(call.op, 'name') else str(call.op)
+
+            # For call_extern, get the function name from arguments
+            if str(call.op) == "Op(tir.call_extern)":
+                if len(call.args) > 0 and hasattr(call.args[0], 'value'):
+                    op_name = call.args[0].value
+                else:
+                    op_name = str(call.op)
+            else:
+                op_name = str(call.op) if hasattr(call.op, 'name') else str(call.op)
+
             self.intrinsic_calls.append(op_name)
 
             # Check for specific operation types
-            if any(x in op_name for x in ["noc_async_read", "read_to_cb"]):
+            # Accept both protocol-less (tt.*) and lowered (tir.*) forms
+            if any(x in op_name for x in ["noc_async_read", "read_to_cb", "tt.read_to_cb"]):
                 self.has_noc_read = True
                 self.has_cb_ops = True
 
-            if any(x in op_name for x in ["noc_async_write", "write_from_cb"]):
+            if any(x in op_name for x in ["noc_async_write", "write_from_cb", "tt.write_from_cb"]):
                 self.has_noc_write = True
                 self.has_cb_ops = True
 
@@ -105,8 +115,11 @@ class IRInspector:
                 self.has_cb_ops = True
 
             if any(x in op_name for x in [
-                    "mm_init", "matmul_tiles", "pack_tile", "tile_regs_commit", "mm.mma", "fpu.",
-                    "sfpu.", "gemm", "add", "mul"
+                    "mm_init", "matmul_tiles", "pack_tile", "tile_regs_commit",
+                    "mm.mma", "tt.mm.mma",  # Accept protocol-less form
+                    "fpu.", "tt.fpu.",      # Accept protocol-less form
+                    "sfpu.", "tt.sfpu.",    # Accept protocol-less form
+                    "gemm", "add", "mul"
             ]):
                 self.has_compute_op = True
 

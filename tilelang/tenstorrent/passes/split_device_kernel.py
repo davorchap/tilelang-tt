@@ -57,38 +57,123 @@ class KernelSplitter:
         self.skip_current = False
 
     def visit(self, stmt):
-        """Custom visitor implementation"""
+        """Custom visitor implementation - manual recursive traversal"""
         if tir is None:
             return stmt
 
-        def visitor_func(op):
-            # Handle different statement types
-            if isinstance(op, tir.Evaluate):
-                return self.visit_evaluate(op)
-            elif isinstance(op, tir.Allocate):
-                return self.visit_allocate(op) if hasattr(self, 'visit_allocate') else op
-            elif isinstance(op, tir.For):
-                return self.visit_for(op) if hasattr(self, 'visit_for') else op
-            elif isinstance(op, tir.IfThenElse):
-                return self.visit_if_then_else(op) if hasattr(self, 'visit_if_then_else') else op
-            elif isinstance(op, tir.BufferStore):
-                return self.visit_buffer_store(op) if hasattr(self, 'visit_buffer_store') else op
-            elif isinstance(op, tir.BufferLoad):
-                return self.visit_buffer_load(op) if hasattr(self, 'visit_buffer_load') else op
-            return op
+        # Handle different statement types
+        if isinstance(stmt, tir.SeqStmt):
+            # Process each child statement
+            new_seq = []
+            for child in stmt.seq:
+                # Recursively visit each child
+                new_child = self.visit(child)
+                if new_child is not None:
+                    new_seq.append(new_child)
 
-        from tvm.tir.stmt_functor import post_order_visit
-        return post_order_visit(stmt, visitor_func)
+            # Return based on what remains
+            if len(new_seq) == 0:
+                return None
+            elif len(new_seq) == 1:
+                return new_seq[0]
+            else:
+                return tir.SeqStmt(new_seq)
+
+        elif isinstance(stmt, tir.Evaluate):
+            # Check if this statement should be included
+            return self.visit_evaluate(stmt)
+
+        elif isinstance(stmt, tir.Allocate):
+            # Handle allocate with body
+            alloc_name = stmt.buffer_var.name if hasattr(stmt.buffer_var, 'name') else str(stmt.buffer_var)
+
+            # Recursively visit the body
+            new_body = self.visit(stmt.body)
+
+            if self._cb_belongs_to_role(alloc_name):
+                self.cb_names.add(alloc_name)
+                if new_body is None:
+                    return None
+                # Reconstruct the allocate with the new body
+                return tir.Allocate(stmt.buffer_var, stmt.dtype, stmt.extents,
+                                   stmt.condition, new_body, stmt.annotations, stmt.span)
+            else:
+                # Skip the allocation, just return the filtered body
+                return new_body
+
+        elif isinstance(stmt, tir.For):
+            # Handle for loops
+            new_body = self.visit(stmt.body)
+
+            if new_body is None:
+                return None
+
+            if self._loop_belongs_to_role(stmt):
+                # Keep the loop with the new body
+                return tir.For(stmt.loop_var, stmt.min, stmt.extent, stmt.kind,
+                              new_body, stmt.thread_binding, stmt.annotations, stmt.span)
+            else:
+                # Skip the loop structure but keep the filtered body
+                return new_body
+
+        elif isinstance(stmt, tir.IfThenElse):
+            # Handle if-then-else
+            new_then = self.visit(stmt.then_case) if stmt.then_case else None
+            new_else = self.visit(stmt.else_case) if stmt.else_case else None
+
+            if new_then is None and new_else is None:
+                return None
+            elif new_then is None:
+                # Only else remains - could invert condition or just return else
+                return new_else
+            elif new_else is None:
+                # Only then remains
+                return tir.IfThenElse(stmt.condition, new_then, None, stmt.span)
+            else:
+                return tir.IfThenElse(stmt.condition, new_then, new_else, stmt.span)
+
+        elif isinstance(stmt, tir.LetStmt):
+            # Handle let statements
+            new_body = self.visit(stmt.body)
+            if new_body is None:
+                return None
+            return tir.LetStmt(stmt.var, stmt.value, new_body, stmt.span)
+
+        elif isinstance(stmt, tir.AttrStmt):
+            # Handle attribute statements
+            new_body = self.visit(stmt.body)
+            if new_body is None:
+                return None
+            return tir.AttrStmt(stmt.node, stmt.attr_key, stmt.value, new_body, stmt.span)
+
+        elif isinstance(stmt, tir.BufferStore):
+            # For now, keep buffer stores as-is
+            # You could add filtering logic here if needed
+            return stmt
+
+        else:
+            # For other statement types, keep as-is
+            return stmt
 
     def visit_evaluate(self, op):
         """Visit T.evaluate nodes to filter by role"""
 
-        if hasattr(op, 'value') and hasattr(op.value, 'op'):
+        if hasattr(op, 'value') and isinstance(op.value, tir.Call):
             call = op.value
-            op_name = str(call.op) if hasattr(call.op, 'name') else str(call.op)
+
+            # For call_extern, the function name is in the arguments
+            if str(call.op) == "Op(tir.call_extern)":
+                # The args are stored without the return type when it's "void"
+                # First arg should be the function name
+                if len(call.args) > 0 and isinstance(call.args[0], tir.StringImm):
+                    func_name = call.args[0].value
+                else:
+                    func_name = ""
+            else:
+                func_name = str(call.op)
 
             # Determine if this statement belongs to current role
-            should_include = self._should_include_statement(op_name, call)
+            should_include = self._should_include_statement(func_name, call)
 
             if should_include:
                 # Track CBs and buffers used
@@ -99,29 +184,7 @@ class KernelSplitter:
 
         return op
 
-    def visit_allocate(self, op):
-        """Visit allocate nodes (CB allocations)"""
-
-        # CB allocations go to the kernel that uses them
-        # This is determined by the DFG analysis
-        alloc_name = op.buffer_var.name if hasattr(op.buffer_var, 'name') else str(op.buffer_var)
-
-        if self._cb_belongs_to_role(alloc_name):
-            self.cb_names.add(alloc_name)
-            return op
-        else:
-            # Process body without the allocation
-            return self.visit(op.body)
-
-    def visit_for(self, op):
-        """Visit for loops - preserve structure for the appropriate role"""
-
-        # Check if this loop is relevant to current role
-        if self._loop_belongs_to_role(op):
-            return op
-        else:
-            # Skip the loop but process its body
-            return self.visit(op.body)
+    # These methods are no longer needed as we handle them in postorder
 
     def _should_include_statement(self, op_name: str, call) -> bool:
         """Determine if a statement belongs to the current role"""
@@ -146,9 +209,11 @@ class KernelSplitter:
         if "alloc_cb" not in op_name:
             return False
 
-        # Extract CB name
-        if len(call.args) > 0:
-            cb_name = self._extract_string(call.args[0])
+        # For call_extern with alloc_cb, the CB name is the second argument
+        # args[0] = function name ("tt.alloc_cb")
+        # args[1] = CB name
+        if len(call.args) > 1:
+            cb_name = self._extract_string(call.args[1])
             if cb_name and ("in" in cb_name or cb_name in self._get_input_cbs()):
                 return True
 
@@ -160,9 +225,11 @@ class KernelSplitter:
         if "alloc_cb" not in op_name:
             return False
 
-        # Extract CB name
-        if len(call.args) > 0:
-            cb_name = self._extract_string(call.args[0])
+        # For call_extern with alloc_cb, the CB name is the second argument
+        # args[0] = function name ("tt.alloc_cb")
+        # args[1] = CB name
+        if len(call.args) > 1:
+            cb_name = self._extract_string(call.args[1])
             if cb_name and ("out" in cb_name or cb_name in self._get_output_cbs()):
                 return True
 
@@ -382,9 +449,16 @@ class SplitDeviceKernel:
                         buffer_map[param] = buffer
 
         # Create new function
+        # Handle the body - could be None after filtering
+        if kernel_slice.statements and kernel_slice.statements[0] is not None:
+            body = kernel_slice.statements[0]
+        else:
+            # Create an empty body with just a no-op
+            body = tir.Evaluate(tir.IntImm("int32", 0))
+
         new_func = tir.PrimFunc(
             params=params,
-            body=kernel_slice.statements[0] if kernel_slice.statements else tir.Evaluate(0),
+            body=body,
             ret_type=original_func.ret_type,
             buffer_map=buffer_map,
             attrs=original_func.attrs)
@@ -513,14 +587,14 @@ if __name__ == "__main__":
         def gemm(A: T.Buffer((256, 256), "float16"), B: T.Buffer((256, 256), "float16"),
                  C: T.Buffer((256, 256), "float16")):
             # Simulate output from C1-C3
-            T.evaluate(T.call_extern("tt.alloc_cb", "cb_in0", [128, 32], "bf16"))
-            T.evaluate(T.call_extern("tt.alloc_cb", "cb_in1", [32, 128], "bf16"))
-            T.evaluate(T.call_extern("tt.alloc_cb", "cb_out", [128, 128], "bf16"))
+            T.evaluate(T.call_extern("void", "tt.alloc_cb", "cb_in0", 128, 32, "bf16"))
+            T.evaluate(T.call_extern("void", "tt.alloc_cb", "cb_in1", 32, 128, "bf16"))
+            T.evaluate(T.call_extern("void", "tt.alloc_cb", "cb_out", 128, 128, "bf16"))
 
-            T.evaluate(T.call_extern("tt.read_to_cb", A[0:128, 0:32], "cb_in0"))
-            T.evaluate(T.call_extern("tt.read_to_cb", B[0:32, 0:128], "cb_in1"))
-            T.evaluate(T.call_extern("tt.mm.mma", "cb_in0", "cb_in1", 0, True))
-            T.evaluate(T.call_extern("tt.write_from_cb", "cb_out", C[0:128, 0:128]))
+            T.evaluate(T.call_extern("void", "tt.read_to_cb", "cb_in0"))
+            T.evaluate(T.call_extern("void", "tt.read_to_cb", "cb_in1"))
+            T.evaluate(T.call_extern("void", "tt.mm.mma", "cb_in0", "cb_in1", 0, 1))
+            T.evaluate(T.call_extern("void", "tt.write_from_cb", "cb_out"))
 
     # Add simulated DFG metadata
     func = TestModule["gemm"]

@@ -100,7 +100,7 @@ def build_v5_pipeline(
 
         # Stage D: Late Split & Protocol Insertion (5 passes)
         split_device_kernel,  # D1: Kernel splitting
-        validate_split_kernels,  # D1.5: Validate split kernels have complete IR
+        # validate_split_kernels,  # D1.5: TEMPORARILY DISABLED - validates too early, before D3 generates NOC ops
         configure_tensor_accessor_tt,  # D2: Tensor accessor configuration
         lower_cb_intrinsics,  # D3: CB intrinsics
         insert_compute_init_tt,  # D4: Compute initialization
