@@ -85,7 +85,8 @@ class KernelSplitter:
 
         elif isinstance(stmt, tir.Allocate):
             # Handle allocate with body
-            alloc_name = stmt.buffer_var.name if hasattr(stmt.buffer_var, 'name') else str(stmt.buffer_var)
+            alloc_name = stmt.buffer_var.name if hasattr(stmt.buffer_var, 'name') else str(
+                stmt.buffer_var)
 
             # Recursively visit the body
             new_body = self.visit(stmt.body)
@@ -95,8 +96,8 @@ class KernelSplitter:
                 if new_body is None:
                     return None
                 # Reconstruct the allocate with the new body
-                return tir.Allocate(stmt.buffer_var, stmt.dtype, stmt.extents,
-                                   stmt.condition, new_body, stmt.annotations, stmt.span)
+                return tir.Allocate(stmt.buffer_var, stmt.dtype, stmt.extents, stmt.condition,
+                                    new_body, stmt.annotations, stmt.span)
             else:
                 # Skip the allocation, just return the filtered body
                 return new_body
@@ -110,8 +111,8 @@ class KernelSplitter:
 
             if self._loop_belongs_to_role(stmt):
                 # Keep the loop with the new body
-                return tir.For(stmt.loop_var, stmt.min, stmt.extent, stmt.kind,
-                              new_body, stmt.thread_binding, stmt.annotations, stmt.span)
+                return tir.For(stmt.loop_var, stmt.min, stmt.extent, stmt.kind, new_body,
+                               stmt.thread_binding, stmt.annotations, stmt.span)
             else:
                 # Skip the loop structure but keep the filtered body
                 return new_body

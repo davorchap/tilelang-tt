@@ -115,11 +115,19 @@ class IRInspector:
                 self.has_cb_ops = True
 
             if any(x in op_name for x in [
-                    "mm_init", "matmul_tiles", "pack_tile", "tile_regs_commit",
-                    "mm.mma", "tt.mm.mma",  # Accept protocol-less form
-                    "fpu.", "tt.fpu.",      # Accept protocol-less form
-                    "sfpu.", "tt.sfpu.",    # Accept protocol-less form
-                    "gemm", "add", "mul"
+                    "mm_init",
+                    "matmul_tiles",
+                    "pack_tile",
+                    "tile_regs_commit",
+                    "mm.mma",
+                    "tt.mm.mma",  # Accept protocol-less form
+                    "fpu.",
+                    "tt.fpu.",  # Accept protocol-less form
+                    "sfpu.",
+                    "tt.sfpu.",  # Accept protocol-less form
+                    "gemm",
+                    "add",
+                    "mul"
             ]):
                 self.has_compute_op = True
 

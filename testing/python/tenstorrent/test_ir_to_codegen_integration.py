@@ -8,8 +8,6 @@ covers guard-rail failures when required shard metadata is missing.
 
 from __future__ import annotations
 
-import pytest
-
 import tvm
 
 import tilelang.tenstorrent as tt
@@ -118,7 +116,6 @@ def test_compute_kernel_omits_shard_coords_when_global():
 
 # Test removed: test_reader_writer_guard_against_missing_shard_coords
 # This test checked for v4-specific unused variable patterns that aren't part of v5 IR-driven design.
-
 
 # Test removed: test_emit_tt_artifacts_requires_shard_runtime_args
 # This test validated v4 metadata requirements that don't apply to v5 IR-driven codegen.

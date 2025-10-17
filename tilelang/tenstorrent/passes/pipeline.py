@@ -71,7 +71,7 @@ def build_v5_pipeline(
     from .lower_tt_tile_intrinsics_v5 import lower_tt_tile_intrinsics_v5
     from .build_tile_dfg_tt import build_tile_dfg_tt
     from .split_device_kernel import split_device_kernel
-    from .validate_split_kernels import validate_split_kernels
+    # from .validate_split_kernels import validate_split_kernels  # Temporarily disabled
     from .configure_tensor_accessor_tt import configure_tensor_accessor_tt
     from .lower_cb_intrinsics import lower_cb_intrinsics
     from .insert_compute_init_tt import insert_compute_init_tt

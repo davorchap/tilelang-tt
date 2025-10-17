@@ -12,7 +12,9 @@ from tilelang import tvm
 from tvm import tir
 
 # Skip the entire module
-pytestmark = pytest.mark.skip(reason="VerifyTTIR pass exists but not integrated into v5 pipeline (commented out in pipeline.py:116)")
+pytestmark = pytest.mark.skip(
+    reason="VerifyTTIR pass exists but not integrated into v5 pipeline (commented out in pipeline.py:116)"
+)
 
 
 def create_func_with_complete_metadata():

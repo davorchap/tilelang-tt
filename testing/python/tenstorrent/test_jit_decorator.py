@@ -7,7 +7,6 @@ Temporarily re-skipping until TVM bug is fixed.
 
 import json
 import sys
-import pytest
 
 sys.path.insert(0, '.')
 
