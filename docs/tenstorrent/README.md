@@ -34,7 +34,7 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 |----------|---------|----------|
 | **[architecture/TT_ARCHITECTURE.md](architecture/TT_ARCHITECTURE.md)** ⭐ | Complete TT backend architecture | All developers |
 | **[architecture/v5_pipeline.md](architecture/v5_pipeline.md)** ⭐ | Authoritative v5 pipeline reference (14 passes) | Backend developers |
-| **[architecture/IR_LOWERING_ANALYSIS.md](architecture/IR_LOWERING_ANALYSIS.md)** | GPU vs TT comparison & execution models | Compiler engineers |
+| **[architecture/GPU_vs_Tenstorrent_Analysis.md](architecture/GPU_vs_Tenstorrent_Analysis.md)** ⭐ | GPU vs TT architecture & compiler comparison | Compiler engineers |
 | **[architecture/TileLang_TT_TIR_Lowering_Guide_v5.md](architecture/TileLang_TT_TIR_Lowering_Guide_v5.md)** | V5 pass pipeline lowering guide | Backend developers |
 | **[architecture/RUNTIME_PLAN.md](architecture/RUNTIME_PLAN.md)** | Runtime plan specification (tt.plan.json) | Backend developers |
 
@@ -277,7 +277,7 @@ pytest testing/python/tenstorrent/test_jit_decorator.py -v           # JIT decor
 - **v5 Pipeline**: See [architecture/v5_pipeline.md](architecture/v5_pipeline.md)
 - **Build issues**: See [setup/local_build_guide.md](setup/local_build_guide.md)
 - **SDK setup**: See [setup/METALIUM_SETUP_GUIDE.md](setup/METALIUM_SETUP_GUIDE.md)
-- **Compiler internals**: See [architecture/IR_LOWERING_ANALYSIS.md](architecture/IR_LOWERING_ANALYSIS.md)
+- **GPU vs TT comparison**: See [architecture/GPU_vs_Tenstorrent_Analysis.md](architecture/GPU_vs_Tenstorrent_Analysis.md)
 - **Pass status**: See [planning/TT_Pass_Status.md](planning/TT_Pass_Status.md)
 - **Historical docs**: See [archive/pre-v5/](archive/pre-v5/)
 

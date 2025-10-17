@@ -769,7 +769,7 @@ Tests for each stage:
 
 ### Architecture Documents
 - [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md) - Complete backend architecture
-- [IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md) - GPU vs TT comparison
+- [GPU_vs_Tenstorrent_Analysis.md](GPU_vs_Tenstorrent_Analysis.md) - GPU vs TT comparison
 - [TileLang_TT_TIR_Lowering_Guide_v5.md](TileLang_TT_TIR_Lowering_Guide_v5.md) - v5 lowering guide
 
 ### Pass Documentation

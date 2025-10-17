@@ -797,7 +797,7 @@ See [METALIUM_SETUP_GUIDE.md](./METALIUM_SETUP_GUIDE.md) for SDK setup.
 ## 9. References
 
 **Implementation Details:**
-- [IR_LOWERING_ANALYSIS.md](./IR_LOWERING_ANALYSIS.md) - GPU vs TT pipeline comparison
+- [GPU_vs_Tenstorrent_Analysis.md](./GPU_vs_Tenstorrent_Analysis.md) - GPU vs TT architecture & compiler comparison
 - [PASS_TABLE_SHARED.md](./PASS_TABLE_SHARED.md) - Shared lowering/optimization passes
 - [PASS_TABLE_GPU.md](./PASS_TABLE_GPU.md) - CUDA/ROCm-specific passes
 - [PASS_TABLE_TT.md](./PASS_TABLE_TT.md) - Tenstorrent-specific passes (layout-aware pipeline)
