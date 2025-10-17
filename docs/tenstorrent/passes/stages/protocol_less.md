@@ -85,9 +85,32 @@ T.call_extern("add_tiles", cb_a, cb_b, 0, 0, 0)
 
 ## C3: build_tile_dfg_tt
 
-**Purpose:** Build tile dataflow graph for kernel splitting
+**Purpose:** Build tile-level dataflow graph for CB assignment and kernel splitting
 
 **Location:** `tilelang/tenstorrent/passes/build_tile_dfg_tt.py`
+
+### Algorithm
+
+1. **Traverse TIR to find all CB allocations:**
+   - Identify abstract CB definitions from C1
+   - Track CB names and properties (size, depth, format)
+
+2. **Build producer-consumer relationships:**
+   - `read_to_cb` operations produce data to CBs
+   - CBs are consumed by compute operations
+   - Compute operations produce data to output CBs
+   - `write_from_cb` operations consume data from CBs
+
+3. **Assign roles to CBs:**
+   - `input_a`, `input_b` for matrix operands
+   - `output` for results
+   - `intermediate` for temporary storage
+
+4. **Validate CB count:**
+   - Ensure total CBs ≤ 32 (hardware limit)
+   - Warn if approaching limit
+
+5. **Store dataflow graph as `tt.tile_dfg` attribute**
 
 ### What It Does
 
@@ -95,24 +118,37 @@ Analyzes tile data dependencies and builds a dataflow graph showing:
 - **Producer-consumer relationships** between tiles
 - **CB usage patterns** (which tiles use which CBs)
 - **Optimization opportunities** (reuse, sharing, overlap)
+- **Split boundaries** for kernel separation (used by D1)
 
 ### Output Metadata
 
 ```json
 "tt.tile_dfg": {
   "nodes": [
-    {"id": "tile_load_a", "type": "load", "cb": "cb_in0"},
-    {"id": "tile_compute", "type": "matmul", "inputs": ["cb_in0", "cb_in1"]},
-    {"id": "tile_store", "type": "store", "cb": "cb_out0"}
+    {"id": "tile_load_a", "type": "load", "cb": "cb_in0", "role": "producer"},
+    {"id": "tile_load_b", "type": "load", "cb": "cb_in1", "role": "producer"},
+    {"id": "tile_compute", "type": "matmul", "inputs": ["cb_in0", "cb_in1"], "output": "cb_out0", "role": "compute"},
+    {"id": "tile_store", "type": "store", "cb": "cb_out0", "role": "consumer"}
   ],
   "edges": [
-    {"from": "tile_load_a", "to": "tile_compute", "cb": "cb_in0"},
-    {"from": "tile_compute", "to": "tile_store", "cb": "cb_out0"}
-  ]
+    {"from": "tile_load_a", "to": "tile_compute", "cb": "cb_in0", "type": "data"},
+    {"from": "tile_load_b", "to": "tile_compute", "cb": "cb_in1", "type": "data"},
+    {"from": "tile_compute", "to": "tile_store", "cb": "cb_out0", "type": "data"}
+  ],
+  "cb_assignments": {
+    "cb_in0": {"id": 0, "role": "input_a"},
+    "cb_in1": {"id": 1, "role": "input_b"},
+    "cb_out0": {"id": 16, "role": "output"}
+  },
+  "validation": {
+    "total_cbs": 3,
+    "max_allowed": 32,
+    "status": "valid"
+  }
 }
 ```
 
-This metadata is used by D1 (split_device_kernel) to determine kernel boundaries.
+This metadata is critical for D1 (split_device_kernel) to determine kernel boundaries and CB routing.
 
 ---
 
