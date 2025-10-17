@@ -943,8 +943,7 @@ Tests for each stage:
 - Individual pass docs in `docs/tenstorrent/passes/`
 
 ### Planning and Status
-- [planning/TT_Pass_Status.md](../planning/TT_Pass_Status.md) - v5 implementation status
-- [planning/TT_BACKEND_TASKS.md](../planning/TT_BACKEND_TASKS.md) - Backend tasks
+- [planning/future-enhancements.md](../planning/future-enhancements.md) - Future enhancements and roadmap
 
 ### Setup and Build
 - [setup/local_build_guide.md](../setup/local_build_guide.md) - Local build instructions

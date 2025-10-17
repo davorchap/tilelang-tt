@@ -301,8 +301,7 @@ pytest testing/python/tenstorrent/test_v5_passes_integration.py -v
 - [PASS_TABLE_GPU.md](../reference/PASS_TABLE_GPU.md) - GPU-specific passes
 
 ### Planning Documentation
-- [TT_Pass_Status.md](../planning/TT_Pass_Status.md) - v5 implementation status (historical)
-- [TT_BACKEND_TASKS.md](../planning/TT_BACKEND_TASKS.md) - Backend tasks and future enhancements
+- [future-enhancements.md](../planning/future-enhancements.md) - Future enhancements and roadmap
 
 ### Setup Guides
 - [local_build_guide.md](../setup/local_build_guide.md) - Local build instructions

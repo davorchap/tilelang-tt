@@ -1,4 +1,4 @@
-# TT-Metalium SDK Validation Plan
+# SDK Validation Plan
 
 **Version**: 1.0
 **Date**: 2025-10-08
