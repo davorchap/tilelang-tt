@@ -42,43 +42,96 @@ Stage E (Finalization)
 
 **Location:** `tilelang/tenstorrent/passes/split_device_kernel.py`
 
-### Transformation
+### Algorithm
+
+1. **Analyze TIR to identify:**
+   - Data movement operations (reads/writes)
+   - Compute operations (matmul, binary ops)
+   - Buffer dependencies from dataflow graph (C3)
+
+2. **Create three PrimFunc clones:**
+   - Reader: Contains only read_to_cb operations
+   - Compute: Contains only compute operations
+   - Writer: Contains only write_from_cb operations
+
+3. **Assign CB IDs based on dataflow graph:**
+   - Input CBs: cb_in0, cb_in1, ... (up to cb_in7)
+   - Output CBs: cb_out0, cb_out1, ... (up to cb_out7)
+   - Intermediate CBs: cb_intermed0, ... (if needed)
+
+4. **Update function signatures:**
+   - Reader: Takes input tensors as arguments
+   - Compute: No tensor arguments (uses CBs only)
+   - Writer: Takes output tensors as arguments
+
+5. **Stamp kernel role attributes:**
+   - `{"tt.kernel_role": "reader"}` for reader
+   - `{"tt.kernel_role": "compute"}` for compute
+   - `{"tt.kernel_role": "writer"}` for writer
+
+### Transformation Example
 
 ```python
 # Before (monolithic kernel)
-def device_kernel():
-    tile_a = load(A)  # Load
-    tile_b = load(B)
-    tile_c = matmul(tile_a, tile_b)  # Compute
-    store(C, tile_c)  # Store
+@T.prim_func
+def gemm_monolithic(A: T.Buffer, B: T.Buffer, C: T.Buffer):
+    A_cb = tt.alloc_cb("cb_a", (4, 1), "bf16")  # 4 tiles
+    B_cb = tt.alloc_cb("cb_b", (1, 4), "bf16")
+    C_cb = tt.alloc_cb("cb_c", (4, 4), "bf16")
 
-# After (3 kernels)
-def reader_kernel():
-    tile_a = load(A)
-    tile_b = load(B)
-    push_cb(cb_in0, tile_a)
-    push_cb(cb_in1, tile_b)
+    for kt in T.serial(8):
+        T.evaluate(tt.read_to_cb(A[m, kt*32], A_cb))
+        T.evaluate(tt.read_to_cb(B[kt*32, n], B_cb))
+        T.evaluate(tt.mm.mma(A_cb, B_cb, dst=0, accumulate=(kt>0)))
 
-def compute_kernel():
-    tile_a = pop_cb(cb_in0)
-    tile_b = pop_cb(cb_in1)
-    tile_c = matmul(tile_a, tile_b)
-    push_cb(cb_out0, tile_c)
+    T.evaluate(tt.write_from_cb(C_cb, C[m, n]))
 
-def writer_kernel():
-    tile_c = pop_cb(cb_out0)
-    store(C, tile_c)
+# After (3 kernels with concrete CB IDs)
+@T.prim_func(attrs={"tt.kernel_role": "reader"})
+def gemm_reader(A: T.Buffer, B: T.Buffer):
+    for kt in T.serial(8):
+        T.evaluate(tt.read_to_cb(A[m, kt*32], "cb_in0"))
+        T.evaluate(tt.read_to_cb(B[kt*32, n], "cb_in1"))
+
+@T.prim_func(attrs={"tt.kernel_role": "compute"})
+def gemm_compute():
+    for kt in T.serial(8):
+        T.evaluate(tt.mm.mma("cb_in0", "cb_in1", dst=0, accumulate=(kt>0)))
+    # Note: packing to cb_out0 will be added by D5
+
+@T.prim_func(attrs={"tt.kernel_role": "writer"})
+def gemm_writer(C: T.Buffer):
+    T.evaluate(tt.write_from_cb("cb_out0", C[m, n]))
 ```
 
-Uses dataflow graph from C3 to determine split boundaries.
+Uses dataflow graph from C3 to determine split boundaries and CB assignments.
 
 ---
 
 ## D2: configure_tensor_accessor_tt
 
-**Purpose:** Configure TensorAccessor metadata per kernel
+**Purpose:** Configure TensorAccessor metadata per kernel and bind to runtime arguments
 
 **Location:** `tilelang/tenstorrent/passes/configure_tensor_accessor_tt.py`
+
+### Algorithm
+
+1. **Process reader/writer kernels only:**
+   - Skip compute kernel (no tensor arguments)
+   - Get runtime arg order from `tt.runtime_args` attribute
+
+2. **For each buffer in kernel signature:**
+   - Find corresponding accessor from A3
+   - Determine runtime argument index
+   - Calculate tile_size_bytes from dtype
+
+3. **Update accessor with binding info:**
+   - Set `type` from "abstract" to "bound"
+   - Add `runtime_arg_idx` for argument position
+   - Add `base_offset` (initially 0, set at runtime)
+   - Keep all layout information from A3
+
+4. **Store updated accessors** back to kernel attributes
 
 ### What It Does
 
@@ -87,44 +140,72 @@ Binds runtime arguments to tensor accessors:
 ```json
 // Before (from A3)
 "tt.tensor_accessor.A": {
+  "type": "abstract",
+  "buffer_name": "A",
+  "layout_ref": "tt.buffer.A",
   "runtime_binding": null  // Placeholder
 }
 
 // After D2
 "tt.tensor_accessor.A": {
+  "type": "bound",
+  "buffer_name": "A",
+  "layout_ref": "tt.buffer.A",
   "runtime_binding": {
-    "start_arg": "tt_start_tile",
-    "count_arg": "tt_count",
-    "grid_args": ["Mt", "Kt", "Nt"]
+    "runtime_arg_idx": 0,
+    "base_offset": 0,
+    "tile_size_bytes": 2048
   }
 }
 ```
 
 Each kernel gets appropriate TensorAccessor configuration:
-- **Reader**: Source buffer accessors
-- **Compute**: Uses runtime args for index calculation
-- **Writer**: Destination buffer accessors
+- **Reader**: Source buffer accessors bound to input arguments
+- **Compute**: No tensor accessors (uses CBs only)
+- **Writer**: Destination buffer accessors bound to output arguments
 
 ---
 
 ## D3: lower_cb_intrinsics
 
-**Purpose:** Insert NOC/CB API calls
+**Purpose:** Replace abstract CB operations with NOC/CB protocol sequences
 
 **Location:** `tilelang/tenstorrent/passes/lower_cb_intrinsics.py`
 
+### Algorithm
+
+1. **For each `tt.read_to_cb` operation:**
+   - Insert `cb_reserve_back` to allocate CB space
+   - Get write pointer with `get_write_ptr`
+   - Insert `noc_async_read_tile` for DMA transfer
+   - Insert `noc_async_read_barrier` to ensure completion
+   - Insert `cb_push_back` to make data available
+
+2. **For each `tt.write_from_cb` operation:**
+   - Insert `cb_wait_front` to wait for data
+   - Get read pointer with `get_read_ptr`
+   - Insert `noc_async_write_tile` for DMA transfer
+   - Insert `noc_async_write_barrier` to ensure completion
+   - Insert `cb_pop_front` to free CB space
+
+3. **Handle pipelining optimizations:**
+   - Batch barriers for multiple tile transfers
+   - Support double-buffering patterns
+   - Optimize producer-consumer synchronization
+
 ### Reader Kernel Protocol
 
-```cpp
-// Before
-push_cb(cb_in0, tile_a)
+```python
+# Before (abstract)
+T.evaluate(tt.read_to_cb(A[tile_m, tile_k], "cb_in0"))
 
-// After
-cb_reserve_back(cb_in0, 1);
-uint32_t l1_addr = get_write_ptr(cb_in0);
-noc_async_read_tile(tile, dram_addr_a, l1_addr);
-noc_async_read_barrier();
-cb_push_back(cb_in0, 1);
+# After (protocolized)
+T.evaluate(cb_reserve_back("cb_in0", 1))
+write_ptr = get_write_ptr("cb_in0")
+tile_id = tile_m * Kt + tile_k
+T.evaluate(noc_async_read_tile(tile_id, A_accessor, write_ptr))
+T.evaluate(noc_async_read_barrier())
+T.evaluate(cb_push_back("cb_in0", 1))
 ```
 
 ### Compute Kernel Protocol
@@ -140,22 +221,23 @@ cb_wait_front(cb_in0, 1);
 ... matmul ...
 cb_pop_front(cb_in0, 1);
 cb_reserve_back(cb_out0, 1);
-... pack tile ...
+... pack tile (handled by D5) ...
 cb_push_back(cb_out0, 1);
 ```
 
 ### Writer Kernel Protocol
 
-```cpp
-// Before
-tile_c = pop_cb(cb_out0)
+```python
+# Before (abstract)
+T.evaluate(tt.write_from_cb("cb_out0", C[tile_m, tile_n]))
 
-// After
-cb_wait_front(cb_out0, 1);
-uint32_t l1_addr = get_read_ptr(cb_out0);
-noc_async_write_tile(tile, l1_addr, dram_addr_c);
-noc_async_write_barrier();
-cb_pop_front(cb_out0, 1);
+# After (protocolized)
+T.evaluate(cb_wait_front("cb_out0", 1))
+read_ptr = get_read_ptr("cb_out0")
+tile_id = tile_m * Nt + tile_n
+T.evaluate(noc_async_write_tile(read_ptr, C_accessor, tile_id))
+T.evaluate(noc_async_write_barrier())
+T.evaluate(cb_pop_front("cb_out0", 1))
 ```
 
 ---
@@ -194,40 +276,87 @@ for (i = 0; i < num_tiles; ++i) {
 
 ## D5: insert_dst_management_tt
 
-**Purpose:** Insert DST lifecycle (commit, pack, release)
+**Purpose:** Wrap compute operations with DST register lifecycle management
 
 **Location:** `tilelang/tenstorrent/passes/insert_dst_management_tt.py`
 
-### Complete Matmul DST Lifecycle
+### Algorithm
 
-```cpp
-for (tile_idx = 0; tile_idx < num_tiles; ++tile_idx) {
-    acquire_dst();                    // D4
-    mm_init(cb_in0, cb_in1, cb_out0); // D4
+1. **Identify compute patterns:**
+   - K-loop accumulation (matmul with reduction)
+   - Per-tile operations (element-wise ops)
 
-    for (k = 0; k < Kt; ++k) {
-        cb_wait_front(cb_in0, 1);           // D3
-        cb_wait_front(cb_in1, 1);           // D3
-        matmul_tiles(cb_in0, cb_in1, 0, 0, 0, k > 0);  // C2
-        cb_pop_front(cb_in0, 1);            // D3
-        cb_pop_front(cb_in1, 1);            // D3
-    }
+2. **For K-loop patterns:**
+   - Insert `acquire_dst` BEFORE loop
+   - Keep compute operations unchanged
+   - Insert `commit/wait/pack/release` AFTER loop
 
-    cb_reserve_back(cb_out0, 1);      // D3
-    commit_dst();                      // ← D5
-    pack_tile(0, cb_out0);            // ← D5
-    cb_push_back(cb_out0, 1);         // D3
-    release_dst();                     // ← D5
-}
+3. **For per-tile patterns:**
+   - Insert full `acquire/commit/wait/pack/release` PER tile
+
+4. **Add CB synchronization:**
+   - `cb_wait_front` before compute (ensure input ready)
+   - `cb_pop_front` after compute (free input space)
+   - `cb_reserve_back` before pack (allocate output space)
+   - `cb_push_back` after pack (signal output ready)
+
+### Pattern Examples
+
+#### K-loop Pattern (Matmul with Reduction)
+
+```python
+# Input (K-loop pattern from C2)
+for kt in T.serial(8):
+    T.evaluate(tt.mm.mma("cb_in0", "cb_in1", dst=0, accumulate=(kt>0)))
+
+# Output (With DST management)
+T.evaluate(tt.dst.acquire())
+for kt in T.serial(8):
+    T.evaluate(cb_wait_front("cb_in0", 1))
+    T.evaluate(cb_wait_front("cb_in1", 1))
+    T.evaluate(tt.mm.mma("cb_in0", "cb_in1", dst=0, accumulate=(kt>0)))
+    T.evaluate(cb_pop_front("cb_in0", 1))
+    T.evaluate(cb_pop_front("cb_in1", 1))
+
+T.evaluate(cb_reserve_back("cb_out0", 1))
+T.evaluate(tt.dst.commit())
+T.evaluate(tt.dst.wait())
+T.evaluate(pack_tile(dst=0, cb="cb_out0", tile_index=0))
+T.evaluate(tt.dst.release())
+T.evaluate(cb_push_back("cb_out0", 1))
+```
+
+#### Per-Tile Pattern (Element-wise)
+
+```python
+# Input (per-tile pattern)
+for i in T.serial(num_tiles):
+    T.evaluate(add_tiles("cb_in0", "cb_in1", 0, 0, 0))
+
+# Output (With DST management per tile)
+for i in T.serial(num_tiles):
+    T.evaluate(tt.dst.acquire())
+    T.evaluate(cb_wait_front("cb_in0", 1))
+    T.evaluate(cb_wait_front("cb_in1", 1))
+    T.evaluate(add_tiles("cb_in0", "cb_in1", 0, 0, 0))
+    T.evaluate(cb_pop_front("cb_in0", 1))
+    T.evaluate(cb_pop_front("cb_in1", 1))
+    T.evaluate(cb_reserve_back("cb_out0", 1))
+    T.evaluate(tt.dst.commit())
+    T.evaluate(tt.dst.wait())
+    T.evaluate(pack_tile(0, "cb_out0"))
+    T.evaluate(tt.dst.release())
+    T.evaluate(cb_push_back("cb_out0", 1))
 ```
 
 ### DST Lifecycle Stages
 
 1. **acquire_dst()** - FPU reserves DST half for computation
-2. **Computation** - FPU writes results to DST
+2. **Computation** - FPU writes results to DST registers
 3. **commit_dst()** - FPU signals computation complete
-4. **pack_tile()** - Packer writes DST to CB (internally waits)
-5. **release_dst()** - FPU releases DST back to packer
+4. **wait_dst()** - Wait for commit to finish (implicit in pack)
+5. **pack_tile()** - Packer transfers DST → CB (includes wait)
+6. **release_dst()** - FPU releases DST back to packer
 
 ---
 

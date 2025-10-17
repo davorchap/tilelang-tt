@@ -138,13 +138,12 @@ Codegen (reader.cpp, compute.cpp, writer.cpp, main.cpp, tt.plan.json)
 
 ---
 
-## Individual Pass Documentation
+## Special Pass Documentation
 
-### Current Documentation Files
+### Verification & Future Passes
 
-- [attach_tensor_accessor_tt_summary.md](./attach_tensor_accessor_tt_summary.md) - A3 pass details
+- [verify_tt_ir.md](./verify_tt_ir.md) - IR verification (runs after Stage E)
 - [lower_to_sfpu.md](./lower_to_sfpu.md) - Future SFPU pass (Python implementation needed)
-- [verify_tt_ir.md](./verify_tt_ir.md) - IR verification
 
 ---
 
@@ -176,6 +175,57 @@ All 14 passes implemented in Python:
 
 ---
 
+## Pass Dependency Graph
+
+The following dependency graph shows the relationships between all v5 passes:
+
+```mermaid
+graph TD
+    A1[A1: InferTTLayout] --> A2[A2: PropagateTTLayout]
+    A2 --> A3[A3: AttachTensorAccessorTT]
+    A3 --> B1[B1: LayoutAwareWorkPartitionTT]
+    B1 --> B2[B2: GridToCoreGrid]
+    B2 --> C1[C1: LowerSharedToCB]
+    C1 --> C2[C2: LowerTTTileIntrinsics]
+    C2 --> C3[C3: BuildTileDFGTT]
+    C3 --> D1[D1: SplitDeviceKernel]
+    D1 --> D2[D2: ConfigureTensorAccessorTT]
+    D1 --> D3[D3: LowerCBIntrinsics]
+    D1 --> D4[D4: InsertComputeInitTT]
+    D1 --> D5[D5: InsertDSTManagementTT]
+    D2 --> E1[E1: FinalizePersistentSignatureTT]
+    D3 --> E1
+    D4 --> E1
+    D5 --> E1
+    E1 --> V[VerifyTTIR]
+    V --> CG[Codegen]
+
+    style A1 fill:#e6f3ff
+    style A2 fill:#e6f3ff
+    style A3 fill:#e6f3ff
+    style B1 fill:#fff0e6
+    style B2 fill:#fff0e6
+    style C1 fill:#f0ffe6
+    style C2 fill:#f0ffe6
+    style C3 fill:#f0ffe6
+    style D1 fill:#ffe6e6
+    style D2 fill:#ffe6e6
+    style D3 fill:#ffe6e6
+    style D4 fill:#ffe6e6
+    style D5 fill:#ffe6e6
+    style E1 fill:#f3e6ff
+    style V fill:#e0e0e0
+    style CG fill:#d0d0d0
+```
+
+**Legend:**
+- 🔵 Stage A: Metadata (blue)
+- 🟡 Stage B: Partitioning (yellow)
+- 🟢 Stage C: Protocol-less (green)
+- 🔴 Stage D: Late Split & Protocol (red)
+- 🟣 Stage E: Finalization (purple)
+- ⚪ Verification & Codegen (gray)
+
 ## v5 Design Principles
 
 1. **Progressive Lowering**: Early metadata → Late protocol
@@ -190,23 +240,24 @@ All 14 passes implemented in Python:
 
 When documenting a new pass:
 
-### 1. Individual Pass Doc (Optional)
-Create `pass_name.md` with:
-- Purpose and motivation
-- Input/output IR examples
+### 1. Update Stage Doc (Required)
+Add pass details to the appropriate `stages/*.md` file with:
 - Algorithm description
-- Implementation notes
-- Test cases
-- Known limitations
+- Input/output IR examples
+- Transformation details
+- Test examples
 
-### 2. Update Stage Doc (Required)
-Add pass details to appropriate `stages/*.md` file
-
-### 3. Update This Index (Required)
+### 2. Update This Index (Required)
 Add entry to the appropriate stage table above
 
-### 4. Update PASS_TABLE_TT.md (Required)
+### 3. Update PASS_TABLE_TT.md (Required)
 Add pass to [PASS_TABLE_TT.md](../reference/PASS_TABLE_TT.md)
+
+### 4. Special Cases Only
+Create individual `pass_name.md` only for:
+- Verification passes (like verify_tt_ir)
+- Future/experimental passes (like lower_to_sfpu)
+- Passes not in the main pipeline
 
 ---
 
