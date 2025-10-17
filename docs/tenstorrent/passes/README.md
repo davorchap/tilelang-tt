@@ -15,7 +15,7 @@ This directory contains documentation for the TileLang Tenstorrent backend pass 
 
 ### 📚 Comprehensive References
 - [v5_pipeline.md](../architecture/v5_pipeline.md) - **800+ line authoritative v5 reference**
-- [PASS_TABLE_TT.md](../reference/PASS_TABLE_TT.md) - Complete pass reference table
+- [v5_pipeline.md](../architecture/v5_pipeline.md) - Authoritative v5 pipeline reference (800+ lines)
 - [TT_ARCHITECTURE.md](../architecture/TT_ARCHITECTURE.md) - Backend architecture
 
 ### 🎯 Stage-Based Documentation
@@ -250,8 +250,8 @@ Add pass details to the appropriate `stages/*.md` file with:
 ### 2. Update This Index (Required)
 Add entry to the appropriate stage table above
 
-### 3. Update PASS_TABLE_TT.md (Required)
-Add pass to [PASS_TABLE_TT.md](../reference/PASS_TABLE_TT.md)
+### 3. Update v5_pipeline.md (Required)
+Add pass to [v5_pipeline.md](../architecture/v5_pipeline.md) in the appropriate stage section
 
 ### 4. Special Cases Only
 Create individual `pass_name.md` only for:
@@ -297,7 +297,6 @@ pytest testing/python/tenstorrent/test_v5_passes_integration.py -v
 - [IR_LOWERING_ANALYSIS.md](../architecture/IR_LOWERING_ANALYSIS.md) - GPU vs TT comparison
 
 ### Reference Tables
-- [PASS_TABLE_TT.md](../reference/PASS_TABLE_TT.md) - v5 pass reference table
 - [PASS_TABLE_SHARED.md](../reference/PASS_TABLE_SHARED.md) - Shared optimization passes
 - [PASS_TABLE_GPU.md](../reference/PASS_TABLE_GPU.md) - GPU-specific passes
 

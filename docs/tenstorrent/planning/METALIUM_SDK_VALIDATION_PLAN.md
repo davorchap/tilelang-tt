@@ -470,7 +470,7 @@ cmake --build build -j4
 
 **Architecture & Implementation:**
 - [TT_ARCHITECTURE.md](TT_ARCHITECTURE.md) - Complete TT backend architecture overview
-- [PASS_TABLE_TT.md](PASS_TABLE_TT.md) - Tenstorrent transform passes with specifications (includes planned RasterizationTT, TTMulticastReuse); see `PASS_TABLE_SHARED.md`/`PASS_TABLE_GPU.md` for shared and CUDA/ROCm passes
+- [v5_pipeline.md](../architecture/v5_pipeline.md) - Authoritative v5 pipeline reference with all 14 passes; see [passes/README.md](../passes/README.md) for pass navigation
 - [IR_LOWERING_ANALYSIS.md](IR_LOWERING_ANALYSIS.md) - GPU vs TT compiler pipeline comparison
 
 **Setup & Testing:**

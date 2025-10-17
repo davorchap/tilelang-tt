@@ -746,7 +746,8 @@ See [METALIUM_SETUP_GUIDE.md](./METALIUM_SETUP_GUIDE.md) for SDK setup.
 - [GPU_vs_Tenstorrent_Analysis.md](./GPU_vs_Tenstorrent_Analysis.md) - GPU vs TT architecture & compiler comparison
 - [PASS_TABLE_SHARED.md](./PASS_TABLE_SHARED.md) - Shared lowering/optimization passes
 - [PASS_TABLE_GPU.md](./PASS_TABLE_GPU.md) - CUDA/ROCm-specific passes
-- [PASS_TABLE_TT.md](./PASS_TABLE_TT.md) - Tenstorrent-specific passes (layout-aware pipeline)
+- [passes/README.md](../passes/README.md) - Tenstorrent pass index and reference
+- [architecture/v5_pipeline.md](./v5_pipeline.md) - Authoritative v5 pipeline reference
 - [TT_BACKEND_TASKS.md](./TT_BACKEND_TASKS.md) - Pattern detection implementation tasks
 
 **Setup & Usage:**

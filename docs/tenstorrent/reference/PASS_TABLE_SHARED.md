@@ -6,7 +6,7 @@
 
 ## Overview
 
-This reference catalogs TileLang IR transformation passes that are shared across GPU and Tenstorrent backends. Target-specific passes are covered separately in `PASS_TABLE_GPU.md` and `PASS_TABLE_TT.md`.
+This reference catalogs TileLang IR transformation passes that are shared across GPU and Tenstorrent backends. Target-specific passes are covered separately in `PASS_TABLE_GPU.md` for GPU and in [passes/README.md](../passes/README.md) for Tenstorrent.
 
 ## Pass Categories
 

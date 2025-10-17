@@ -425,7 +425,6 @@ def test_stage_a_matmul():
 ## References
 
 - [v5_pipeline.md](../../architecture/v5_pipeline.md) - Complete v5 reference
-- [PASS_TABLE_TT.md](../../reference/PASS_TABLE_TT.md) - Pass reference table
 - [TT_ARCHITECTURE.md](../../architecture/TT_ARCHITECTURE.md) - Backend architecture
 
 **Individual Pass Documentation:**

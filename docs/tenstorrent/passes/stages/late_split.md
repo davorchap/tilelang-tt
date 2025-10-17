@@ -472,7 +472,6 @@ def test_stage_d_protocol():
 ## References
 
 - [v5_pipeline.md](../../architecture/v5_pipeline.md)
-- [PASS_TABLE_TT.md](../../reference/PASS_TABLE_TT.md)
 - [protocol_less.md](./protocol_less.md)
 
 ---

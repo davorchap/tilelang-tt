@@ -265,7 +265,6 @@ After E1 completes:
 ## References
 
 - [v5_pipeline.md](../../architecture/v5_pipeline.md)
-- [PASS_TABLE_TT.md](../../reference/PASS_TABLE_TT.md)
 - [late_split.md](./late_split.md)
 
 ---
