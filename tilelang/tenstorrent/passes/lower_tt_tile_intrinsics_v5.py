@@ -93,8 +93,16 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
         def visit_evaluate(self, evaluate_node):
             """Transform high-level compute operations to TT intrinsics"""
 
-            # Check for T.gemm pattern
-            if self._is_gemm_intrinsic(evaluate_node):
+            # Check for T.fill / tl.fill pattern
+            if self._is_fill_intrinsic(evaluate_node):
+                return self._lower_fill(evaluate_node)
+
+            # Check for T.copy / tl.copy pattern
+            elif self._is_copy_intrinsic(evaluate_node):
+                return self._lower_copy(evaluate_node)
+
+            # Check for T.gemm / tl.gemm pattern
+            elif self._is_gemm_intrinsic(evaluate_node):
                 return self._lower_gemm(evaluate_node)
 
             # Check for element-wise operations
@@ -141,21 +149,39 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
 
             stmt_functor.post_order_visit(block.body, visitor)
 
-        def _is_gemm_intrinsic(self, evaluate_node):
-            """Check for T.gemm intrinsic call"""
+        def _is_fill_intrinsic(self, evaluate_node):
+            """Check for T.fill / tl.fill intrinsic call"""
             if isinstance(evaluate_node.value, tir.Call):
                 call = evaluate_node.value
-                # Check for call_extern with "T.gemm" as function name
-                if str(call.op) == "Op(tir.call_extern)":
+                if hasattr(call, 'op') and hasattr(call.op, 'name'):
+                    op_name = call.op.name
+                    return op_name in ["tl.fill", "T.fill", "tir.fill"]
+            return False
+
+        def _is_copy_intrinsic(self, evaluate_node):
+            """Check for T.copy / tl.copy intrinsic call"""
+            if isinstance(evaluate_node.value, tir.Call):
+                call = evaluate_node.value
+                if hasattr(call, 'op') and hasattr(call.op, 'name'):
+                    op_name = call.op.name
+                    return op_name in ["tl.copy", "T.copy", "tir.copy"]
+            return False
+
+        def _is_gemm_intrinsic(self, evaluate_node):
+            """Check for T.gemm / tl.gemm intrinsic call"""
+            if isinstance(evaluate_node.value, tir.Call):
+                call = evaluate_node.value
+                # Check op name directly (most common for TileLang intrinsics)
+                if hasattr(call, 'op') and hasattr(call.op, 'name'):
+                    op_name = call.op.name
+                    return op_name in ["tl.gemm", "T.gemm", "tir.gemm", "tvm_gemm"]
+                # Also check for call_extern format
+                elif str(call.op) == "Op(tir.call_extern)":
                     # For call_extern, args[0] is the function name
                     if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
                         func_name = call.args[0].value
                         return any(
-                            pattern in func_name for pattern in ["T.gemm", "tir.gemm", "tvm_gemm"])
-                # Also check op name directly
-                elif hasattr(call, 'op'):
-                    op_name = str(call.op)
-                    return any(pattern in op_name for pattern in ["T.gemm", "tir.gemm", "tvm_gemm"])
+                            pattern in func_name for pattern in ["T.gemm", "tir.gemm", "tvm_gemm", "tl.gemm"])
             return False
 
         def _is_elementwise_op(self, evaluate_node):
@@ -240,8 +266,50 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
 
         # Lowering methods
 
+        def _lower_fill(self, evaluate_node):
+            """Lower T.fill / tl.fill to initialization (protocol-less)"""
+            # T.fill is typically used to zero-initialize output buffers
+            # At this stage (protocol-less), we can just remove it
+            # The actual initialization will be handled by compute init pass
+            # For now, return a no-op or keep the call as-is for later passes
+            # to recognize
+            call = evaluate_node.value
+
+            # Create a protocol-less fill marker that later passes can use
+            # This just marks that a buffer needs initialization
+            return tir.Evaluate(
+                tir.call_extern(
+                    "void",
+                    "tt.fill.zero",  # Protocol-less fill marker
+                    call.args[0] if len(call.args) > 0 else tir.IntImm("int32", 0),
+                    call.args[1] if len(call.args) > 1 else tir.IntImm("int32", 0)
+                ))
+
+        def _lower_copy(self, evaluate_node):
+            """Lower T.copy / tl.copy to protocol-less marker"""
+            # T.copy is used to transfer data between memory spaces
+            # At this protocol-less stage, we just mark the intent
+            # Actual NOC operations will be inserted by lower_cb_intrinsics (Pass D3)
+            call = evaluate_node.value
+            args = call.args
+
+            # args typically are: source_region, dest_region, mask, predicate, cache_hint
+            # For now, create a protocol-less copy marker
+            # Extract source and dest buffer info if possible
+            src = args[0] if len(args) > 0 else None
+            dst = args[1] if len(args) > 1 else None
+
+            # Create protocol-less copy marker
+            return tir.Evaluate(
+                tir.call_extern(
+                    "void",
+                    "tt.copy.protocol_less",  # Marker for later lowering
+                    src if src else tir.IntImm("int32", 0),
+                    dst if dst else tir.IntImm("int32", 0)
+                ))
+
         def _lower_gemm(self, evaluate_node):
-            """Lower T.gemm to protocol-less tt.mm.mma"""
+            """Lower T.gemm / tl.gemm to protocol-less tt.mm.mma"""
             call = evaluate_node.value
             args = call.args
 
