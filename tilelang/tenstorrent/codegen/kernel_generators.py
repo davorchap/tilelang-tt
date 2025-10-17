@@ -222,31 +222,11 @@ class EnhancedReaderKernelGenerator(EnhancedKernelGenerator):
             # Visit the actual TIR body
             self.visitor.visit(self.func.body)
         else:
-            # Generate template-based reader pattern with expected variable names
-            self.code.writeln("// Reader loop with CB/NOC operations")
-            self.code.writeln("uint32_t num_out_tiles = tt_tile_count; // Use runtime arg")
-            self.code.writeln("for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile) {")
-            self.code.indent()
-
-            # CB operations for input 0
-            self.code.writeln("// Read input A")
-            self.code.writeln("cb_reserve_back(cb_in0, 1);")
-            self.code.writeln("uint32_t l1_write_addr_a = get_write_ptr(cb_in0);")
-            self.code.writeln("noc_async_read_tile(out_tile, A_addr, l1_write_addr_a);")
-            self.code.writeln("noc_async_read_barrier();")
-            self.code.writeln("cb_push_back(cb_in0, 1);")
-            self.code.writeln()
-
-            # CB operations for input 1
-            self.code.writeln("// Read input B")
-            self.code.writeln("cb_reserve_back(cb_in1, 1);")
-            self.code.writeln("uint32_t l1_write_addr_b = get_write_ptr(cb_in1);")
-            self.code.writeln("noc_async_read_tile(out_tile, B_addr, l1_write_addr_b);")
-            self.code.writeln("noc_async_read_barrier();")
-            self.code.writeln("cb_push_back(cb_in1, 1);")
-
-            self.code.dedent()
-            self.code.writeln("}")
+            # Fail loudly - no template fallback allowed
+            raise ValueError(
+                "Reader kernel has empty or incomplete IR body. "
+                "The IR must contain proper NOC/CB operations from the lowering passes. "
+                "Check that passes C1-C2 and D1-D5 have run correctly.")
 
     def _is_empty_body(self, body):
         """Check if body is empty or just Evaluate(0)"""
@@ -401,22 +381,11 @@ class EnhancedWriterKernelGenerator(EnhancedKernelGenerator):
             # Visit the actual TIR body
             self.visitor.visit(self.func.body)
         else:
-            # Generate template-based writer pattern with expected variable names
-            self.code.writeln("// Writer loop with CB/NOC operations")
-            self.code.writeln("uint32_t num_out_tiles = tt_tile_count; // Use runtime arg")
-            self.code.writeln("for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile) {")
-            self.code.indent()
-
-            # CB operations for output
-            self.code.writeln("// Write output C")
-            self.code.writeln("cb_wait_front(cb_out0, 1);")
-            self.code.writeln("uint32_t l1_read_addr = get_read_ptr(cb_out0);")
-            self.code.writeln("noc_async_write_tile(out_tile, C_addr, l1_read_addr);")
-            self.code.writeln("noc_async_write_barrier();")
-            self.code.writeln("cb_pop_front(cb_out0, 1);")
-
-            self.code.dedent()
-            self.code.writeln("}")
+            # Fail loudly - no template fallback allowed
+            raise ValueError(
+                "Writer kernel has empty or incomplete IR body. "
+                "The IR must contain proper NOC/CB operations from the lowering passes. "
+                "Check that passes C1-C2 and D1-D5 have run correctly.")
 
     def _is_empty_body(self, body):
         """Check if body is empty or just Evaluate(0)"""

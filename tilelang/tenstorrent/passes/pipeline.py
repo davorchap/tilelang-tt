@@ -5,6 +5,7 @@ This module provides the main entry point for the TT lowering pipeline.
 
 from __future__ import annotations
 import logging
+import os
 from typing import List, Optional
 
 try:
@@ -14,6 +15,12 @@ except ImportError:  # pragma: no cover
     tvm = None
     tir = None
     IRModule = object
+
+# Import debug utilities
+try:
+    from ..utils.debug_ir import create_pipeline_wrapper
+except ImportError:
+    create_pipeline_wrapper = None
 
 # V5 pipeline passes
 # Stage A: TIR Preparation & Metadata
@@ -64,6 +71,7 @@ def build_v5_pipeline(
     from .lower_tt_tile_intrinsics_v5 import lower_tt_tile_intrinsics_v5
     from .build_tile_dfg_tt import build_tile_dfg_tt
     from .split_device_kernel import split_device_kernel
+    # from .validate_split_kernels import validate_split_kernels  # Temporarily disabled
     from .configure_tensor_accessor_tt import configure_tensor_accessor_tt
     from .lower_cb_intrinsics import lower_cb_intrinsics
     from .insert_compute_init_tt import insert_compute_init_tt
@@ -92,6 +100,7 @@ def build_v5_pipeline(
 
         # Stage D: Late Split & Protocol Insertion (5 passes)
         split_device_kernel,  # D1: Kernel splitting
+        # validate_split_kernels,  # D1.5: TEMPORARILY DISABLED - validates too early, before D3 generates NOC ops
         configure_tensor_accessor_tt,  # D2: Tensor accessor configuration
         lower_cb_intrinsics,  # D3: CB intrinsics
         insert_compute_init_tt,  # D4: Compute initialization
@@ -110,6 +119,12 @@ def build_v5_pipeline(
     # Insert any custom passes at the end of the pipeline
     if custom_passes:
         pipeline = pipeline + custom_passes
+
+    # Wrap pipeline with debugging if enabled via environment variable
+    if create_pipeline_wrapper and os.environ.get("TT_DUMP_IR"):
+        dump_dir = os.environ.get("TT_DUMP_IR_DIR", "ir_dumps")
+        pipeline = create_pipeline_wrapper(pipeline, dump_ir=True, dump_dir=dump_dir)
+        logger.info(f"IR dumping enabled to directory: {dump_dir}")
 
     return pipeline
 

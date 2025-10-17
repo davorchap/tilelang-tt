@@ -38,7 +38,6 @@ def import_and_run_module(module_path, module_name):
     return module
 
 
-@pytest.mark.skip(reason=TVM_FLATTEN_BUFFER_BUG)
 def test_example_gemm_tt():
     """Test that example_gemm_tt.py runs without errors."""
     example_path = os.path.join(EXAMPLES_DIR, 'example_gemm_tt.py')
@@ -61,7 +60,6 @@ def test_example_gemm_tt():
            "Expected artifact generation message not found in output"
 
 
-@pytest.mark.skip(reason=TVM_FLATTEN_BUFFER_BUG)
 def test_example_gemm_tt_minimal():
     """Test that example_gemm_tt_minimal.py runs without errors."""
     example_path = os.path.join(EXAMPLES_DIR, 'example_gemm_tt_minimal.py')
@@ -87,7 +85,6 @@ def test_example_gemm_tt_minimal():
 
 
 # Un-skipped: v5 Python codegen now implemented (PR #134)
-@pytest.mark.skip(reason=TVM_FLATTEN_BUFFER_BUG)
 def test_run_gemm_with_tt_backend():
     """Test that run_gemm_with_tt_backend.py runs without errors."""
     example_path = os.path.join(EXAMPLES_DIR, 'run_gemm_with_tt_backend.py')

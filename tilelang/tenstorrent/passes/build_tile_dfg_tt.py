@@ -92,27 +92,58 @@ class TileDFGBuilder:
     def visit_evaluate(self, op):
         """Visit T.evaluate nodes to find dataflow operations"""
 
-        if hasattr(op, 'value') and hasattr(op.value, 'op'):
+        if hasattr(op, 'value') and isinstance(op.value, tir.Call):
             call = op.value
-            op_name = str(call.op) if hasattr(call.op, 'name') else str(call.op)
 
-            # Handle different intrinsic types
-            if "alloc_cb" in op_name:
-                self._handle_cb_allocation(call)
-            elif "read_to_cb" in op_name:
-                self._handle_read_to_cb(call)
-            elif "write_from_cb" in op_name:
-                self._handle_write_from_cb(call)
-            elif any(x in op_name for x in ["mm.mma", "fpu.", "sfpu."]):
-                self._handle_compute_op(call, op_name)
+            # Check if this is a call_extern
+            if hasattr(call, 'op') and 'call_extern' in str(call.op):
+                # The C1/C2 passes use a different convention:
+                # For tt operations, args[0] is the function name!
+                if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
+                    func_name = call.args[0].value
+
+                    # Now check the function name for our operations
+                    if "tt.alloc_cb" in func_name:
+                        self._handle_cb_allocation(call)
+                    elif "tt.read_to_cb" in func_name:
+                        self._handle_read_to_cb(call)
+                    elif "tt.write_from_cb" in func_name:
+                        self._handle_write_from_cb(call)
+                    elif any(x in func_name for x in ["tt.mm.mma", "tt.fpu.", "tt.sfpu."]):
+                        self._handle_compute_op(call, func_name)
+            else:
+                # Handle other types of calls (non-call_extern)
+                op_name = str(call.op) if hasattr(call.op, 'name') else str(call.op)
+
+                if "alloc_cb" in op_name:
+                    self._handle_cb_allocation(call)
+                elif "read_to_cb" in op_name:
+                    self._handle_read_to_cb(call)
+                elif "write_from_cb" in op_name:
+                    self._handle_write_from_cb(call)
+                elif any(x in op_name for x in ["mm.mma", "fpu.", "sfpu."]):
+                    self._handle_compute_op(call, op_name)
 
     def _handle_cb_allocation(self, call):
         """Handle tt.alloc_cb intrinsic"""
 
-        if len(call.args) >= 3:
-            cb_name = self._extract_string_arg(call.args[0])
-            shape = self._extract_shape(call.args[1])
-            dtype = self._extract_string_arg(call.args[2])
+        # For call_extern, skip the first two args (return type and function name)
+        args = self._get_actual_args(call)
+
+        if len(args) >= 3:
+            cb_name = self._extract_string_arg(args[0])
+
+            # Shape can be passed as individual int args or as a single arg
+            # Check if args[1] and args[2] are both integers (width, height)
+            if len(args) >= 4 and isinstance(args[1], tir.IntImm) and isinstance(
+                    args[2], tir.IntImm):
+                # Shape is passed as two separate args
+                shape = [self._extract_int(args[1]), self._extract_int(args[2])]
+                dtype = self._extract_string_arg(args[3])
+            else:
+                # Shape is a single arg (list/tuple)
+                shape = self._extract_shape(args[1])
+                dtype = self._extract_string_arg(args[2])
 
             if cb_name:
                 # Create CB node
@@ -132,9 +163,11 @@ class TileDFGBuilder:
     def _handle_read_to_cb(self, call):
         """Handle tt.read_to_cb intrinsic (buffer -> CB)"""
 
-        if len(call.args) >= 2:
-            buffer_slice = call.args[0]
-            cb_name = self._extract_string_or_cb_arg(call.args[1])
+        args = self._get_actual_args(call)
+
+        if len(args) >= 2:
+            buffer_slice = args[0]
+            cb_name = self._extract_string_or_cb_arg(args[1])
 
             if cb_name:
                 buffer_name = self._extract_buffer_name(buffer_slice)
@@ -172,9 +205,11 @@ class TileDFGBuilder:
     def _handle_write_from_cb(self, call):
         """Handle tt.write_from_cb intrinsic (CB -> buffer)"""
 
-        if len(call.args) >= 2:
-            cb_name = self._extract_string_or_cb_arg(call.args[0])
-            buffer_slice = call.args[1]
+        args = self._get_actual_args(call)
+
+        if len(args) >= 2:
+            cb_name = self._extract_string_or_cb_arg(args[0])
+            buffer_slice = args[1]
 
             if cb_name:
                 buffer_name = self._extract_buffer_name(buffer_slice)
@@ -223,8 +258,11 @@ class TileDFGBuilder:
         input_cbs = []
         output_cb = None
 
+        # Get actual args (skip return type and function name for call_extern)
+        args = self._get_actual_args(call)
+
         # Most compute ops have CB inputs as first args
-        for i, arg in enumerate(call.args):
+        for i, arg in enumerate(args):
             cb_name = self._extract_string_or_cb_arg(arg)
             if cb_name:
                 if i < 2:  # First two args are usually inputs
@@ -288,6 +326,15 @@ class TileDFGBuilder:
         else:
             return "unknown"
 
+    def _get_actual_args(self, call):
+        """Get actual arguments from a call, handling call_extern"""
+        if hasattr(call, 'op') and 'call_extern' in str(call.op):
+            # For tt operations from C1/C2: args[0] is the function name
+            # So actual args start at args[1]
+            return call.args[1:] if len(call.args) > 1 else []
+        else:
+            return call.args
+
     def _assign_cb_index(self, cb_name: str) -> int:
         """Assign CB index (0-31)"""
 
@@ -333,7 +380,12 @@ class TileDFGBuilder:
         elif hasattr(arg, 'args'):
             # Handle tir.Call representing shape
             return [self._extract_int(x) for x in arg.args]
+        elif isinstance(arg, tir.IntImm):
+            # Single dimension
+            return [int(arg.value)]
         else:
+            # For call_extern, shape might be passed as separate int args
+            # Will be handled by the caller
             return []
 
     def _extract_int(self, arg) -> int:

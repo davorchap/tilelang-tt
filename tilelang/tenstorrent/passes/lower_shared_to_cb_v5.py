@@ -80,6 +80,78 @@ def LowerSharedToCB_v5(func, mod, ctx):
             return tir.Evaluate(
                 create_cb_intrinsic(cb_info['cb_name'], cb_info['shape'], cb_info['dtype']))
 
+        def visit_block_realize(self, block_realize):
+            """Visit BlockRealize and inject CB operations for copy patterns"""
+            # First process the block normally
+            result = super().visit_block_realize(block_realize)
+
+            # Check if this block represents a copy pattern
+            block = block_realize.block
+            if self._is_copy_block(block):
+                # Inject CB operation based on copy direction
+                cb_op = self._create_cb_op_for_block(block)
+                if cb_op:
+                    # Wrap the BlockRealize with the CB operation
+                    return tir.SeqStmt([cb_op, result])
+
+            return result
+
+        def _is_copy_block(self, block):
+            """Check if a block represents a memory copy"""
+            if len(block.reads) == 1 and len(block.writes) == 1:
+                read_buffer = self._get_buffer_from_region(block.reads[0])
+                write_buffer = self._get_buffer_from_region(block.writes[0])
+
+                # Check if one involves shared memory
+                if read_buffer and write_buffer:
+                    read_name = read_buffer.name if hasattr(read_buffer,
+                                                            'name') else str(read_buffer)
+                    write_name = write_buffer.name if hasattr(write_buffer,
+                                                              'name') else str(write_buffer)
+
+                    # Copy to shared (should become read_to_cb)
+                    if write_name in self.shared_to_cb_map:
+                        return True
+                    # Copy from shared (should become write_from_cb)
+                    if read_name in self.shared_to_cb_map:
+                        return True
+            return False
+
+        def _create_cb_op_for_block(self, block):
+            """Create CB operation for a copy block"""
+            read_region = block.reads[0]
+            write_region = block.writes[0]
+
+            read_buffer = self._get_buffer_from_region(read_region)
+            write_buffer = self._get_buffer_from_region(write_region)
+
+            if read_buffer and write_buffer:
+                read_name = read_buffer.name if hasattr(read_buffer, 'name') else str(read_buffer)
+                write_name = write_buffer.name if hasattr(write_buffer,
+                                                          'name') else str(write_buffer)
+
+                # Copy to shared: create read_to_cb
+                if write_name in self.shared_to_cb_map:
+                    cb_name = self.shared_to_cb_map[write_name]
+                    return tir.Evaluate(
+                        tir.call_extern("void", "tt.read_to_cb", read_region,
+                                        tir.StringImm(cb_name)))
+
+                # Copy from shared: create write_from_cb
+                if read_name in self.shared_to_cb_map:
+                    cb_name = self.shared_to_cb_map[read_name]
+                    return tir.Evaluate(
+                        tir.call_extern("void", "tt.write_from_cb", tir.StringImm(cb_name),
+                                        write_region))
+
+            return None
+
+        def _get_buffer_from_region(self, region):
+            """Get buffer from a buffer region"""
+            if hasattr(region, 'buffer'):
+                return region.buffer
+            return None
+
         def visit_evaluate(self, op):
             """Transform T.copy operations to abstract CB operations"""
 

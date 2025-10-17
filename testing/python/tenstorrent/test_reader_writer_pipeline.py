@@ -5,9 +5,9 @@ Tests for TT reader and writer kernel generation, circular buffer operations,
 and 3-kernel coordination (reader → compute → writer).
 """
 
-import tvm
-from tvm import tir
 import tilelang.tenstorrent as tt
+from testing.python.tenstorrent.test_fixtures import (
+    create_complete_ir_module_with_split_kernels,)
 
 # Skip reason for codegen tests
 CODEGEN_SKIP_REASON = "Requires reader/writer/compute kernel codegen implementation (reader.cpp, compute.cpp, writer.cpp generation)"
@@ -15,46 +15,13 @@ CODEGEN_SKIP_REASON = "Requires reader/writer/compute kernel codegen implementat
 
 def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
     """
-    Create a minimal TVM IRModule with metadata inference stage/persistent transform stage metadata attached for codegen testing.
+    Create a TVM IRModule with split reader/compute/writer kernels with complete IR.
 
-    This simulates the output of TT defaults stage-3 pipeline without needing actual kernel code.
+    This simulates the output after the v5 pipeline's split_device_kernel pass.
     """
-    # Create minimal PrimFunc
-    A = tir.decl_buffer((256, 256), "float16", name="A")
-    B = tir.decl_buffer((256, 256), "float16", name="B")
-    C = tir.decl_buffer((256, 256), "float16", name="C")
-
-    # Empty body (codegen doesn't need actual operations for these tests)
-    body = tir.Evaluate(0)
-
-    func = tir.PrimFunc(
-        params=[A, B, C],
-        body=body,
-    )
-
-    # Attach metadata inference stage schedule metadata
-    # Note: Convert Python ints to IntImm for FFI compatibility
-    num_tiles = grid_x * grid_y
-    tiles_per_core = []
-    for i in range(num_cores):
-        start_id = i % num_tiles  # Simplified assignment
-        count = 1
-        # Convert list elements to IntImm for FFI
-        tiles_per_core.append([tvm.tir.IntImm("int32", start_id), tvm.tir.IntImm("int32", count)])
-
-    func = func.with_attrs({
-        "global_symbol": "main",
-        "tt_grid_x": tvm.tir.IntImm("int32", grid_x),
-        "tt_grid_y": tvm.tir.IntImm("int32", grid_y),
-        "tt_grid_z": tvm.tir.IntImm("int32", 1),
-        "tt_num_tiles": tvm.tir.IntImm("int32", num_tiles),
-        "tt_num_cores": tvm.tir.IntImm("int32", num_cores),
-        "tt_tiles_per_core": tiles_per_core,
-    })
-
-    # Create IRModule
-    mod = tvm.IRModule({"main": func})
-    return mod
+    # Use the complete IR module with split kernels
+    return create_complete_ir_module_with_split_kernels(
+        grid_x=grid_x, grid_y=grid_y, num_cores=num_cores)
 
 
 def test_emit_reader_kernel_basic():
@@ -79,14 +46,14 @@ def test_emit_reader_kernel_basic():
             in reader_cpp), "IR-driven reader kernel header missing"
     assert "void kernel_main()" in reader_cpp, "kernel_main function missing"
 
-    # Verify CB API calls
-    assert ("cb_reserve_back(cb_in0, 1)" in reader_cpp), "cb_reserve_back missing for cb_in0"
-    assert "cb_push_back(cb_in0, 1)" in reader_cpp, "cb_push_back missing for cb_in0"
-    assert "get_write_ptr(cb_in0)" in reader_cpp, "get_write_ptr missing for cb_in0"
+    # Verify CB API calls - IR-driven uses numeric indices
+    assert ("cb_reserve_back(0, 1)" in reader_cpp), "cb_reserve_back missing for cb_in0"
+    assert "cb_push_back(0, 1)" in reader_cpp, "cb_push_back missing for cb_in0"
+    assert "get_write_ptr(0)" in reader_cpp, "get_write_ptr missing for cb_in0"
 
-    assert ("cb_reserve_back(cb_in1, 1)" in reader_cpp), "cb_reserve_back missing for cb_in1"
-    assert "cb_push_back(cb_in1, 1)" in reader_cpp, "cb_push_back missing for cb_in1"
-    assert "get_write_ptr(cb_in1)" in reader_cpp, "get_write_ptr missing for cb_in1"
+    assert ("cb_reserve_back(1, 1)" in reader_cpp), "cb_reserve_back missing for cb_in1"
+    assert "cb_push_back(1, 1)" in reader_cpp, "cb_push_back missing for cb_in1"
+    assert "get_write_ptr(1)" in reader_cpp, "get_write_ptr missing for cb_in1"
 
     # Verify NOC operations (reader/writer specialization stage: uses noc_async_read_tile)
     assert "noc_async_read_tile(" in reader_cpp, "noc_async_read_tile missing"
@@ -122,10 +89,10 @@ def test_emit_writer_kernel_basic():
             in writer_cpp), "IR-driven writer kernel header missing"
     assert "void kernel_main()" in writer_cpp, "kernel_main function missing"
 
-    # Verify CB API calls
-    assert ("cb_wait_front(cb_out0, 1)" in writer_cpp), "cb_wait_front missing for cb_out0"
-    assert "cb_pop_front(cb_out0, 1)" in writer_cpp, "cb_pop_front missing for cb_out0"
-    assert "get_read_ptr(cb_out0)" in writer_cpp, "get_read_ptr missing for cb_out0"
+    # Verify CB API calls - IR-driven uses numeric index 16 for cb_out0
+    assert ("cb_wait_front(16, 1)" in writer_cpp), "cb_wait_front missing for cb_out0"
+    assert "cb_pop_front(16, 1)" in writer_cpp, "cb_pop_front missing for cb_out0"
+    assert "get_read_ptr(16)" in writer_cpp, "get_read_ptr missing for cb_out0"
 
     # Verify NOC operations (reader/writer specialization stage: uses noc_async_write_tile)
     assert "noc_async_write_tile(" in writer_cpp, "noc_async_write_tile missing"
@@ -198,19 +165,18 @@ def test_reader_writer_tile_counts():
 
         expected_tiles = grid_x * grid_y
 
-        # reader/writer specialization stage: Reader/writer kernels now have matmul-specific structure
-        # Verify they contain runtime args and loop structures
+        # IR-driven kernels use tile_count runtime arg and loop structure
         reader_cpp = artifacts["reader.cpp"]
-        assert ("num_out_tiles"
-                in reader_cpp), f"Reader kernel missing num_out_tiles for {grid_x}x{grid_y} grid"
-        assert ("for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile)"
-                in reader_cpp), f"Reader kernel missing output tile loop for {grid_x}x{grid_y} grid"
+        assert ("tt_tile_count"
+                in reader_cpp), f"Reader kernel missing tt_tile_count for {grid_x}x{grid_y} grid"
+        assert ("for (uint32_t i = 0; i < 0 + tt_tile_count; i++)"
+                in reader_cpp), f"Reader kernel missing tile loop for {grid_x}x{grid_y} grid"
 
         writer_cpp = artifacts["writer.cpp"]
-        assert ("num_out_tiles"
-                in writer_cpp), f"Writer kernel missing num_out_tiles for {grid_x}x{grid_y} grid"
-        assert ("for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile)"
-                in writer_cpp), f"Writer kernel missing output tile loop for {grid_x}x{grid_y} grid"
+        assert ("tt_tile_count"
+                in writer_cpp), f"Writer kernel missing tt_tile_count for {grid_x}x{grid_y} grid"
+        assert ("for (uint32_t i = 0; i < 0 + tt_tile_count; i++)"
+                in writer_cpp), f"Writer kernel missing tile loop for {grid_x}x{grid_y} grid"
 
         print(f"✓ Test 4 passed for grid {grid_x}x{grid_y} ({expected_tiles} tiles)")
 
