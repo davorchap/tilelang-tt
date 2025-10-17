@@ -383,12 +383,12 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
             if op_type in op_map:
                 tt_op = op_map[op_type]
 
-                # Get CB operands
-                cb_a = self._get_cb_for_buffer(value.a)
-                cb_b = self._get_cb_for_buffer(value.b)
+                # Get CB operands - handle different operand types
+                cb_a = self._get_cb_name_for_operand(value.a)
+                cb_b = self._get_cb_name_for_operand(value.b)
 
                 # Create protocol-less FPU operation
-                return tir.Evaluate(
+                fpu_op = tir.Evaluate(
                     tir.call_extern(
                         "void",
                         f"tt.fpu.{tt_op}",
@@ -397,7 +397,30 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
                         tir.IntImm("int32", 0)  # dst
                     ))
 
+                # Return both the FPU op and the original store (for now)
+                # Later passes will optimize this
+                return tir.SeqStmt([fpu_op, buffer_store])
+
             return buffer_store
+
+        def _get_cb_name_for_operand(self, operand):
+            """Get CB name for an operand (buffer or constant)"""
+            # If it's a buffer load, try to get CB mapping
+            if isinstance(operand, tir.BufferLoad):
+                cb_name = self._get_cb_for_buffer(operand)
+                if cb_name and cb_name != "cb_in0":  # If we found a mapping
+                    return cb_name
+                # Otherwise use buffer name as hint
+                if hasattr(operand.buffer, 'name'):
+                    buffer_name = operand.buffer.name
+                    if buffer_name in self.shared_to_cb_map:
+                        return self.shared_to_cb_map[buffer_name]
+                return "cb_in0"  # Default input CB
+            # If it's a constant, we'll need a constant CB
+            elif isinstance(operand, (tir.FloatImm, tir.IntImm)):
+                return "cb_const0"  # Constant CB
+            # Default
+            return "cb_in0"
 
         # Helper methods
 

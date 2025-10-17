@@ -9,6 +9,9 @@ Purpose: Traverse TIR and generate C++ code based on actual operations.
 from __future__ import annotations
 import logging
 
+# Import the intrinsic registry
+from .intrinsics import INTRINSIC_REGISTRY
+
 try:
     import tvm
     from tvm import tir
@@ -99,8 +102,12 @@ class TIRToMetaliumVisitor:
 
     def visit_evaluate(self, op):
         """Visit Evaluate node (function calls)"""
-        if hasattr(op.value, 'op') and hasattr(op.value.op, 'name'):
-            self._handle_intrinsic_call(op.value)
+        if hasattr(op.value, 'op'):
+            # Check if it's a call_extern
+            if 'call_extern' in str(op.value.op):
+                self._handle_call_extern(op.value)
+            elif hasattr(op.value.op, 'name'):
+                self._handle_intrinsic_call(op.value)
         else:
             # Regular expression evaluation
             expr_str = self.expr_to_string(op.value)
@@ -201,6 +208,31 @@ class TIRToMetaliumVisitor:
         """Visit block realize statement"""
         # Visit the block body
         self.visit(op.block.body)
+
+    def _handle_call_extern(self, call):
+        """Handle call_extern style intrinsics using the intrinsic registry"""
+        # For call_extern from C1/C2 passes, args[0] is the function name
+        if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
+            func_name = call.args[0].value
+            actual_args = [self.expr_to_string(arg) for arg in call.args[1:]]
+
+            # Check if this intrinsic is registered
+            intrinsic = INTRINSIC_REGISTRY.get(func_name)
+            if intrinsic:
+                # Use the registry to generate C++ code
+                cpp_code = INTRINSIC_REGISTRY.generate_cpp(func_name, actual_args)
+                self.code.writeln(cpp_code)
+            else:
+                # Fall back to direct mapping for unregistered intrinsics
+                logger.warning(f"Unregistered intrinsic: {func_name}")
+                # Try to generate something reasonable
+                if actual_args:
+                    self.code.writeln(f"{func_name}({', '.join(actual_args)});")
+                else:
+                    self.code.writeln(f"{func_name}();")
+        else:
+            # Unknown format
+            logger.warning(f"Unknown call_extern format: {call}")
 
     def _handle_intrinsic_call(self, call):
         """Handle TIR intrinsic calls and map to Metalium"""

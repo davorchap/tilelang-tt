@@ -5,70 +5,34 @@ Tests for TT kernel codegen and artifact generation.
 """
 
 import json
-from tvm import tir
-import tvm
 import tilelang.tenstorrent as tt
+from testing.python.tenstorrent.test_fixtures import (create_complete_ir_module_with_split_kernels,
+                                                      create_empty_ir_module_for_fail_test)
 
 # Skip reason for codegen tests
 CODEGEN_SKIP_REASON = "Requires reader/writer/compute kernel codegen implementation (reader.cpp, compute.cpp, writer.cpp generation)"
 
 
-def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64):
+def create_tt_module_with_metadata(grid_x=8, grid_y=8, num_cores=64, use_complete_ir=True):
     """
-    Create a minimal TVM IRModule with metadata inference stage/persistent transform stage metadata attached for codegen testing.
+    Create a TVM IRModule with metadata and complete IR for codegen testing.
 
-    This simulates the output of TT defaults stage-3 pipeline without needing actual kernel code.
+    Args:
+        grid_x, grid_y: Grid dimensions
+        num_cores: Number of cores
+        use_complete_ir: If True, use complete IR with operations; if False, use empty IR (for fail tests)
+
+    Returns:
+        TVM IRModule ready for codegen
     """
-    # Create minimal PrimFunc
-    A = tir.decl_buffer((256, 256), "float16", name="A")
-    B = tir.decl_buffer((256, 256), "float16", name="B")
-    C = tir.decl_buffer((256, 256), "float16", name="C")
-
-    # Empty body (codegen doesn't need actual operations for these tests)
-    body = tir.Evaluate(0)
-
-    func = tir.PrimFunc(
-        params=[A, B, C],
-        body=body,
-    )
-
-    # Attach metadata inference stage schedule metadata
-    # Note: Convert Python ints to IntImm for FFI compatibility
-    num_tiles = grid_x * grid_y
-    tiles_per_core = []
-    for i in range(num_cores):
-        start_id = i % num_tiles  # Simplified assignment
-        count = 1
-        # Convert list elements to IntImm for FFI
-        tiles_per_core.append([tvm.tir.IntImm("int32", start_id), tvm.tir.IntImm("int32", count)])
-
-    # Add runtime arguments metadata that would be added by TT passes
-    runtime_args = ["tt_start_tile", "tt_tile_count", "A_addr", "B_addr", "C_addr"]
-    runtime_args_info = {
-        "types": {
-            "tt_start_tile": "uint32_t",
-            "tt_tile_count": "uint32_t",
-            "A_addr": "uint64_t",
-            "B_addr": "uint64_t",
-            "C_addr": "uint64_t"
-        }
-    }
-
-    func = func.with_attrs({
-        "global_symbol": "main",
-        "tt_grid_x": tvm.tir.IntImm("int32", grid_x),
-        "tt_grid_y": tvm.tir.IntImm("int32", grid_y),
-        "tt_grid_z": tvm.tir.IntImm("int32", 1),
-        "tt_num_tiles": tvm.tir.IntImm("int32", num_tiles),
-        "tt_num_cores": tvm.tir.IntImm("int32", num_cores),
-        "tt_tiles_per_core": tiles_per_core,
-        "tt.runtime_args": runtime_args,
-        "tt.runtime_args_info": runtime_args_info,
-    })
-
-    # Create IRModule
-    mod = tvm.IRModule({"main": func})
-    return mod
+    if use_complete_ir:
+        # Use the complete IR module with split kernels for better test coverage
+        return create_complete_ir_module_with_split_kernels(
+            grid_x=grid_x, grid_y=grid_y, num_cores=num_cores)
+    else:
+        # Use empty IR module for testing fail-loud behavior
+        return create_empty_ir_module_for_fail_test(
+            grid_x=grid_x, grid_y=grid_y, num_cores=num_cores)
 
 
 def test_emit_tt_artifacts_basic():
@@ -252,6 +216,27 @@ def test_write_artifacts_to_disk(tmp_path):
     print("✓ Test 5 passed: Writing artifacts to disk")
 
 
+def test_empty_ir_fails_loudly():
+    """
+    Test 6: Empty IR fails loudly (no template fallback)
+
+    Verifies that codegen correctly rejects empty IR with a clear error message.
+    """
+
+    # Create module with empty IR
+    mod = create_tt_module_with_metadata(grid_x=8, grid_y=8, use_complete_ir=False)
+
+    # Should raise ValueError with clear message about empty/incomplete IR
+    try:
+        tt.emit_tt_artifacts(mod)
+        raise AssertionError("Should have raised ValueError for empty IR")
+    except ValueError as e:
+        error_msg = str(e)
+        assert "empty or incomplete IR body" in error_msg, f"Error message should mention empty IR, got: {error_msg}"
+        assert "lowering passes" in error_msg, f"Error message should mention lowering passes, got: {error_msg}"
+        print("✓ Test 6 passed: Empty IR fails loudly with clear error message")
+
+
 if __name__ == "__main__":
     # Run tests
     print("Running artifact generation stage Code Generation Tests\n")
@@ -260,6 +245,7 @@ if __name__ == "__main__":
     test_emit_tt_artifacts_grid_metadata()
     test_emit_tt_artifacts_scheduling_metadata()
     test_emit_tt_artifacts_various_grid_sizes()
+    test_empty_ir_fails_loudly()
 
     # Skip tmp_path test when running standalone
     print("\n✅ All artifact generation stage codegen tests passed!")
