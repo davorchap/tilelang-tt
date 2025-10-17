@@ -84,7 +84,7 @@ distributed::MeshBuffer::create()
 ```
 
 **Impact**: Compilation errors when SDK available
-**Fix**: Simple search/replace in `codegen_tt.cc`
+**Fix**: Update `tilelang/tenstorrent/codegen/host_generator.py`
 
 ### ❌ Critical Gaps (Missing Functionality)
 
@@ -295,7 +295,7 @@ code << "    EnqueueReadBuffer(cq, buffer_c, result.data(), true);\\n";
 **Severity**: Low
 **Current Code**: `Program program = CreateProgram();`
 **Correct Code**: `Program program{};`
-**Fix**: Line 439 in `codegen_tt.cc`
+**Fix**: Update in `tilelang/tenstorrent/codegen/host_generator.py`
 
 ### Issue 2: Missing Namespace Prefixes
 
