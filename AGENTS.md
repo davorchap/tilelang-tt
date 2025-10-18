@@ -46,3 +46,14 @@
 - PRs must summarize key changes, list validation commands (e.g., `pytest testing/python/tenstorrent/ -v`), and link relevant docs/issues.
 - Target `davorchap/tilelang-tt` → `main`; never open PRs against `tile-ai/tilelang`. Await passing CI before requesting review.
 - Agents have access to the GitHub CLI (`gh`) and should use it to open pull requests when preparing changes.
+
+## Tooling
+- GitHub CLI: authenticated and available as `gh`. Prefer it for PR/status operations.
+- Quick commands:
+  - `gh auth status` — verify login and scopes.
+  - `gh pr status` — summarize the current branch’s PR.
+  - `gh pr list -L 5 --state open --search "sort:created-desc"` — recent PRs.
+  - `gh pr view <num> --json title,state,reviewDecision,statusCheckRollup` — PR details + checks.
+  - `gh run list -L 20` and `gh run view <id> --log` — inspect CI runs/logs.
+  - `gh workflow list` and `gh workflow run <file.yml>` — enumerate/trigger workflows.
+  - `gh pr merge <num> --merge` — merge when reviews and checks pass.
