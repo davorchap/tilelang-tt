@@ -37,12 +37,13 @@ class CBProtocolInserter:
     """Helper class to transform abstract ops to protocol sequences"""
 
     def __init__(self, kernel_role: str, tensor_accessors: Dict[str, Dict[str, Any]],
-                 cb_indices: Dict[str, int]):
+                 cb_indices: Dict[str, int], loop_var: Optional[tir.Var] = None):
         self.kernel_role = kernel_role
         self.tensor_accessors = tensor_accessors
         self.cb_indices = cb_indices
         self.in_pipeline_loop = False
         self.pipeline_depth = 3  # Default pipeline depth
+        self.loop_var = loop_var  # The 'k' loop variable for tile_id calculation
 
     def transform_evaluate(self, op):
         """Visit T.evaluate nodes to replace abstract operations"""
@@ -251,12 +252,30 @@ class CBProtocolInserter:
 
         return None
 
-    def _create_tile_id_expr(self, buffer_slice) -> tir.PrimExpr:
-        """Create tile ID expression from buffer slice"""
+    def _create_tile_id_expr(self, buffer_name: Optional[str] = None) -> tir.PrimExpr:
+        """Create tile ID expression from loop variable and runtime args.
 
-        # This would be more sophisticated in practice
-        # For now, return a simple expression
-        return tir.IntImm("int32", 0)  # Placeholder
+        For global partition mode:
+            tile_id = start_id + k
+
+        Args:
+            buffer_name: Name of buffer being accessed (for future shard-aware logic)
+
+        Returns:
+            TIR expression computing the tile ID
+        """
+        # If we have a loop variable, use start_id + loop_var
+        if self.loop_var is not None:
+            # Create variable reference to start_id runtime arg
+            start_id_var = tir.Var("start_id", "int32")
+
+            # Compute: tile_id = start_id + k
+            tile_id_expr = tir.Add(start_id_var, self.loop_var)
+
+            return tile_id_expr
+        else:
+            # No loop context - use constant 0
+            return tir.IntImm("int32", 0)
 
     def _lower_protocol_less_copy(self, call):
         """Lower tt.copy.protocol_less to appropriate protocol based on kernel role.
@@ -379,9 +398,12 @@ class CBProtocolInserter:
         write_ptr_var = tir.Var("l1_write_addr", "uint32")
 
         # Step 3: Issue NOC read using write_ptr_var
+        # Compute tile_id from loop variable (start_id + k)
+        tile_id_expr = self._create_tile_id_expr(src_buffer_name)
+
         noc_read = tir.Evaluate(
             tir.call_extern("void", "noc_async_read_tile",
-                           tir.IntImm("int32", 0),  # tile_id placeholder
+                           tile_id_expr,  # Computed tile_id
                            tir.IntImm("int32", accessor.get("runtime_arg_idx", 0)),
                            write_ptr_var))
 
@@ -441,9 +463,12 @@ class CBProtocolInserter:
         read_ptr_var = tir.Var("l1_read_addr", "uint32")
 
         # Step 3: Issue NOC write using read_ptr_var
+        # Compute tile_id from loop variable (start_id + k)
+        tile_id_expr = self._create_tile_id_expr(dst_buffer_name)
+
         noc_write = tir.Evaluate(
             tir.call_extern("void", "noc_async_write_tile",
-                           tir.IntImm("int32", 0),  # tile_id placeholder
+                           tile_id_expr,  # Computed tile_id
                            tir.IntImm("int32", accessor.get("runtime_arg_idx", 0)),
                            read_ptr_var))
 
@@ -580,8 +605,13 @@ class LowerCBIntrinsics:
         if func.attrs and "tt.cb_indices" in func.attrs:
             cb_indices = self._convert_to_dict(func.attrs["tt.cb_indices"])
 
+        # Extract the 'k' loop variable for tile_id calculation
+        k_loop_var = self._find_tile_iteration_loop_var(func.body)
+        if k_loop_var is not None:
+            logger.info(f"[{kernel_role}] Found tile iteration loop variable: {k_loop_var.name}")
+
         # Create helper for transformation
-        inserter = CBProtocolInserter(kernel_role, tensor_accessors, cb_indices)
+        inserter = CBProtocolInserter(kernel_role, tensor_accessors, cb_indices, k_loop_var)
 
         # Define post-visit function for ir_transform
         def post_visit(stmt):
@@ -603,6 +633,24 @@ class LowerCBIntrinsics:
         logger.info(f"Inserted CB protocol for {kernel_role} kernel")
 
         return new_func
+
+    def _find_tile_iteration_loop_var(self, body) -> Optional[tir.Var]:
+        """Find the 'k' loop variable used for tile iteration.
+
+        Returns:
+            The loop variable (typically named 'k') or None if not found
+        """
+        found_var = None
+
+        def visitor(node):
+            nonlocal found_var
+            if isinstance(node, tir.For):
+                if hasattr(node, 'loop_var') and hasattr(node.loop_var, 'name'):
+                    if node.loop_var.name == 'k':
+                        found_var = node.loop_var
+
+        tir.stmt_functor.post_order_visit(body, visitor)
+        return found_var
 
     def _collect_tensor_accessors(self, func: "tir.PrimFunc") -> Dict[str, Dict[str, Any]]:
         """Collect all tensor accessors from function attributes."""
