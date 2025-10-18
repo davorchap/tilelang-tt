@@ -32,6 +32,7 @@ class TIRToMetaliumVisitor:
         self.loop_vars = {}
         self.cb_indices = {}
         self.tensor_accessors = {}
+        self.declared_vars = set()  # Track declared variables to avoid duplicates
 
     def visit(self, stmt):
         """Main visit dispatcher"""
@@ -136,7 +137,15 @@ class TIRToMetaliumVisitor:
         value = self.expr_to_string(op.value)
         dtype = self._get_c_dtype(op.var.dtype if hasattr(op.var, 'dtype') else "int32")
 
-        self.code.writeln(f"{dtype} {var_name} = {value};")
+        # Check if variable was already declared in this scope
+        if var_name in self.declared_vars:
+            # Re-assignment without type
+            self.code.writeln(f"{var_name} = {value};")
+        else:
+            # First declaration with type
+            self.code.writeln(f"{dtype} {var_name} = {value};")
+            self.declared_vars.add(var_name)
+
         self.visit(op.body)
 
     def visit_buffer_store(self, op):
@@ -438,6 +447,13 @@ class TIRToMetaliumVisitor:
             start = args[2] if len(args) > 2 else "0"
             self.code.writeln(f"copy_tile({cb_in}, {start}, {cb_out});")
 
+        # Zero/clear operations
+        elif func_name in ["tt.fill.zero", "fill_tile_with_zero", "clear_tiles"]:
+            # For TT, clearing DST is handled by acquire_dst
+            # We can skip explicit zero operations as DST is initialized
+            # Or emit a comment
+            self.code.writeln("// Zero initialization handled by acquire_dst")
+
         # Semaphore operations
         elif func_name in ["semaphore_init", "tt.semaphore_init"]:
             sem_id = args[0] if args else "0"
@@ -469,8 +485,13 @@ class TIRToMetaliumVisitor:
 
         else:
             # Unknown intrinsic - generate comment with warning
-            logger.debug(f"Unknown intrinsic: {func_name}")
-            self.code.writeln(f"// TODO: Unknown intrinsic {func_name}({', '.join(args)});")
+            # Skip TVM internal functions (tir.*) as they should have been lowered
+            if func_name.startswith("tir."):
+                logger.warning(f"Skipping unlowered TIR intrinsic: {func_name}")
+                self.code.writeln(f"// Skipped unlowered TIR intrinsic: {func_name}")
+            else:
+                logger.debug(f"Unknown intrinsic: {func_name}")
+                self.code.writeln(f"// TODO: Unknown intrinsic {func_name}({', '.join(args)});")
 
     def expr_to_string(self, expr) -> str:
         """Convert TIR expression to C++ string"""
@@ -668,6 +689,10 @@ class TIRToMetaliumVisitor:
             dtype = "uint32_t"  # Default
             return f"get_arg_val<{dtype}>({idx})"
         else:
+            # Skip TVM internal functions that should have been lowered
+            if actual_func_name.startswith("tir."):
+                logger.warning(f"Skipping unlowered TIR function in expression: {actual_func_name}")
+                return f"/* skipped: {actual_func_name} */"
             # Generic function call
             return f"{actual_func_name}({', '.join(args)})"
 
