@@ -112,7 +112,15 @@ def _transform_tile_intrinsics(func, mod, ctx):
                 call = evaluate_node.value
                 if hasattr(call, 'op') and hasattr(call.op, 'name'):
                     op_name = call.op.name
-                    return op_name in ["tl.fill", "T.fill", "tir.fill"]
+                    # Direct intrinsic name match
+                    if op_name in ["tl.fill", "T.fill", "tir.fill"]:
+                        return True
+                    # For call_extern, check args[0] for function name
+                    if op_name == "tir.call_extern" and len(call.args) >= 1 and isinstance(
+                            call.args[0], tir.StringImm):
+                        func_name = call.args[0].value
+                        return any(
+                            pattern in func_name for pattern in ["T.fill", "tir.fill", "tl.fill"])
             return False
 
         def _is_copy_intrinsic(self, evaluate_node):
@@ -121,7 +129,15 @@ def _transform_tile_intrinsics(func, mod, ctx):
                 call = evaluate_node.value
                 if hasattr(call, 'op') and hasattr(call.op, 'name'):
                     op_name = call.op.name
-                    return op_name in ["tl.copy", "T.copy", "tir.copy"]
+                    # Direct intrinsic name match
+                    if op_name in ["tl.copy", "T.copy", "tir.copy"]:
+                        return True
+                    # For call_extern, check args[0] for function name
+                    if op_name == "tir.call_extern" and len(call.args) >= 1 and isinstance(
+                            call.args[0], tir.StringImm):
+                        func_name = call.args[0].value
+                        return any(
+                            pattern in func_name for pattern in ["T.copy", "tir.copy", "tl.copy"])
             return False
 
         def _is_gemm_intrinsic(self, evaluate_node):
@@ -131,11 +147,12 @@ def _transform_tile_intrinsics(func, mod, ctx):
                 # Check op name directly (most common for TileLang intrinsics)
                 if hasattr(call, 'op') and hasattr(call.op, 'name'):
                     op_name = call.op.name
-                    return op_name in ["tl.gemm", "T.gemm", "tir.gemm", "tvm_gemm"]
-                # Also check for call_extern format
-                elif str(call.op) == "Op(tir.call_extern)":
-                    # For call_extern, args[0] is the function name
-                    if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
+                    # Direct intrinsic name match
+                    if op_name in ["tl.gemm", "T.gemm", "tir.gemm", "tvm_gemm"]:
+                        return True
+                    # For call_extern, check args[0] for function name
+                    if op_name == "tir.call_extern" and len(call.args) >= 1 and isinstance(
+                            call.args[0], tir.StringImm):
                         func_name = call.args[0].value
                         return any(pattern in func_name
                                    for pattern in ["T.gemm", "tir.gemm", "tvm_gemm", "tl.gemm"])
@@ -145,24 +162,21 @@ def _transform_tile_intrinsics(func, mod, ctx):
             """Check for element-wise operations"""
             if isinstance(evaluate_node.value, tir.Call):
                 call = evaluate_node.value
-                # Check for call_extern with elementwise op as function name
-                if str(call.op) == "Op(tir.call_extern)":
-                    # For call_extern, args[0] is the function name
-                    if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
-                        func_name = call.args[0].value
-                        elementwise_ops = [
-                            "T.add", "T.multiply", "T.subtract", "T.divide", "tir.add",
-                            "tir.multiply", "tir.subtract", "tir.divide"
-                        ]
-                        return any(op in func_name for op in elementwise_ops)
-                # Also check op name directly
-                elif hasattr(call, 'op'):
-                    op_name = str(call.op)
+                if hasattr(call, 'op') and hasattr(call.op, 'name'):
+                    op_name = call.op.name
+                    # Direct intrinsic name match
                     elementwise_ops = [
                         "T.add", "T.multiply", "T.subtract", "T.divide", "tir.add", "tir.multiply",
-                        "tir.subtract", "tir.divide"
+                        "tir.subtract", "tir.divide", "tl.add", "tl.multiply", "tl.subtract",
+                        "tl.divide"
                     ]
-                    return any(op in op_name for op in elementwise_ops)
+                    if any(op in op_name for op in elementwise_ops):
+                        return True
+                    # For call_extern, check args[0] for function name
+                    if op_name == "tir.call_extern" and len(call.args) >= 1 and isinstance(
+                            call.args[0], tir.StringImm):
+                        func_name = call.args[0].value
+                        return any(op in func_name for op in elementwise_ops)
             return False
 
         def _is_sfpu_op(self, evaluate_node):
@@ -509,6 +523,16 @@ def _transform_tile_intrinsics(func, mod, ctx):
                 return temp_lowerer._lower_copy(stmt)
             elif temp_lowerer._is_gemm_intrinsic(stmt):
                 return temp_lowerer._lower_gemm(stmt)
+            elif temp_lowerer._is_elementwise_op(stmt):
+                return temp_lowerer._lower_elementwise(stmt)
+        elif isinstance(stmt, tir.BufferStore):
+            # Handle BufferStore patterns (matmul, binary ops, etc.)
+            temp_lowerer = TileIntrinsicLowerer(cb_metadata)
+
+            if temp_lowerer._is_matmul_accumulation(stmt):
+                return temp_lowerer._lower_matmul_accumulation(stmt)
+            elif temp_lowerer._is_binary_operation(stmt):
+                return temp_lowerer._lower_binary_operation(stmt)
 
         return stmt
 
