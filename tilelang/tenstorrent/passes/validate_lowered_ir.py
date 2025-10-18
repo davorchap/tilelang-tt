@@ -14,7 +14,7 @@ Output: Validated IR or raises ValueError with clear error messages
 """
 
 from __future__ import annotations
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, List, Optional
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
@@ -68,7 +68,8 @@ class ValidationReport:
         suggestion: Optional[str] = None,
     ):
         """Add a validation issue"""
-        self.issues.append(ValidationIssue(level, category, message, location, ir_snippet, suggestion))
+        self.issues.append(
+            ValidationIssue(level, category, message, location, ir_snippet, suggestion))
         if level == ValidationLevel.ERROR:
             self.passed = False
 
@@ -107,14 +108,12 @@ class UnloweredConstructDetector:
 
         # Check for unlowered protocol-less operations
         if self._is_unlowered_operation(op_name, value):
-            self.unlowered_ops.append(
-                {
-                    "op_name": op_name,
-                    "function": self.current_function_name,
-                    "kernel_role": self.current_kernel_role,
-                    "stmt": stmt,
-                }
-            )
+            self.unlowered_ops.append({
+                "op_name": op_name,
+                "function": self.current_function_name,
+                "kernel_role": self.current_kernel_role,
+                "stmt": stmt,
+            })
 
     def _get_op_name(self, call) -> str:
         """Extract operation name from a call node"""
@@ -158,11 +157,7 @@ class UnloweredConstructDetector:
             "tt.write_from_cb",
         ]
 
-        for pattern in unlowered_patterns:
-            if pattern in op_name:
-                return True
-
-        return False
+        return any(pattern in op_name for pattern in unlowered_patterns)
 
 
 class BufferRegionDetector:
@@ -177,14 +172,12 @@ class BufferRegionDetector:
         """Visit an expression node to check for BufferRegion"""
         # Check if this is a BufferRegion or BufferLoad with region
         if tir and isinstance(expr, (tir.BufferRegion,)):
-            self.buffer_regions.append(
-                {
-                    "type": type(expr).__name__,
-                    "function": self.current_function_name,
-                    "kernel_role": self.current_kernel_role,
-                    "expr": expr,
-                }
-            )
+            self.buffer_regions.append({
+                "type": type(expr).__name__,
+                "function": self.current_function_name,
+                "kernel_role": self.current_kernel_role,
+                "expr": expr,
+            })
 
         # Recursively check sub-expressions
         if hasattr(expr, "a"):
@@ -263,9 +256,9 @@ class IRTraverser:
             self._traverse_stmt(stmt.body)
         elif isinstance(stmt, tir.AttrStmt):
             self._traverse_stmt(stmt.body)
-        elif isinstance(stmt, tir.BlockRealize):
-            if hasattr(stmt, "block") and hasattr(stmt.block, "body"):
-                self._traverse_stmt(stmt.block.body)
+        elif isinstance(stmt, tir.BlockRealize) and hasattr(stmt, "block") and hasattr(
+                stmt.block, "body"):
+            self._traverse_stmt(stmt.block.body)
 
     def _traverse_expr(self, expr):
         """Recursively traverse an expression"""
@@ -389,11 +382,10 @@ class ValidateLoweredIR:
                     error_messages.append(msg)
 
             raise ValueError(
-                "IR validation failed - unlowered constructs detected:\n\n"
-                + "\n\n".join(error_messages)
-                + "\n\nThese constructs should have been lowered by Stage D passes "
-                "but were found before codegen. This would cause C++ compilation errors."
-            )
+                "IR validation failed - unlowered constructs detected:\n\n" +
+                "\n\n".join(error_messages) +
+                "\n\nThese constructs should have been lowered by Stage D passes "
+                "but were found before codegen. This would cause C++ compilation errors.")
 
         return mod
 
