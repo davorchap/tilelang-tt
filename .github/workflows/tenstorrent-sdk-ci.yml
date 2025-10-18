@@ -227,6 +227,7 @@ jobs:
           cmake -B build \
             -G Ninja \
             -DUSE_LLVM=true \
+            -DTL_TT_BACKEND=ON \
             -DUSE_REAL_METALIUM=ON \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="$TT_METAL_HOME/build" \
