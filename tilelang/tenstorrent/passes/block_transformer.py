@@ -50,17 +50,14 @@ class BlockTransformer:
         elif isinstance(stmt, tir.SeqStmt):
             new_seq = []
             changed = False
-            for i, s in enumerate(stmt.seq):
+            for s in stmt.seq:
                 new_s = self.visit(s)
                 if new_s is not None:
                     new_seq.append(new_s)
                     if new_s is not s:  # Check object identity, not equality
                         changed = True
-                        print(f"[BlockTransformer.visit] SeqStmt child {i} changed")
             if changed:
-                print(f"[BlockTransformer.visit] SeqStmt changed, creating new SeqStmt")
                 return tir.SeqStmt(new_seq)
-            print(f"[BlockTransformer.visit] SeqStmt unchanged")
             return stmt
 
         # Handle nodes with body

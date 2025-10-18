@@ -571,24 +571,6 @@ class SplitDeviceKernel:
 # Module-level pass function for compatibility
 def split_device_kernel(mod: IRModule) -> IRModule:
     """Apply SplitDeviceKernel pass to a module."""
-    print("[Pass D1] split_device_kernel CALLED")
-
-    # Check what intrinsics we received from Pass C2
-    for gvar, func in mod.functions.items():
-        if isinstance(func, tir.PrimFunc):
-            calls_received = []
-            def scan(stmt):
-                if isinstance(stmt, tir.Evaluate) and isinstance(stmt.value, tir.Call):
-                    if hasattr(stmt.value.op, 'name'):
-                        op_name = stmt.value.op.name
-                        if op_name == "tir.call_extern" and len(stmt.value.args) > 1:
-                            if isinstance(stmt.value.args[1], tir.StringImm):
-                                calls_received.append(stmt.value.args[1].value)
-                        else:
-                            calls_received.append(op_name)
-            tir.stmt_functor.post_order_visit(func.body, scan)
-            print(f"[Pass D1] Received function {gvar.name_hint} with calls: {calls_received[:5]}")
-
     pass_instance = SplitDeviceKernel()
     return pass_instance(mod)
 
