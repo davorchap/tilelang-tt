@@ -54,18 +54,20 @@ def test_tenstorrent_engine_lower_returns_compiled_artifact(toggle_tt_backend):
     """Test that TT lowering returns a CompiledArtifact (Task 1+2 complete)."""
     toggle_tt_backend(True)
 
-    # Use TileLang DSL to create a proper kernel
-    # Note: TT backend doesn't support threadIdx (T.Parallel), use blockIdx only
+    # Use TileLang DSL to create a proper kernel with compute operations
+    # Note: Pure copy-only kernels create empty bodies after split filtering
+    #       Use a kernel with actual compute to test the full pipeline
     import tilelang.language as T
 
     @T.prim_func
-    def simple_kernel(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16")):
+    def simple_kernel(A: T.Buffer((128, 128), "float16"),
+                      B: T.Buffer((128, 128), "float16"),
+                      C: T.Buffer((128, 128), "float16")):
         with T.Kernel(4, 4) as (bx, by):
-            # Simple tile-level intrinsic: copy one tile from A to B
-            T.copy(
-                A[bx * 32:(bx + 1) * 32, by * 32:(by + 1) * 32],
-                B[bx * 32:(bx + 1) * 32, by * 32:(by + 1) * 32],
-            )
+            # Use a simple element-wise operation to test the pipeline
+            # This avoids gemm constraints while still testing reader/compute/writer
+            for i, j in T.Parallel(32, 32):
+                C[bx * 32 + i, by * 32 + j] = A[bx * 32 + i, by * 32 + j] + B[bx * 32 + i, by * 32 + j]
 
     # Create IRModule
     mod = tvm.IRModule({"main": simple_kernel})
