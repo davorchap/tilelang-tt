@@ -10,7 +10,8 @@ def _is_within_main_block(node: ast.AST) -> bool:
         if isinstance(cur, ast.If):
             # Check condition is __name__ == "__main__"
             cond = cur.test
-            if isinstance(cond, ast.Compare) and isinstance(cond.left, ast.Name) and cond.left.id == "__name__":
+            if isinstance(cond, ast.Compare) and isinstance(
+                    cond.left, ast.Name) and cond.left.id == "__name__":
                 # Compare to string "__main__"
                 rights = cond.comparators
                 if rights and isinstance(rights[0], ast.Constant) and rights[0].value == "__main__":
@@ -22,7 +23,7 @@ def _is_within_main_block(node: ast.AST) -> bool:
 def _attach_parents(tree: ast.AST) -> None:
     for parent in ast.walk(tree):
         for child in ast.iter_child_nodes(parent):
-            setattr(child, "_parent", parent)
+            child._parent = parent  # type: ignore[attr-defined]
 
 
 def _collect_offenses_in_file(py_path: pathlib.Path) -> list[tuple[int, str]]:
@@ -40,7 +41,8 @@ def _collect_offenses_in_file(py_path: pathlib.Path) -> list[tuple[int, str]]:
             func = node.func
             if isinstance(func, ast.Attribute) and func.attr == "with_attr" and node.args:
                 first = node.args[0]
-                if isinstance(first, ast.Constant) and isinstance(first.value, str) and first.value.startswith("tt."):
+                if isinstance(first, ast.Constant) and isinstance(
+                        first.value, str) and first.value.startswith("tt."):
                     if _is_within_main_block(node):
                         continue
                     offenses.append((node.lineno, first.value))
@@ -68,4 +70,3 @@ def test_tt_attribute_keys_use_constants():
         raise AssertionError(
             "Found direct string uses of 'tt.*' in with_attr; use keys from tilelang.tenstorrent.attrs instead:\n"
             + joined)
-

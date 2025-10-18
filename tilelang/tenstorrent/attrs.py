@@ -7,7 +7,6 @@ Centralized attribute definitions to prevent drift between passes and host code.
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Any, Optional
-
 """Central registry of Tenstorrent attribute keys used across passes/codegen.
 
 All code should import keys from this module instead of hardcoding strings.
@@ -35,6 +34,7 @@ TT_CB_PROTOCOL_INSERTED = "tt.cb_protocol_inserted"
 TT_COMPUTE_INIT_INSERTED = "tt.compute_init_inserted"
 TT_COMPUTE_INIT_INFO = "tt.compute_init_info"
 TT_DST_MANAGEMENT_INSERTED = "tt.dst_management_inserted"
+TT_DST_PATTERN = "tt.dst_pattern"
 
 # CB- and DFG-related metadata
 TT_CB_DESCRIPTORS = "tt.cb_descriptors"

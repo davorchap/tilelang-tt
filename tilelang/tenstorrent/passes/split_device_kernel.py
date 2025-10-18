@@ -607,7 +607,9 @@ class SplitDeviceKernel:
         new_func = new_func.with_attr(TT_CB_INDICES, kernel_cb_assignment)
 
         # Copy relevant metadata from original
-        for key in [TT_CORE_GRID, TT_CORE_RANGES, TT_PARTITION_MODE, TT_GRID_TILES, TT_WORK_PARTITION]:
+        for key in [
+                TT_CORE_GRID, TT_CORE_RANGES, TT_PARTITION_MODE, TT_GRID_TILES, TT_WORK_PARTITION
+        ]:
             if original_func.attrs and key in original_func.attrs:
                 new_func = new_func.with_attr(key, original_func.attrs[key])
 

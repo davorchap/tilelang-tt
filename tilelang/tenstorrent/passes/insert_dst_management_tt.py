@@ -25,6 +25,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+from ..attrs import TT_DST_MANAGEMENT_INSERTED, TT_DST_PATTERN
+
 
 class DSTPattern(Enum):
     """DST management patterns"""
@@ -456,9 +458,8 @@ class InsertDSTManagementTT:
             attrs=func.attrs)
 
         # Mark that DST management has been inserted
-        from ..attrs import TT_DST_MANAGEMENT_INSERTED
         new_func = new_func.with_attr(TT_DST_MANAGEMENT_INSERTED, True)
-        new_func = new_func.with_attr("tt.dst_pattern", dst_pattern.value)
+        new_func = new_func.with_attr(TT_DST_PATTERN, dst_pattern.value)
 
         logger.info(f"Inserted DST management with {dst_pattern.value} pattern")
 
@@ -596,6 +597,6 @@ if __name__ == "__main__":
             print(f"{name} ({func.attrs['tt.kernel_role']}):")
             if "tt.dst_management_inserted" in func.attrs:
                 print(f"  DST management inserted: {func.attrs['tt.dst_management_inserted']}")
-                print(f"  DST pattern: {func.attrs.get('tt.dst_pattern', 'unknown')}")
+                print(f"  DST pattern: {func.attrs.get(TT_DST_PATTERN, 'unknown')}")
             print(f"  Body preview: {str(func.body)[:300]}...")
             print()
