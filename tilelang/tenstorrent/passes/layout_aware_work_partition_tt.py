@@ -7,6 +7,16 @@ from typing import Dict, Optional
 from tilelang import tvm as tvm
 
 from ._common import convert_dict_for_ffi, convert_to_python, get_attr, to_int
+from ..attrs import (
+    TT_PARTITION_MODE,
+    TT_GRID_TILES,
+    TT_LOCAL_SHAPE_TILES,
+    TT_SHARD_GRID,
+    TT_CORE_RANGES,
+    TT_RUNTIME_ARG_NAMES,
+    TT_RUNTIME_CONSTANTS,
+    TT_CORE_RUNTIME_ARGS,
+)
 
 
 def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
@@ -137,19 +147,19 @@ def layout_aware_work_partition_tt(mod: tvm.IRModule) -> tvm.IRModule:
                 core_ranges.append([x, y, x, y, start, count])
                 core_runtime_args.append([start, count, Mt, 1, Nt])
 
-        new_func = func.with_attr("tt.partition_mode", partition_mode)
-        new_func = new_func.with_attr("tt.grid_tiles", grid_tiles)
-        new_func = new_func.with_attr("tt.local_shape_tiles", local_tiles)
-        new_func = new_func.with_attr("tt.shard_grid", shard_grid)
-        new_func = new_func.with_attr("tt.runtime_arg_names", runtime_arg_names)
-        new_func = new_func.with_attr("tt.runtime_constants", runtime_constants_ffi)
+        new_func = func.with_attr(TT_PARTITION_MODE, partition_mode)
+        new_func = new_func.with_attr(TT_GRID_TILES, grid_tiles)
+        new_func = new_func.with_attr(TT_LOCAL_SHAPE_TILES, local_tiles)
+        new_func = new_func.with_attr(TT_SHARD_GRID, shard_grid)
+        new_func = new_func.with_attr(TT_RUNTIME_ARG_NAMES, runtime_arg_names)
+        new_func = new_func.with_attr(TT_RUNTIME_CONSTANTS, runtime_constants_ffi)
 
         core_ranges_ffi = [convert_dict_for_ffi({"vals": r})["vals"] for r in core_ranges]
         core_runtime_args_ffi = [
             convert_dict_for_ffi({"vals": r})["vals"] for r in core_runtime_args
         ]
-        new_func = new_func.with_attr("tt.core_ranges", core_ranges_ffi)
-        new_func = new_func.with_attr("tt_core_runtime_args", core_runtime_args_ffi)
+        new_func = new_func.with_attr(TT_CORE_RANGES, core_ranges_ffi)
+        new_func = new_func.with_attr(TT_CORE_RUNTIME_ARGS, core_runtime_args_ffi)
 
         return new_func
 

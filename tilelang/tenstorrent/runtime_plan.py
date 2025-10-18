@@ -115,6 +115,24 @@ def emit_tt_plan(func: "tir.PrimFunc", out_path: str = "tt.plan.json") -> Dict[s
     """
     plan = extract_runtime_plan(func)
 
+    # Add versioning information
+    try:
+        schema_version = 1
+        # Read backend version from VERSION file at repo root if available
+        import os
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        version_file = os.path.join(repo_root, "VERSION")
+        backend_version = None
+        if os.path.exists(version_file):
+            with open(version_file, "r") as vf:
+                backend_version = vf.read().strip()
+        plan["schema_version"] = schema_version
+        if backend_version:
+            plan["backend_version"] = backend_version
+    except Exception as _:
+        # Best-effort: do not fail artifact emission on version read errors
+        plan.setdefault("schema_version", 1)
+
     # Write to JSON file
     with open(out_path, "w") as f:
         json.dump(plan, f, indent=2)
@@ -141,6 +159,20 @@ def validate_plan(plan: Dict[str, Any]) -> List[str]:
     for field in required_fields:
         if field not in plan:
             errors.append(f"Missing required field: {field}")
+
+    # Versioning fields
+    if "schema_version" not in plan:
+        errors.append("Missing required field: schema_version")
+    else:
+        try:
+            if int(plan["schema_version"]) < 1:
+                errors.append("schema_version must be >= 1")
+        except Exception:
+            errors.append("schema_version must be an integer")
+
+    # backend_version is optional but if present must be a string
+    if "backend_version" in plan and not isinstance(plan["backend_version"], str):
+        errors.append("backend_version must be a string when present")
 
     if "core_grid" in plan:
         grid = plan["core_grid"]

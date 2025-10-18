@@ -594,8 +594,9 @@ class SplitDeviceKernel:
             attrs=original_func.attrs)
 
         # Update attributes
-        new_func = new_func.with_attr("tt.kernel_role", role.value)
-        new_func = new_func.with_attr("tt.runtime_args", kernel_slice.runtime_args)
+        from ..attrs import TT_KERNEL_ROLE, TT_RUNTIME_ARGS, TT_CB_INDICES, TT_CORE_GRID, TT_CORE_RANGES, TT_PARTITION_MODE, TT_GRID_TILES, TT_WORK_PARTITION
+        new_func = new_func.with_attr(TT_KERNEL_ROLE, role.value)
+        new_func = new_func.with_attr(TT_RUNTIME_ARGS, kernel_slice.runtime_args)
 
         # Assign CB indices for this kernel
         kernel_cb_assignment = {}
@@ -603,13 +604,10 @@ class SplitDeviceKernel:
             if cb_name in cb_assignment:
                 kernel_cb_assignment[cb_name] = cb_assignment[cb_name]
 
-        new_func = new_func.with_attr("tt.cb_indices", kernel_cb_assignment)
+        new_func = new_func.with_attr(TT_CB_INDICES, kernel_cb_assignment)
 
         # Copy relevant metadata from original
-        for key in [
-                "tt.core_grid", "tt.core_ranges", "tt.partition_mode", "tt.grid_tiles",
-                "tt.work_partition"
-        ]:
+        for key in [TT_CORE_GRID, TT_CORE_RANGES, TT_PARTITION_MODE, TT_GRID_TILES, TT_WORK_PARTITION]:
             if original_func.attrs and key in original_func.attrs:
                 new_func = new_func.with_attr(key, original_func.attrs[key])
 

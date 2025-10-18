@@ -25,6 +25,17 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+from ..attrs import (
+    TT_PARTITION_MODE,
+    TT_CORE_GRID,
+    TT_CORE_RANGES,
+    TT_GRID_TILES,
+    TT_WORK_PARTITION,
+    TT_RUNTIME_ARGS,
+    TT_SHARD_GRID,
+    TT_LOCAL_SHAPE_TILES,
+    TT_BUFFER_PREFIX,
+)
 
 class LayoutAwareWorkPartitionTT_v5:
     """
@@ -86,17 +97,17 @@ class LayoutAwareWorkPartitionTT_v5:
         runtime_args = self._generate_runtime_args(partition_mode, shard_info)
 
         # Attach all metadata to function
-        func = func.with_attr("tt.partition_mode", partition_mode)
-        func = func.with_attr("tt.core_grid", core_grid)
-        func = func.with_attr("tt.core_ranges", tvm.runtime.convert(core_ranges))
-        func = func.with_attr("tt.grid_tiles", grid_tiles)
-        func = func.with_attr("tt.work_partition", tvm.runtime.convert(work_partition))
-        func = func.with_attr("tt.runtime_args", runtime_args)
+        func = func.with_attr(TT_PARTITION_MODE, partition_mode)
+        func = func.with_attr(TT_CORE_GRID, core_grid)
+        func = func.with_attr(TT_CORE_RANGES, tvm.runtime.convert(core_ranges))
+        func = func.with_attr(TT_GRID_TILES, grid_tiles)
+        func = func.with_attr(TT_WORK_PARTITION, tvm.runtime.convert(work_partition))
+        func = func.with_attr(TT_RUNTIME_ARGS, runtime_args)
 
         # Add shard-specific metadata if local_shard mode
         if partition_mode == "local_shard" and shard_info:
-            func = func.with_attr("tt.shard_grid", shard_info["grid"])
-            func = func.with_attr("tt.local_shape_tiles", shard_info["local_tiles"])
+            func = func.with_attr(TT_SHARD_GRID, shard_info["grid"])
+            func = func.with_attr(TT_LOCAL_SHAPE_TILES, shard_info["local_tiles"])
 
         logger.info(f"Set partition mode={partition_mode}, core_grid={core_grid}")
 
@@ -109,8 +120,8 @@ class LayoutAwareWorkPartitionTT_v5:
 
         if func.attrs:
             for key in func.attrs.keys():
-                if key.startswith("tt.buffer."):
-                    buffer_name = key.replace("tt.buffer.", "")
+                if key.startswith(TT_BUFFER_PREFIX):
+                    buffer_name = key.replace(TT_BUFFER_PREFIX, "")
                     layout = self._convert_to_dict(func.attrs[key])
                     layouts[buffer_name] = layout
 

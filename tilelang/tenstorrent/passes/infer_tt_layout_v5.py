@@ -110,7 +110,8 @@ class InferTTLayout_v5:
 
         # Also set core grid if extracted
         if grid_x > 0 and grid_y > 0:
-            func = func.with_attr("tt.core_grid", [grid_x, grid_y])
+            from ..attrs import TT_CORE_GRID
+            func = func.with_attr(TT_CORE_GRID, [grid_x, grid_y])
 
         logger.info("Attached v5 layout descriptors to function")
 

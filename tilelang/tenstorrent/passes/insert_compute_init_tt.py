@@ -382,8 +382,9 @@ class InsertComputeInitTT:
             attrs=func.attrs)
 
         # Mark that initialization has been inserted
-        new_func = new_func.with_attr("tt.compute_init_inserted", True)
-        new_func = new_func.with_attr("tt.compute_init_info", tvm.runtime.convert(init_info))
+        from ..attrs import TT_COMPUTE_INIT_INSERTED, TT_COMPUTE_INIT_INFO
+        new_func = new_func.with_attr(TT_COMPUTE_INIT_INSERTED, True)
+        new_func = new_func.with_attr(TT_COMPUTE_INIT_INFO, tvm.runtime.convert(init_info))
 
         logger.info(
             f"Inserted compute initialization for {init_info['primary_op_type'].value} operation")
@@ -509,14 +510,15 @@ if __name__ == "__main__":
 
     # Add metadata for GEMM compute
     gemm_func = TestModule["gemm_compute"]
-    gemm_func = gemm_func.with_attr("tt.kernel_role", "compute")
-    gemm_func = gemm_func.with_attr("tt.cb_indices", {"cb_in0": 0, "cb_in1": 1, "cb_out": 16})
+    from ..attrs import TT_KERNEL_ROLE, TT_CB_INDICES
+    gemm_func = gemm_func.with_attr(TT_KERNEL_ROLE, "compute")
+    gemm_func = gemm_func.with_attr(TT_CB_INDICES, {"cb_in0": 0, "cb_in1": 1, "cb_out": 16})
     TestModule["gemm_compute"] = gemm_func
 
     # Add metadata for element-wise compute
     add_func = TestModule["add_compute"]
-    add_func = add_func.with_attr("tt.kernel_role", "compute")
-    add_func = add_func.with_attr("tt.cb_indices", {"cb_in0": 0, "cb_in1": 1, "cb_out": 16})
+    add_func = add_func.with_attr(TT_KERNEL_ROLE, "compute")
+    add_func = add_func.with_attr(TT_CB_INDICES, {"cb_in0": 0, "cb_in1": 1, "cb_out": 16})
     TestModule["add_compute"] = add_func
 
     # Apply D4 pass

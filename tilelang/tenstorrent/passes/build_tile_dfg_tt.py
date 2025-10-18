@@ -463,11 +463,12 @@ class BuildTileDFGTT:
         dfg_metadata = self._analyze_dfg(builder)
 
         # Attach the dataflow graph as metadata
-        func = func.with_attr("tt.tile_dfg", tvm.runtime.convert(dfg_metadata))
+        from ..attrs import TT_TILE_DFG, TT_CB_ASSIGNMENT
+        func = func.with_attr(TT_TILE_DFG, tvm.runtime.convert(dfg_metadata))
 
         # Also attach CB assignment hints
         cb_assignment = self._generate_cb_assignment(builder)
-        func = func.with_attr("tt.cb_assignment", tvm.runtime.convert(cb_assignment))
+        func = func.with_attr(TT_CB_ASSIGNMENT, tvm.runtime.convert(cb_assignment))
 
         logger.info(
             f"Built dataflow graph with {len(builder.nodes)} nodes and {len(builder.edges)} edges")

@@ -456,7 +456,8 @@ class InsertDSTManagementTT:
             attrs=func.attrs)
 
         # Mark that DST management has been inserted
-        new_func = new_func.with_attr("tt.dst_management_inserted", True)
+        from ..attrs import TT_DST_MANAGEMENT_INSERTED
+        new_func = new_func.with_attr(TT_DST_MANAGEMENT_INSERTED, True)
         new_func = new_func.with_attr("tt.dst_pattern", dst_pattern.value)
 
         logger.info(f"Inserted DST management with {dst_pattern.value} pattern")

@@ -636,19 +636,20 @@ class CodegenTT:
                 # These are simplified templates until kernel splitting is implemented
 
                 # Generate reader kernel
-                reader_func = main_func.with_attr("tt.kernel_role", "reader")
+                from ..attrs import TT_KERNEL_ROLE
+                reader_func = main_func.with_attr(TT_KERNEL_ROLE, "reader")
                 generator = create_kernel_generator(reader_func, "reader")
                 outputs["reader.cpp"] = generator.generate()
                 logger.info("Generated stub reader.cpp")
 
                 # Generate compute kernel
-                compute_func = main_func.with_attr("tt.kernel_role", "compute")
+                compute_func = main_func.with_attr(TT_KERNEL_ROLE, "compute")
                 generator = create_kernel_generator(compute_func, "compute")
                 outputs["compute.cpp"] = generator.generate()
                 logger.info("Generated stub compute.cpp")
 
                 # Generate writer kernel
-                writer_func = main_func.with_attr("tt.kernel_role", "writer")
+                writer_func = main_func.with_attr(TT_KERNEL_ROLE, "writer")
                 generator = create_kernel_generator(writer_func, "writer")
                 outputs["writer.cpp"] = generator.generate()
                 logger.info("Generated stub writer.cpp")

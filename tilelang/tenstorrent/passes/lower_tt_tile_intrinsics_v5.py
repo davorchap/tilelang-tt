@@ -18,12 +18,7 @@ Output: TIR with protocol-less tt.mm.mma, tt.fpu.add, tt.sfpu.unary operations
 import tvm
 from tvm import tir
 from tvm.tir import stmt_functor
-import sys
-import os
-
-# Import our BlockTransformer base class
-sys.path.append(os.path.dirname(__file__))
-from block_transformer import BlockTransformer
+from .block_transformer import BlockTransformer
 
 
 def _transform_tile_intrinsics(func, mod, ctx):

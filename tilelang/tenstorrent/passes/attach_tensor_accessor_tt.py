@@ -81,8 +81,9 @@ class AttachTensorAccessorTT:
             logger.debug(f"Attached abstract accessor for buffer {buffer_name}")
 
         # Also create a summary of all accessors
+        from ..attrs import TT_ACCESSOR_SUMMARY
         accessor_summary = self._create_accessor_summary(buffer_layouts)
-        func = func.with_attr("tt.accessor_summary", tvm.runtime.convert(accessor_summary))
+        func = func.with_attr(TT_ACCESSOR_SUMMARY, tvm.runtime.convert(accessor_summary))
 
         logger.info(f"Attached {len(buffer_layouts)} tensor accessors")
 
@@ -94,9 +95,10 @@ class AttachTensorAccessorTT:
         layouts = {}
 
         if func.attrs:
+            from ..attrs import TT_BUFFER_PREFIX
             for key in func.attrs.keys():
-                if key.startswith("tt.buffer."):
-                    buffer_name = key.replace("tt.buffer.", "")
+                if key.startswith(TT_BUFFER_PREFIX):
+                    buffer_name = key.replace(TT_BUFFER_PREFIX, "")
                     layout = self._convert_to_dict(func.attrs[key])
                     layouts[buffer_name] = layout
 
