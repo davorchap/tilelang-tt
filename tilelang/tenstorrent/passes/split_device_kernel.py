@@ -147,6 +147,28 @@ class KernelSplitter:
                 return None
             return tir.AttrStmt(stmt.node, stmt.attr_key, stmt.value, new_body, stmt.span)
 
+        elif isinstance(stmt, tir.BlockRealize):
+            # Handle block realize - visit the block body
+            if hasattr(stmt, 'block') and hasattr(stmt.block, 'body'):
+                new_body = self.visit(stmt.block.body)
+                if new_body is None:
+                    return None
+                # Reconstruct block with filtered body
+                new_block = tir.Block(
+                    stmt.block.iter_vars,
+                    stmt.block.reads,
+                    stmt.block.writes,
+                    stmt.block.name_hint,
+                    new_body,
+                    stmt.block.init,
+                    stmt.block.alloc_buffers,
+                    stmt.block.match_buffers,
+                    stmt.block.annotations,
+                    stmt.block.span
+                )
+                return tir.BlockRealize(stmt.iter_values, stmt.predicate, new_block, stmt.span)
+            return stmt
+
         elif isinstance(stmt, tir.BufferStore):
             # For now, keep buffer stores as-is
             # You could add filtering logic here if needed
@@ -154,6 +176,7 @@ class KernelSplitter:
 
         else:
             # For other statement types, keep as-is
+            logger.debug(f"Unhandled node type in split: {type(stmt).__name__}")
             return stmt
 
     def visit_evaluate(self, op):
@@ -191,18 +214,127 @@ class KernelSplitter:
         """Determine if a statement belongs to the current role"""
 
         if self.role == KernelRole.READER:
-            # Reader handles: alloc_cb for inputs, read_to_cb
-            return "read_to_cb" in op_name or self._is_input_cb_alloc(op_name, call)
+            # Reader handles:
+            # - DRAM read operations (cb_reserve_back, noc_async_read*, cb_push_back)
+            # - tt.copy.protocol_less from global -> shared/local
+            # - Input CB allocations
+            reader_ops = ["read_to_cb", "cb_reserve_back", "cb_push_back",
+                         "noc_async_read", "get_write_ptr"]
+            if any(x in op_name for x in reader_ops):
+                return True
+            if "tt.copy.protocol_less" in op_name:
+                # Check if it's a DRAM read (global -> shared)
+                return self._is_dram_read_copy(call)
+            return self._is_input_cb_alloc(op_name, call)
 
         elif self.role == KernelRole.COMPUTE:
-            # Compute handles: compute ops, intermediate CB allocs
-            return any(x in op_name for x in ["mm.mma", "fpu.", "sfpu.", "gemm", "add", "mul"])
+            # Compute handles:
+            # - Compute operations (mm.mma, matmul, fpu, sfpu)
+            # - tt.copy.protocol_less between L1 buffers (shared <-> local)
+            # - DST management (acquire_dst, release_dst, pack_tile)
+            compute_ops = ["mm.mma", "fpu.", "sfpu.", "gemm", "matmul", "add", "mul",
+                          "acquire_dst", "release_dst", "pack_tile", "mm_init"]
+            if any(x in op_name for x in compute_ops):
+                return True
+            if "tt.copy.protocol_less" in op_name:
+                # Include L1<->L1 copies (shared <-> local)
+                return self._is_local_copy(call)
+            return False
 
         elif self.role == KernelRole.WRITER:
-            # Writer handles: write_from_cb, output CB allocs
-            return "write_from_cb" in op_name or self._is_output_cb_alloc(op_name, call)
+            # Writer handles:
+            # - DRAM write operations (cb_wait_front, noc_async_write*, cb_pop_front)
+            # - tt.copy.protocol_less from shared/local -> global
+            # - Output CB allocations
+            writer_ops = ["write_from_cb", "cb_wait_front", "cb_pop_front",
+                         "noc_async_write", "get_read_ptr"]
+            if any(x in op_name for x in writer_ops):
+                return True
+            if "tt.copy.protocol_less" in op_name:
+                # Check if it's a DRAM write (shared/local -> global)
+                return self._is_dram_write_copy(call)
+            return self._is_output_cb_alloc(op_name, call)
 
         return False
+
+    def _is_dram_read_copy(self, call) -> bool:
+        """Check if this is a DRAM->L1 copy (belongs to reader)"""
+
+        # tt.copy.protocol_less has args: [func_name, src_region, dst_region, ...]
+        if len(call.args) < 3:
+            return False
+
+        src_region = call.args[1]
+        dst_region = call.args[2]
+
+        # Check scopes
+        src_scope = self._get_buffer_scope_from_region(src_region)
+        dst_scope = self._get_buffer_scope_from_region(dst_region)
+
+        # DRAM read: global/empty -> shared/local
+        return (src_scope in ["global", "dram", ""] and
+                dst_scope in ["shared", "shared.dyn", "local"])
+
+    def _is_dram_write_copy(self, call) -> bool:
+        """Check if this is an L1->DRAM copy (belongs to writer)"""
+
+        if len(call.args) < 3:
+            return False
+
+        src_region = call.args[1]
+        dst_region = call.args[2]
+
+        # Check scopes
+        src_scope = self._get_buffer_scope_from_region(src_region)
+        dst_scope = self._get_buffer_scope_from_region(dst_region)
+
+        # DRAM write: shared/local -> global/empty
+        return (src_scope in ["shared", "shared.dyn", "local", "local.fragment"] and
+                dst_scope in ["global", "dram", ""])
+
+    def _is_local_copy(self, call) -> bool:
+        """Check if this is an L1<->L1 copy (belongs to compute)"""
+
+        if len(call.args) < 3:
+            return False
+
+        src_region = call.args[1]
+        dst_region = call.args[2]
+
+        # Check scopes
+        src_scope = self._get_buffer_scope_from_region(src_region)
+        dst_scope = self._get_buffer_scope_from_region(dst_region)
+
+        # Local copy: both are L1 (shared/local)
+        return (src_scope in ["shared", "shared.dyn", "local", "local.fragment"] and
+                dst_scope in ["shared", "shared.dyn", "local", "local.fragment"])
+
+    def _get_buffer_scope_from_region(self, region) -> str:
+        """Extract buffer scope from T.region expression"""
+
+        if not hasattr(region, 'args') or len(region.args) < 1:
+            return ""
+
+        buffer_arg = region.args[0]
+
+        # Check if it's a buffer load/store with scope
+        if hasattr(buffer_arg, 'buffer'):
+            buffer = buffer_arg.buffer
+            if hasattr(buffer, 'scope'):
+                # scope might be callable or property
+                scope_val = buffer.scope() if callable(buffer.scope) else buffer.scope
+                if scope_val and isinstance(scope_val, str):
+                    return scope_val
+
+        # Infer from buffer name
+        buffer_str = str(buffer_arg)
+        if "shared" in buffer_str.lower():
+            return "shared.dyn"
+        elif "local" in buffer_str.lower():
+            return "local.fragment" if "fragment" in buffer_str.lower() else "local"
+
+        # Default: global/DRAM
+        return "global"
 
     def _is_input_cb_alloc(self, op_name: str, call) -> bool:
         """Check if this is an input CB allocation"""
