@@ -34,7 +34,7 @@ class ProtocolType(Enum):
 
 
 class CBProtocolInserter:
-    """Mutator to replace abstract ops with protocol sequences"""
+    """Helper class to transform abstract ops to protocol sequences"""
 
     def __init__(self, kernel_role: str, tensor_accessors: Dict[str, Dict[str, Any]],
                  cb_indices: Dict[str, int]):
@@ -44,81 +44,51 @@ class CBProtocolInserter:
         self.in_pipeline_loop = False
         self.pipeline_depth = 3  # Default pipeline depth
 
-    def visit(self, stmt):
-        """Recursive IR transformation"""
-        if tir is None or stmt is None:
-            return stmt
-
-        # Handle different statement types
-        if isinstance(stmt, tir.Evaluate):
-            return self.visit_evaluate(stmt)
-        elif isinstance(stmt, tir.For):
-            return self.visit_for(stmt)
-        elif isinstance(stmt, tir.SeqStmt):
-            # Transform each statement in the sequence
-            new_stmts = [self.visit(s) for s in stmt.seq]
-            return tir.SeqStmt(new_stmts)
-        elif isinstance(stmt, tir.LetStmt):
-            # Transform the body
-            new_body = self.visit(stmt.body)
-            return tir.LetStmt(stmt.var, stmt.value, new_body)
-        elif isinstance(stmt, tir.IfThenElse):
-            new_then = self.visit(stmt.then_case)
-            new_else = self.visit(stmt.else_case) if stmt.else_case else None
-            return tir.IfThenElse(stmt.condition, new_then, new_else)
-        elif isinstance(stmt, tir.Allocate):
-            new_body = self.visit(stmt.body)
-            return tir.Allocate(stmt.buffer_var, stmt.dtype, stmt.extents, stmt.condition, new_body)
-        elif isinstance(stmt, tir.AttrStmt):
-            new_body = self.visit(stmt.body)
-            return tir.AttrStmt(stmt.node, stmt.attr_key, stmt.value, new_body)
-        elif isinstance(stmt, tir.AssertStmt):
-            new_body = self.visit(stmt.body)
-            return tir.AssertStmt(stmt.condition, stmt.message, new_body)
-        elif isinstance(stmt, (tir.BufferStore, tir.BufferRealize)):
-            # Leaf nodes - return as-is
-            return stmt
-        else:
-            # Unknown node type - return as-is
-            return stmt
-
-    def visit_evaluate(self, op):
+    def transform_evaluate(self, op):
         """Visit T.evaluate nodes to replace abstract operations"""
+        logger.info(f"[{self.kernel_role}] transform_evaluate called on: {type(op).__name__}")
 
         if hasattr(op, 'value') and hasattr(op.value, 'op'):
             call = op.value
-            op_name = str(call.op) if hasattr(call.op, 'name') else str(call.op)
+
+            # Extract operation name - handle both direct name and call_extern
+            op_name = None
+            if hasattr(call.op, 'name'):
+                op_name = call.op.name
+                # For call_extern, look through all args to find the function name StringImm
+                if op_name == "tir.call_extern" and hasattr(call, 'args'):
+                    logger.info(f"[{self.kernel_role}] call_extern with {len(call.args)} args")
+                    for i, arg in enumerate(call.args):
+                        logger.info(f"[{self.kernel_role}]   arg[{i}]: type={type(arg).__name__}, value={arg}")
+                        if isinstance(arg, tir.StringImm):
+                            # Found a string - could be return type ("void") or function name
+                            if arg.value != "void" and not arg.value.startswith("uint") and not arg.value.startswith("int"):
+                                op_name = arg.value
+                                logger.info(f"[{self.kernel_role}] Extracted function name: {op_name}")
+                                break
+
+            if not op_name:
+                logger.warning(f"[{self.kernel_role}] Could not extract op_name from call: {call}")
+                return tir.Evaluate(call)
+
+            logger.info(f"[{self.kernel_role}] Found operation: {op_name}")
 
             # Handle different abstract operations
             if "read_to_cb" in op_name and self.kernel_role == "reader":
+                logger.info(f"Lowering read_to_cb in {self.kernel_role} kernel")
                 return self._lower_read_to_cb(call)
             elif "write_from_cb" in op_name and self.kernel_role == "writer":
+                logger.info(f"Lowering write_from_cb in {self.kernel_role} kernel")
                 return self._lower_write_from_cb(call)
+            elif "tt.copy.protocol_less" in op_name:
+                # Handle tt.copy.protocol_less operations
+                logger.info(f"Lowering tt.copy.protocol_less in {self.kernel_role} kernel")
+                return self._lower_protocol_less_copy(call)
             else:
                 # Keep other operations as-is
                 return tir.Evaluate(call)
 
         return tir.Evaluate(op.value) if hasattr(op, 'value') else op
-
-    def visit_for(self, op):
-        """Track pipeline loops for protocol generation"""
-
-        # Check if this is a pipeline loop
-        is_pipeline = self._is_pipeline_loop(op)
-
-        if is_pipeline:
-            self.in_pipeline_loop = True
-            # Process the loop body with the flag set
-            new_body = self.visit(op.body) if hasattr(op, 'body') else op.body
-            self.in_pipeline_loop = False
-            # Return modified loop
-            return tir.For(op.loop_var, op.min, op.extent, op.kind, new_body) if hasattr(
-                op, 'loop_var') else op
-        else:
-            # Process normally
-            new_body = self.visit(op.body) if hasattr(op, 'body') else op.body
-            return tir.For(op.loop_var, op.min, op.extent, op.kind, new_body) if hasattr(
-                op, 'loop_var') else op
 
     def _lower_read_to_cb(self, call) -> List[tir.Stmt]:
         """Lower tt.read_to_cb to NOC read protocol"""
@@ -297,6 +267,223 @@ class CBProtocolInserter:
         # For now, return a simple expression
         return tir.IntImm("int32", 0)  # Placeholder
 
+    def _lower_protocol_less_copy(self, call):
+        """Lower tt.copy.protocol_less to appropriate protocol based on kernel role.
+
+        Args:
+            call: The tt.copy.protocol_less call with args:
+                  [0]: Source region (T.region)
+                  [1]: Destination region (T.region)
+
+        For reader kernels: DRAM->shared copies become NOC read + CB protocol
+        For writer kernels: shared/local->DRAM copies become CB wait + NOC write
+        For compute kernels: Should not be called (compute is skipped)
+        """
+
+        if len(call.args) < 3:  # Need at least: "void", "tt.copy.protocol_less", src, dst
+            return tir.Evaluate(call)
+
+        # Args are: func_name_str, src_region, dst_region, ...
+        # (TVM call_extern doesn't include return type in args, only in the op)
+        src_region = call.args[1] if len(call.args) > 1 else None
+        dst_region = call.args[2] if len(call.args) > 2 else None
+
+        if src_region is None or dst_region is None:
+            return tir.Evaluate(call)
+
+        # Determine the scope/memory of source and destination
+        src_scope = self._get_region_scope(src_region)
+        dst_scope = self._get_region_scope(dst_region)
+
+        logger.info(f"[{self.kernel_role}] tt.copy.protocol_less: src_scope={src_scope}, dst_scope={dst_scope}")
+
+        # Determine if this is a read (DRAM->L1) or write (L1->DRAM)
+        is_dram_read = (src_scope in ["global", "dram", ""] and
+                        dst_scope in ["shared", "shared.dyn", "local"])
+        is_dram_write = (src_scope in ["shared", "shared.dyn", "local", "local.fragment"] and
+                         dst_scope in ["global", "dram", ""])
+
+        logger.info(f"[{self.kernel_role}] is_dram_read={is_dram_read}, is_dram_write={is_dram_write}")
+
+        # Handle based on kernel role and operation type
+        if self.kernel_role == "reader" and is_dram_read:
+            # This is a DRAM read operation in reader kernel
+            # Transform to: cb_reserve_back -> noc_async_read -> noc_async_read_barrier -> cb_push_back
+            logger.info(f"[{self.kernel_role}] Generating DRAM read protocol")
+            return self._generate_dram_read_protocol(src_region, dst_region)
+
+        elif self.kernel_role == "writer" and is_dram_write:
+            # This is a DRAM write operation in writer kernel
+            # Transform to: cb_wait_front -> noc_async_write -> noc_async_write_barrier -> cb_pop_front
+            logger.info(f"[{self.kernel_role}] Generating DRAM write protocol")
+            return self._generate_dram_write_protocol(src_region, dst_region)
+
+        else:
+            # Not a DRAM operation or wrong kernel role - keep as-is
+            # This handles local copies, compute kernel ops, etc.
+            logger.info(f"[{self.kernel_role}] Keeping tt.copy.protocol_less as-is (not a DRAM op for this kernel)")
+            return tir.Evaluate(call)
+
+    def _get_region_scope(self, region):
+        """Extract the memory scope from a T.region expression."""
+
+        # T.region has the buffer as first argument
+        if not hasattr(region, 'args') or len(region.args) < 1:
+            return ""
+
+        buffer_arg = region.args[0]
+
+        # Check if it's a buffer load/store
+        if hasattr(buffer_arg, 'buffer'):
+            buffer = buffer_arg.buffer
+            if hasattr(buffer, 'scope'):
+                # scope might be a property or callable - try both
+                scope_val = buffer.scope() if callable(buffer.scope) else buffer.scope
+                if scope_val and isinstance(scope_val, str):
+                    return scope_val
+            elif hasattr(buffer, 'data') and hasattr(buffer.data, 'type_annotation'):
+                scope_str = str(buffer.data.type_annotation)
+                if "shared" in scope_str:
+                    return "shared"
+                elif "local" in scope_str:
+                    return "local"
+
+        # Try to infer from buffer name
+        buffer_str = str(buffer_arg)
+        if "shared" in buffer_str.lower():
+            return "shared.dyn"  # Use shared.dyn to match allocation
+        elif "local" in buffer_str.lower():
+            if "fragment" in buffer_str.lower():
+                return "local.fragment"
+            return "local"
+
+        # Default: assume global/DRAM
+        return "global"
+
+    def _generate_dram_read_protocol(self, src_region, dst_region):
+        """Generate NOC read protocol for DRAM->L1 copy."""
+
+        # Extract buffer names
+        src_buffer_name = self._extract_buffer_name_from_region(src_region)
+        dst_buffer_name = self._extract_buffer_name_from_region(dst_region)
+
+        # Map buffer to CB (A->cb_in0, B->cb_in1, etc.)
+        cb_name = self._infer_cb_from_buffer(src_buffer_name)
+        cb_index = self.cb_indices.get(cb_name, 0)
+
+        # Get tensor accessor for address calculation
+        accessor = self.tensor_accessors.get(src_buffer_name, {})
+
+        # Generate protocol sequence
+        protocol_stmts = []
+
+        # 1. Reserve space in CB
+        protocol_stmts.append(
+            tir.Evaluate(tir.call_extern("void", "cb_reserve_back",
+                                        tir.IntImm("int32", cb_index),
+                                        tir.IntImm("int32", 1))))
+
+        # 2. Get write pointer and issue NOC read
+        protocol_stmts.append(
+            tir.Evaluate(tir.call_extern("void", "noc_async_read_tile",
+                                        tir.IntImm("int32", 0),  # tile_id placeholder
+                                        tir.IntImm("int32", accessor.get("runtime_arg_idx", 0)),
+                                        tir.call_extern("uint32", "get_write_ptr", tir.IntImm("int32", cb_index)))))
+
+        # 3. Wait for NOC transfer
+        protocol_stmts.append(
+            tir.Evaluate(tir.call_extern("void", "noc_async_read_barrier")))
+
+        # 4. Push to CB
+        protocol_stmts.append(
+            tir.Evaluate(tir.call_extern("void", "cb_push_back",
+                                        tir.IntImm("int32", cb_index),
+                                        tir.IntImm("int32", 1))))
+
+        return self._combine_statements(protocol_stmts)
+
+    def _generate_dram_write_protocol(self, src_region, dst_region):
+        """Generate NOC write protocol for L1->DRAM copy."""
+
+        # Extract buffer names
+        src_buffer_name = self._extract_buffer_name_from_region(src_region)
+        dst_buffer_name = self._extract_buffer_name_from_region(dst_region)
+
+        # Map buffer to CB (C_local->cb_out0, etc.)
+        cb_name = self._infer_cb_from_buffer(dst_buffer_name)
+        cb_index = self.cb_indices.get(cb_name, 16)  # Output CBs start at 16
+
+        # Get tensor accessor
+        accessor = self.tensor_accessors.get(dst_buffer_name, {})
+
+        # Generate protocol sequence
+        protocol_stmts = []
+
+        # 1. Wait for data in CB
+        protocol_stmts.append(
+            tir.Evaluate(tir.call_extern("void", "cb_wait_front",
+                                        tir.IntImm("int32", cb_index),
+                                        tir.IntImm("int32", 1))))
+
+        # 2. Issue NOC write
+        protocol_stmts.append(
+            tir.Evaluate(tir.call_extern("void", "noc_async_write_tile",
+                                        tir.IntImm("int32", 0),  # tile_id placeholder
+                                        tir.IntImm("int32", accessor.get("runtime_arg_idx", 0)),
+                                        tir.call_extern("uint32", "get_read_ptr", tir.IntImm("int32", cb_index)))))
+
+        # 3. Wait for NOC transfer
+        protocol_stmts.append(
+            tir.Evaluate(tir.call_extern("void", "noc_async_write_barrier")))
+
+        # 4. Pop from CB
+        protocol_stmts.append(
+            tir.Evaluate(tir.call_extern("void", "cb_pop_front",
+                                        tir.IntImm("int32", cb_index),
+                                        tir.IntImm("int32", 1))))
+
+        return self._combine_statements(protocol_stmts)
+
+    def _extract_buffer_name_from_region(self, region):
+        """Extract buffer name from T.region expression."""
+
+        if not hasattr(region, 'args') or len(region.args) < 1:
+            return None
+
+        buffer_arg = region.args[0]
+
+        # Try various ways to get the buffer name
+        if hasattr(buffer_arg, 'buffer'):
+            if hasattr(buffer_arg.buffer, 'name'):
+                return buffer_arg.buffer.name
+            elif hasattr(buffer_arg.buffer, 'data') and hasattr(buffer_arg.buffer.data, 'name'):
+                return buffer_arg.buffer.data.name
+
+        # Parse from string
+        buffer_str = str(buffer_arg)
+        if '[' in buffer_str:
+            return buffer_str.split('[')[0].strip()
+
+        return None
+
+    def _infer_cb_from_buffer(self, buffer_name):
+        """Infer CB name from buffer name."""
+
+        if not buffer_name:
+            return "cb_in0"
+
+        # Common mappings
+        buffer_lower = buffer_name.lower()
+        if 'a' in buffer_lower and 'shared' in buffer_lower:
+            return "cb_in0"
+        elif 'b' in buffer_lower and 'shared' in buffer_lower:
+            return "cb_in1"
+        elif 'c' in buffer_lower or 'out' in buffer_lower:
+            return "cb_out0"
+
+        # Default
+        return "cb_in0"
+
     def _combine_statements(self, stmts: List[tir.Stmt]) -> tir.Stmt:
         """Combine multiple statements into a sequence"""
 
@@ -356,10 +543,14 @@ class LowerCBIntrinsics:
         if func.attrs and "tt.kernel_role" in func.attrs:
             kernel_role = func.attrs["tt.kernel_role"]
 
+        logger.info(f"Processing function with kernel_role={kernel_role}")
+
         # Only process reader and writer kernels
         if kernel_role not in ["reader", "writer"]:
-            logger.debug(f"Skipping {kernel_role} kernel for CB protocol insertion")
+            logger.info(f"Skipping {kernel_role} kernel for CB protocol insertion")
             return func
+
+        logger.info(f"Will transform {kernel_role} kernel")
 
         # Collect tensor accessors
         tensor_accessors = self._collect_tensor_accessors(func)
@@ -369,17 +560,22 @@ class LowerCBIntrinsics:
         if func.attrs and "tt.cb_indices" in func.attrs:
             cb_indices = self._convert_to_dict(func.attrs["tt.cb_indices"])
 
-        # Apply protocol insertion
+        # Create helper for transformation
         inserter = CBProtocolInserter(kernel_role, tensor_accessors, cb_indices)
-        new_body = inserter.visit(func.body)
+
+        # Define post-visit function for ir_transform
+        def post_visit(stmt):
+            """Transform Evaluate nodes with tt.copy.protocol_less"""
+            if isinstance(stmt, tir.Evaluate):
+                return inserter.transform_evaluate(stmt)
+            return stmt
+
+        # Apply transformation using ir_transform
+        from tvm.tir import stmt_functor
+        new_body = stmt_functor.ir_transform(func.body, None, post_visit)
 
         # Create new function with protocol
-        new_func = tir.PrimFunc(
-            params=func.params,
-            body=new_body,
-            ret_type=func.ret_type,
-            buffer_map=func.buffer_map,
-            attrs=func.attrs)
+        new_func = func.with_body(new_body)
 
         # Mark that protocol has been inserted
         new_func = new_func.with_attr("tt.cb_protocol_inserted", True)
