@@ -137,8 +137,8 @@ def _transform_tile_intrinsics(func, mod, ctx):
                     # For call_extern, args[0] is the function name
                     if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
                         func_name = call.args[0].value
-                        return any(
-                            pattern in func_name for pattern in ["T.gemm", "tir.gemm", "tvm_gemm", "tl.gemm"])
+                        return any(pattern in func_name
+                                   for pattern in ["T.gemm", "tir.gemm", "tvm_gemm", "tl.gemm"])
             return False
 
         def _is_elementwise_op(self, evaluate_node):
@@ -242,8 +242,7 @@ def _transform_tile_intrinsics(func, mod, ctx):
                     "void",
                     "tt.fill.zero",  # Protocol-less fill marker
                     arg0,
-                    arg1
-                ))
+                    arg1))
 
         def _lower_copy(self, evaluate_node):
             """Lower T.copy / tl.copy to protocol-less marker"""
@@ -265,8 +264,7 @@ def _transform_tile_intrinsics(func, mod, ctx):
                     "void",
                     "tt.copy.protocol_less",  # Marker for later lowering
                     src,
-                    dst
-                ))
+                    dst))
 
         def _lower_gemm(self, evaluate_node):
             """Lower T.gemm / tl.gemm to protocol-less tt.mm.mma"""
