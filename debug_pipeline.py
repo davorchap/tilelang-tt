@@ -4,14 +4,17 @@ Diagnostic script to check pipeline output and identify codegen issues.
 """
 
 import logging
+
 logging.basicConfig(level=logging.INFO)
 
 import tilelang
 import tilelang.language as T
 from tilelang.utils.target import TENSTORRENT_TARGET
 
+
 @tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
 def matmul(M, N, K, block_M, block_N, block_K, dtype="float16", accum_dtype="float"):
+
     @T.prim_func
     def gemm(
             A: T.Tensor((M, K), dtype),
@@ -35,9 +38,9 @@ def matmul(M, N, K, block_M, block_N, block_K, dtype="float16", accum_dtype="flo
 
 
 def main():
-    print("="*80)
+    print("=" * 80)
     print("Pipeline Diagnostic Script")
-    print("="*80)
+    print("=" * 80)
 
     # Create kernel
     kernel = matmul(256, 256, 256, 32, 32, 32)
@@ -51,7 +54,7 @@ def main():
         for name, func in mod.functions_items():
             print(f"\n  Function: {name}")
             if hasattr(func, 'attrs') and func.attrs:
-                print(f"    Attributes:")
+                print("    Attributes:")
                 for key in func.attrs.keys():
                     val = func.attrs[key]
                     print(f"      {key}: {val}")
@@ -61,9 +64,9 @@ def main():
                 if role:
                     print(f"    ⭐ Has kernel role: {role}")
                 else:
-                    print(f"    ⚠️  No kernel role attribute!")
+                    print("    ⚠️  No kernel role attribute!")
             else:
-                print(f"    ⚠️  No attributes!")
+                print("    ⚠️  No attributes!")
 
     else:
         print("⚠️  Cannot access IRModule from kernel object")

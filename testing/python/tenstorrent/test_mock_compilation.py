@@ -8,6 +8,7 @@ IMPORTANT: Mock headers in testing/mock_tt_sdk/ are READ-ONLY.
 Do NOT modify headers to make tests pass. Fix the code generator instead.
 """
 
+import contextlib
 import logging
 import os
 import subprocess
@@ -86,12 +87,7 @@ def compile_kernel(kernel_code: str, kernel_name: str, compiler: str = "g++") ->
             cpp_file
         ]
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode == 0:
             return True, ""
@@ -107,10 +103,8 @@ def compile_kernel(kernel_code: str, kernel_name: str, compiler: str = "g++") ->
 
     finally:
         # Clean up temporary file
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(cpp_file)
-        except:
-            pass
 
 
 @pytest.mark.skipif(not TVM_AVAILABLE, reason="TVM/TileLang not available")
@@ -140,6 +134,7 @@ def test_compile_simple_gemm_kernels():
 
     @tilelang.jit(target=TENSTORRENT_TARGET, out_idx=[-1])
     def matmul(M, N, K, block_M, block_N, block_K, dtype="float16", accum_dtype="float"):
+
         @T.prim_func
         def gemm(
                 A: T.Tensor((M, K), dtype),
@@ -218,7 +213,8 @@ void MAIN() {
 
     success, error = compile_kernel(bad_kernel, "bad_kernel.cpp")
     assert not success, "Compilation should have failed for kernel with syntax error"
-    assert "error" in error.lower() or "expected" in error.lower(), "Error message should mention syntax error"
+    assert "error" in error.lower() or "expected" in error.lower(
+    ), "Error message should mention syntax error"
     logger.info("✓ Syntax error correctly detected")
 
 
