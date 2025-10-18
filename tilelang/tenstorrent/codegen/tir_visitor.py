@@ -628,20 +628,44 @@ class TIRToMetaliumVisitor:
     def _handle_call_expr(self, call):
         """Handle call expressions that return values"""
         func_name = call.op.name if hasattr(call.op, 'name') else str(call.op)
-        args = [self.expr_to_string(arg) for arg in call.args]
+
+        # For call_extern, the actual function name is in args[0] (StringImm)
+        actual_func_name = func_name
+        call_args = call.args
+
+        if func_name == "tir.call_extern":
+            # Extract the actual function name from first StringImm arg
+            func_name_idx = None
+            for i, arg in enumerate(call.args):
+                if isinstance(arg, tir.StringImm):
+                    # Skip return types like "void", "uint32", "int32"
+                    if arg.value not in ["void"] and not arg.value.startswith("uint") and not arg.value.startswith("int"):
+                        actual_func_name = arg.value
+                        func_name_idx = i
+                        break
+
+            # Remaining args are the actual arguments (skip the function name)
+            if func_name_idx is not None:
+                call_args = [call.args[i] for i in range(len(call.args)) if i != func_name_idx]
+            else:
+                call_args = call.args
+
+        # Convert arguments to strings
+        args = [self.expr_to_string(arg) for arg in call_args]
 
         # Handle specific intrinsics that return values
-        if func_name == "get_write_ptr":
-            return f"get_write_ptr({args[0]})"
-        elif func_name == "get_read_ptr":
-            return f"get_read_ptr({args[0]})"
-        elif func_name == "get_arg_val":
+        if actual_func_name == "get_write_ptr":
+            return f"get_write_ptr({args[0] if args else '0'})"
+        elif actual_func_name == "get_read_ptr":
+            return f"get_read_ptr({args[0] if args else '16'})"
+        elif actual_func_name == "get_arg_val":
             # Runtime argument access
-            idx = args[0]
+            idx = args[0] if args else "0"
             dtype = "uint32_t"  # Default
             return f"get_arg_val<{dtype}>({idx})"
         else:
-            return f"{func_name}({', '.join(args)})"
+            # Generic function call
+            return f"{actual_func_name}({', '.join(args)})"
 
     def _handle_buffer_load(self, load):
         """Handle buffer load expressions"""
