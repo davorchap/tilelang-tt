@@ -235,7 +235,7 @@ class FinalizePersistentSignatureTT:
         final_args = builder.get_final_args()
 
         # Update function with finalized arguments
-        from ..attrs import TT_RUNTIME_ARGS, TT_RUNTIME_ARGS_FINALIZED
+        from tilelang.tenstorrent.attrs import TT_RUNTIME_ARGS, TT_RUNTIME_ARGS_FINALIZED
         new_func = func.with_attr(TT_RUNTIME_ARGS, final_args)
         new_func = new_func.with_attr(TT_RUNTIME_ARGS_FINALIZED, True)
 
@@ -245,7 +245,7 @@ class FinalizePersistentSignatureTT:
             "descriptions": builder.arg_descriptions,
             "count": len(final_args)
         }
-        from ..attrs import TT_RUNTIME_ARGS_INFO, TT_PERSISTENT_CONFIG
+        from tilelang.tenstorrent.attrs import TT_RUNTIME_ARGS_INFO, TT_PERSISTENT_CONFIG
         new_func = new_func.with_attr(TT_RUNTIME_ARGS_INFO, tvm.runtime.convert(arg_info))
 
         # Add persistent loop configuration

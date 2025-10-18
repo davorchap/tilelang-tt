@@ -594,7 +594,7 @@ class SplitDeviceKernel:
             attrs=original_func.attrs)
 
         # Update attributes
-        from ..attrs import TT_KERNEL_ROLE, TT_RUNTIME_ARGS, TT_CB_INDICES, TT_CORE_GRID, TT_CORE_RANGES, TT_PARTITION_MODE, TT_GRID_TILES, TT_WORK_PARTITION
+        from tilelang.tenstorrent.attrs import TT_KERNEL_ROLE, TT_RUNTIME_ARGS, TT_CB_INDICES, TT_CORE_GRID, TT_CORE_RANGES, TT_PARTITION_MODE, TT_GRID_TILES, TT_WORK_PARTITION
         new_func = new_func.with_attr(TT_KERNEL_ROLE, role.value)
         new_func = new_func.with_attr(TT_RUNTIME_ARGS, kernel_slice.runtime_args)
 

@@ -25,7 +25,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-from ..attrs import (
+from tilelang.tenstorrent.attrs import (
     TT_PARTITION_MODE,
     TT_CORE_GRID,
     TT_CORE_RANGES,

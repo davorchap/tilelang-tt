@@ -463,7 +463,7 @@ class BuildTileDFGTT:
         dfg_metadata = self._analyze_dfg(builder)
 
         # Attach the dataflow graph as metadata
-        from ..attrs import TT_TILE_DFG, TT_CB_ASSIGNMENT
+        from tilelang.tenstorrent.attrs import TT_TILE_DFG, TT_CB_ASSIGNMENT
         func = func.with_attr(TT_TILE_DFG, tvm.runtime.convert(dfg_metadata))
 
         # Also attach CB assignment hints

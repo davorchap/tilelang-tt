@@ -25,7 +25,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-from ..attrs import TT_DST_MANAGEMENT_INSERTED, TT_DST_PATTERN
+from tilelang.tenstorrent.attrs import TT_DST_MANAGEMENT_INSERTED, TT_DST_PATTERN
 
 
 class DSTPattern(Enum):

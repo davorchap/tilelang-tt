@@ -628,7 +628,7 @@ class LowerCBIntrinsics:
         new_func = func.with_body(new_body)
 
         # Mark that protocol has been inserted
-        from ..attrs import TT_CB_PROTOCOL_INSERTED
+        from tilelang.tenstorrent.attrs import TT_CB_PROTOCOL_INSERTED
         new_func = new_func.with_attr(TT_CB_PROTOCOL_INSERTED, True)
 
         logger.info(f"Inserted CB protocol for {kernel_role} kernel")

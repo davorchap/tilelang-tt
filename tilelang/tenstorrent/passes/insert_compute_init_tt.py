@@ -382,7 +382,7 @@ class InsertComputeInitTT:
             attrs=func.attrs)
 
         # Mark that initialization has been inserted
-        from ..attrs import TT_COMPUTE_INIT_INSERTED, TT_COMPUTE_INIT_INFO
+        from tilelang.tenstorrent.attrs import TT_COMPUTE_INIT_INSERTED, TT_COMPUTE_INIT_INFO
         new_func = new_func.with_attr(TT_COMPUTE_INIT_INSERTED, True)
         new_func = new_func.with_attr(TT_COMPUTE_INIT_INFO, tvm.runtime.convert(init_info))
 
@@ -510,7 +510,7 @@ if __name__ == "__main__":
 
     # Add metadata for GEMM compute
     gemm_func = TestModule["gemm_compute"]
-    from ..attrs import TT_KERNEL_ROLE, TT_CB_INDICES
+    from tilelang.tenstorrent.attrs import TT_KERNEL_ROLE, TT_CB_INDICES
     gemm_func = gemm_func.with_attr(TT_KERNEL_ROLE, "compute")
     gemm_func = gemm_func.with_attr(TT_CB_INDICES, {"cb_in0": 0, "cb_in1": 1, "cb_out": 16})
     TestModule["gemm_compute"] = gemm_func

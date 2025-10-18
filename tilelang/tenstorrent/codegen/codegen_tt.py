@@ -636,7 +636,7 @@ class CodegenTT:
                 # These are simplified templates until kernel splitting is implemented
 
                 # Generate reader kernel
-                from ..attrs import TT_KERNEL_ROLE
+                from tilelang.tenstorrent.attrs import TT_KERNEL_ROLE
                 reader_func = main_func.with_attr(TT_KERNEL_ROLE, "reader")
                 generator = create_kernel_generator(reader_func, "reader")
                 outputs["reader.cpp"] = generator.generate()

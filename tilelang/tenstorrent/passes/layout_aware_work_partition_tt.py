@@ -7,7 +7,7 @@ from typing import Dict, Optional
 from tilelang import tvm as tvm
 
 from ._common import convert_dict_for_ffi, convert_to_python, get_attr, to_int
-from ..attrs import (
+from tilelang.tenstorrent.attrs import (
     TT_PARTITION_MODE,
     TT_GRID_TILES,
     TT_LOCAL_SHAPE_TILES,

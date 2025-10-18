@@ -24,7 +24,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-from ..attrs import TT_CB_DESCRIPTORS, TT_CB_SUMMARY, TT_BUFFER_PREFIX
+from tilelang.tenstorrent.attrs import TT_CB_DESCRIPTORS, TT_CB_SUMMARY, TT_BUFFER_PREFIX
 
 
 class PropagateTTLayout_v5:

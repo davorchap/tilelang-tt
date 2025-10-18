@@ -81,7 +81,7 @@ class AttachTensorAccessorTT:
             logger.debug(f"Attached abstract accessor for buffer {buffer_name}")
 
         # Also create a summary of all accessors
-        from ..attrs import TT_ACCESSOR_SUMMARY
+        from tilelang.tenstorrent.attrs import TT_ACCESSOR_SUMMARY
         accessor_summary = self._create_accessor_summary(buffer_layouts)
         func = func.with_attr(TT_ACCESSOR_SUMMARY, tvm.runtime.convert(accessor_summary))
 
@@ -95,7 +95,7 @@ class AttachTensorAccessorTT:
         layouts = {}
 
         if func.attrs:
-            from ..attrs import TT_BUFFER_PREFIX
+            from tilelang.tenstorrent.attrs import TT_BUFFER_PREFIX
             for key in func.attrs.keys():
                 if key.startswith(TT_BUFFER_PREFIX):
                     buffer_name = key.replace(TT_BUFFER_PREFIX, "")

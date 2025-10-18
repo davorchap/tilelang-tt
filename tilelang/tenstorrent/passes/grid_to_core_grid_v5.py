@@ -15,8 +15,11 @@ Output: TIR with T.launch_core persistent model
 import tvm
 from tvm import tir
 from tvm.tir import stmt_functor
-from .block_transformer import BlockTransformer
-from ..attrs import TT_CORE_MAP_X, TT_CORE_MAP_Y, TT_TRANSFORMED_TO_CORE
+try:
+    from .block_transformer import BlockTransformer
+except ImportError:  # pragma: no cover - fallback for standalone imports
+    from block_transformer import BlockTransformer
+from tilelang.tenstorrent.attrs import TT_CORE_MAP_X, TT_CORE_MAP_Y, TT_TRANSFORMED_TO_CORE
 
 
 @tvm.tir.transform.prim_func_pass(opt_level=0)

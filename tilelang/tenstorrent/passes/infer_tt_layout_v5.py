@@ -110,7 +110,7 @@ class InferTTLayout_v5:
 
         # Also set core grid if extracted
         if grid_x > 0 and grid_y > 0:
-            from ..attrs import TT_CORE_GRID
+            from tilelang.tenstorrent.attrs import TT_CORE_GRID
             func = func.with_attr(TT_CORE_GRID, [grid_x, grid_y])
 
         logger.info("Attached v5 layout descriptors to function")

@@ -15,7 +15,10 @@ Output: TIR with abstract tt.alloc_cb and tt.read_to_cb/write_from_cb operations
 import tvm
 from tvm import tir
 from tvm.tir import stmt_functor
-from .block_transformer import BlockTransformer, is_shared_buffer, extract_buffer_info, create_cb_intrinsic
+try:
+    from .block_transformer import BlockTransformer, is_shared_buffer, extract_buffer_info, create_cb_intrinsic
+except ImportError:  # pragma: no cover - fallback for standalone imports
+    from block_transformer import BlockTransformer, is_shared_buffer, extract_buffer_info, create_cb_intrinsic
 
 
 @tvm.tir.transform.prim_func_pass(opt_level=0)
@@ -273,7 +276,7 @@ def LowerSharedToCB_v5(func, mod, ctx):
 
     # Attach CB metadata to function attributes
     if transformer.buffer_info:
-        from ..attrs import TT_CONCEPTUAL_CBS, TT_SHARED_TO_CB_MAP
+        from tilelang.tenstorrent.attrs import TT_CONCEPTUAL_CBS, TT_SHARED_TO_CB_MAP
         func = func.with_attr(TT_CONCEPTUAL_CBS, transformer.buffer_info)
 
     # Add summary metadata
