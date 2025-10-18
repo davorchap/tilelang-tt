@@ -582,25 +582,79 @@ class BuildTileDFGTT:
         return cb_reuse
 
     def _generate_cb_assignment(self, builder: TileDFGBuilder) -> Dict[str, int]:
-        """Generate CB index assignment (0-31)."""
+        """
+        Generate CB index assignment (0-31) following TT SDK conventions:
+        - Input CBs (cb_in*): indices 0-15
+        - Output CBs (cb_out*): indices 16-31
+        """
 
         assignment = {}
 
-        # First assign CBs with hints
+        # Separate CBs into input and output categories
+        input_cbs = []
+        output_cbs = []
+        other_cbs = []
+
         for cb_name, cb_info in builder.cb_allocations.items():
+            # Check if CB has explicit index hint
             if "index" in cb_info:
                 assignment[cb_name] = cb_info["index"]
+            # Categorize by name pattern
+            elif "in" in cb_name.lower():
+                input_cbs.append(cb_name)
+            elif "out" in cb_name.lower():
+                output_cbs.append(cb_name)
+            else:
+                # Check role from CB info if available
+                role = cb_info.get("role", "").lower()
+                if role in ["input", "read"]:
+                    input_cbs.append(cb_name)
+                elif role in ["output", "write"]:
+                    output_cbs.append(cb_name)
+                else:
+                    other_cbs.append(cb_name)
 
-        # Then assign remaining CBs
-        next_index = 0
-        for cb_name in builder.cb_allocations:
+        # Assign input CBs to indices 0-15
+        next_input_index = 0
+        for cb_name in input_cbs:
             if cb_name not in assignment:
-                # Find next available index
-                while next_index in assignment.values():
+                # Find next available input index
+                while next_input_index < 16 and next_input_index in assignment.values():
+                    next_input_index += 1
+                if next_input_index < 16:
+                    assignment[cb_name] = next_input_index
+                    next_input_index += 1
+                else:
+                    logger.warning(
+                        f"Input CB {cb_name} could not be assigned (input indices exhausted)")
+
+        # Assign output CBs to indices 16-31
+        next_output_index = 16
+        for cb_name in output_cbs:
+            if cb_name not in assignment:
+                # Find next available output index
+                while next_output_index < 32 and next_output_index in assignment.values():
+                    next_output_index += 1
+                if next_output_index < 32:
+                    assignment[cb_name] = next_output_index
+                    next_output_index += 1
+                else:
+                    logger.warning(
+                        f"Output CB {cb_name} could not be assigned (output indices exhausted)")
+
+        # Assign other CBs to any remaining indices (prefer input range)
+        next_index = 0
+        for cb_name in other_cbs:
+            if cb_name not in assignment:
+                # Find next available index (any range)
+                while next_index < 32 and next_index in assignment.values():
                     next_index += 1
-                if next_index < 32:  # Max 32 CBs
+                if next_index < 32:
                     assignment[cb_name] = next_index
+                    logger.info(f"CB {cb_name} assigned to index {next_index} (unclassified)")
                     next_index += 1
+                else:
+                    logger.error(f"CB {cb_name} could not be assigned (all indices exhausted)")
 
         return assignment
 

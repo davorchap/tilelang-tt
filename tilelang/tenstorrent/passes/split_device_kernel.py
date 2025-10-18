@@ -223,11 +223,12 @@ class KernelSplitter:
         elif self.role == KernelRole.COMPUTE:
             # Compute handles:
             # - Compute operations (mm.mma, matmul, fpu, sfpu)
+            # - Zero initialization operations (fill.zero)
             # - tt.copy.protocol_less between L1 buffers (shared <-> local)
             # - DST management (acquire_dst, release_dst, pack_tile)
             compute_ops = [
                 "mm.mma", "fpu.", "sfpu.", "gemm", "matmul", "add", "mul", "acquire_dst",
-                "release_dst", "pack_tile", "mm_init"
+                "release_dst", "pack_tile", "mm_init", "fill.zero"
             ]
             if any(x in op_name for x in compute_ops):
                 return True

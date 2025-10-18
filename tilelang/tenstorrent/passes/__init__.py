@@ -32,6 +32,7 @@ from .finalize_persistent_signature_tt import finalize_persistent_signature_tt
 # V5 passes - Stage F: Verification
 from .verify_tt_ir import verify_tt_ir
 from .validate_split_kernels import validate_split_kernels
+from .validate_lowered_ir import validate_lowered_ir
 
 __all__ = [
     # Pipeline functions
@@ -66,4 +67,5 @@ __all__ = [
     # V5 passes - Stage F
     "verify_tt_ir",
     "validate_split_kernels",
+    "validate_lowered_ir",
 ]

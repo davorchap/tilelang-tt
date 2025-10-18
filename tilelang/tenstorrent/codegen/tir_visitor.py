@@ -338,7 +338,7 @@ class TIRToMetaliumVisitor:
 
         elif func_name == "pack_tile":
             dst_idx = args[0] if args else "0"
-            cb_idx = args[1] if len(args) > 1 else "cb_out"
+            cb_idx = args[1] if len(args) > 1 else "cb_out0"  # Default to output CB
             self.code.writeln(f"pack_tile({dst_idx}, {cb_idx});")
 
         # Matrix multiplication
@@ -354,16 +354,16 @@ class TIRToMetaliumVisitor:
 
         # Binary operations
         elif func_name in ["tt.fpu.add", "add_tiles"]:
-            cb_in0 = args[0] if args else "0"
-            cb_in1 = args[1] if len(args) > 1 else "1"
+            cb_in0 = args[0] if args else "cb_in0"
+            cb_in1 = args[1] if len(args) > 1 else "cb_in1"
             start0 = args[2] if len(args) > 2 else "0"
             start1 = args[3] if len(args) > 3 else "0"
             dst_idx = args[4] if len(args) > 4 else "0"
             self.code.writeln(f"add_tiles({cb_in0}, {cb_in1}, {start0}, {start1}, {dst_idx});")
 
         elif func_name in ["tt.fpu.mul", "mul_tiles"]:
-            cb_in0 = args[0] if args else "0"
-            cb_in1 = args[1] if len(args) > 1 else "1"
+            cb_in0 = args[0] if args else "cb_in0"
+            cb_in1 = args[1] if len(args) > 1 else "cb_in1"
             start0 = args[2] if len(args) > 2 else "0"
             start1 = args[3] if len(args) > 3 else "0"
             dst_idx = args[4] if len(args) > 4 else "0"
@@ -487,6 +487,11 @@ class TIRToMetaliumVisitor:
             return str(expr.value)
 
         if isinstance(expr, tir.StringImm):
+            # Check if it looks like a CB name (cb_*) - emit as unquoted identifier
+            # so it resolves to the constexpr CB constant defined in the kernel
+            if expr.value.startswith("cb_"):
+                return expr.value  # Unquoted identifier (e.g., cb_in0)
+            # Otherwise, return as quoted string
             return f'"{expr.value}"'
 
         if isinstance(expr, tir.Var):
