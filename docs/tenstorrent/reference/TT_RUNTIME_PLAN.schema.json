@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/tt_runtime_plan.schema.json",
+  "title": "Tenstorrent Runtime Plan",
+  "type": "object",
+  "required": ["schema_version", "core_grid", "core_ranges", "work_partition", "layouts"],
+  "properties": {
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "backend_version": { "type": "string" },
+    "core_grid": {
+      "type": "array",
+      "items": { "type": "integer" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "core_ranges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["start", "extent"],
+        "properties": {
+          "start": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "extent": {
+            "type": "array",
+            "items": { "type": "integer" },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "work_partition": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "io": { "type": "integer" },
+            "jo": { "type": "integer" },
+            "len_k": { "type": ["integer", "null"] },
+            "tile_order": { "type": ["string", "null"] }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "layouts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      }
+    }
+  },
+  "additionalProperties": true
+}

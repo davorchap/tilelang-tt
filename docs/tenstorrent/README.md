@@ -67,6 +67,7 @@ bash maint/scripts/local_build_and_test_tt.sh --with-metalium --skip-deps --jobs
 | **[reference/PASS_TABLE_GPU.md](reference/PASS_TABLE_GPU.md)** | CUDA/ROCm-only pass reference | GPU backend developers |
 | **[passes/README.md](passes/README.md)** | Tenstorrent pass index and reference | TT backend developers |
 | **[reference/TT_Pass_Specifications.md](reference/TT_Pass_Specifications.md)** | Detailed pass specifications | Implementation team |
+| **[reference/TT_RUNTIME_PLAN.schema.json](reference/TT_RUNTIME_PLAN.schema.json)** | JSON schema for tt.plan.json | Implementation + host/runtime |
 
 ### 🔄 Pass Documentation
 

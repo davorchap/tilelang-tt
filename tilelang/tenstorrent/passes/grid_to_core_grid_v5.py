@@ -15,12 +15,11 @@ Output: TIR with T.launch_core persistent model
 import tvm
 from tvm import tir
 from tvm.tir import stmt_functor
-import sys
-import os
-
-# Import our BlockTransformer base class
-sys.path.append(os.path.dirname(__file__))
-from block_transformer import BlockTransformer
+try:
+    from .block_transformer import BlockTransformer
+except ImportError:  # pragma: no cover - fallback for standalone imports
+    from block_transformer import BlockTransformer
+from tilelang.tenstorrent.attrs import TT_CORE_MAP_X, TT_CORE_MAP_Y, TT_TRANSFORMED_TO_CORE
 
 
 @tvm.tir.transform.prim_func_pass(opt_level=0)
@@ -477,11 +476,11 @@ def GridToCoreGrid_v5(func, mod, ctx):
     func = func.with_body(new_body)
 
     # Add axis mapping attributes
-    func = func.with_attr("tt.core_map_x", "coreIdx.x")
-    func = func.with_attr("tt.core_map_y", "coreIdx.y")
+    func = func.with_attr(TT_CORE_MAP_X, "coreIdx.x")
+    func = func.with_attr(TT_CORE_MAP_Y, "coreIdx.y")
 
     # Keep the metadata for later passes
-    func = func.with_attr("tt.transformed_to_core", True)
+    func = func.with_attr(TT_TRANSFORMED_TO_CORE, True)
 
     return func
 

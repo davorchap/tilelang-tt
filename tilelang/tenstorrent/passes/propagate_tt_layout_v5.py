@@ -24,6 +24,8 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+from tilelang.tenstorrent.attrs import TT_CB_DESCRIPTORS, TT_CB_SUMMARY, TT_BUFFER_PREFIX
+
 
 class PropagateTTLayout_v5:
     """
@@ -76,11 +78,11 @@ class PropagateTTLayout_v5:
         cb_descriptors = self._generate_cb_descriptors(buffer_layouts)
 
         # Attach CB descriptors to function
-        func = func.with_attr("tt.cb_descriptors", tvm.runtime.convert(cb_descriptors))
+        func = func.with_attr(TT_CB_DESCRIPTORS, tvm.runtime.convert(cb_descriptors))
 
         # Also propagate a summary of CB requirements
         cb_summary = self._generate_cb_summary(cb_descriptors)
-        func = func.with_attr("tt.cb_summary", tvm.runtime.convert(cb_summary))
+        func = func.with_attr(TT_CB_SUMMARY, tvm.runtime.convert(cb_summary))
 
         logger.info(f"Generated {len(cb_descriptors)} CB descriptors")
 
@@ -94,8 +96,8 @@ class PropagateTTLayout_v5:
         # Look for tt.buffer.* attributes
         if func.attrs:
             for key in func.attrs.keys():
-                if key.startswith("tt.buffer."):
-                    buffer_name = key.replace("tt.buffer.", "")
+                if key.startswith(TT_BUFFER_PREFIX):
+                    buffer_name = key.replace(TT_BUFFER_PREFIX, "")
                     layout = self._convert_to_dict(func.attrs[key])
                     layouts[buffer_name] = layout
                     logger.debug(f"Found layout for buffer {buffer_name}: {layout}")
