@@ -708,6 +708,7 @@ set_property(TARGET tt_kernel PROPERTY CXX_STANDARD 17)
     def _generate_plan_json(self, mod: IRModule) -> str:
         """Generate tt.plan.json with scheduling metadata"""
         import json
+        from ..runtime_plan import _as_py
 
         plan = {
             "version": "5.0",
@@ -726,16 +727,12 @@ set_property(TARGET tt_kernel PROPERTY CXX_STANDARD 17)
                 if "tt.core_grid" in func.attrs:
                     core_grid = func.attrs["tt.core_grid"]
                     if hasattr(core_grid, "__getitem__") and len(core_grid) >= 2:
-                        grid_x = int(core_grid[0]) if hasattr(core_grid[0],
-                                                              "__int__") else core_grid[0]
-                        grid_y = int(core_grid[1]) if hasattr(core_grid[1],
-                                                              "__int__") else core_grid[1]
+                        grid_x = _as_py(core_grid[0])
+                        grid_y = _as_py(core_grid[1])
                 # Fall back to old test attributes (tt_grid_x/y)
                 elif "tt_grid_x" in func.attrs and "tt_grid_y" in func.attrs:
-                    grid_x = int(func.attrs["tt_grid_x"]) if hasattr(
-                        func.attrs["tt_grid_x"], "__int__") else func.attrs["tt_grid_x"]
-                    grid_y = int(func.attrs["tt_grid_y"]) if hasattr(
-                        func.attrs["tt_grid_y"], "__int__") else func.attrs["tt_grid_y"]
+                    grid_x = _as_py(func.attrs["tt_grid_x"])
+                    grid_y = _as_py(func.attrs["tt_grid_y"])
 
                 # If we found grid dimensions, add them to plan
                 if grid_x is not None and grid_y is not None:
@@ -749,8 +746,7 @@ set_property(TARGET tt_kernel PROPERTY CXX_STANDARD 17)
                 # Extract core configuration - try both attribute styles
                 num_cores = None
                 if "tt_num_cores" in func.attrs:
-                    num_cores = int(func.attrs["tt_num_cores"]) if hasattr(
-                        func.attrs["tt_num_cores"], "__int__") else func.attrs["tt_num_cores"]
+                    num_cores = _as_py(func.attrs["tt_num_cores"])
                 elif "tt.core_grid" in func.attrs and grid_x is not None and grid_y is not None:
                     # If not explicitly set, derive from grid
                     num_cores = grid_x * grid_y
@@ -758,56 +754,37 @@ set_property(TARGET tt_kernel PROPERTY CXX_STANDARD 17)
                 if num_cores is not None:
                     plan["cores"] = {"num_cores": num_cores, "topology": "grid", "assignments": []}
 
-                    # Add tile assignments - try both old and new attribute names
+                    # Add tile assignments - only for v4 format (tt_tiles_per_core)
+                    # v5 uses tt.work_partition which is handled separately by emit_tt_plan()
                     if "tt_tiles_per_core" in func.attrs:
                         tiles_per_core = func.attrs["tt_tiles_per_core"]
                         for i, assignment in enumerate(tiles_per_core[:num_cores]):
                             if hasattr(assignment, "__getitem__") and len(assignment) >= 2:
-                                start_tile = int(assignment[0]) if hasattr(
-                                    assignment[0], "__int__") else assignment[0]
-                                count = int(assignment[1]) if hasattr(assignment[1],
-                                                                      "__int__") else assignment[1]
+                                # Use _as_py() to properly convert TVM expressions to Python primitives
+                                start_tile = _as_py(assignment[0])
+                                count = _as_py(assignment[1])
+
                                 plan["cores"]["assignments"].append({
                                     "core_id": i,
                                     "start_tile": start_tile,
                                     "count": count,
                                 })
-                    elif "tt.work_partition" in func.attrs:
-                        # Try new v5 work partition format
-                        work_partition = func.attrs["tt.work_partition"]
-                        # Convert to list if it's a TVM container
-                        try:
-                            # Try to iterate directly
-                            max_to_process = num_cores if num_cores else 64
-                            for idx, assignment in enumerate(work_partition):
-                                if idx >= max_to_process:
-                                    break
-                                if hasattr(assignment, "__getitem__") and len(assignment) >= 2:
-                                    start_tile = int(assignment[0]) if hasattr(
-                                        assignment[0], "__int__") else assignment[0]
-                                    count = int(assignment[1]) if hasattr(
-                                        assignment[1], "__int__") else assignment[1]
-                                    plan["cores"]["assignments"].append({
-                                        "core_id": idx,
-                                        "start_tile": start_tile,
-                                        "count": count,
-                                    })
-                        except (TypeError, IndexError):
-                            # If we can't iterate, skip the work partition
-                            pass
+                    # Note: "tt.work_partition" is v5 format (dict of core_coords -> WorkItems)
+                    # and is incompatible with the v4 format's flat "assignments" list.
+                    # The v5 format runtime plan is emitted separately by emit_tt_plan().
 
                 # Add schedule section
                 plan["schedule"] = {"policy": "contiguous", "order": "row_major"}
 
                 # Extract other metadata
                 if "tt_num_tiles" in func.attrs:
-                    plan["num_tiles"] = int(func.attrs["tt_num_tiles"]) if hasattr(
-                        func.attrs["tt_num_tiles"], "__int__") else func.attrs["tt_num_tiles"]
+                    plan["num_tiles"] = _as_py(func.attrs["tt_num_tiles"])
 
                 # Only need metadata from one function (they should all have it)
                 break
 
-        return json.dumps(plan, indent=2)
+        # Use default=str to handle TVM types that aren't directly JSON serializable
+        return json.dumps(plan, indent=2, default=str)
 
     def __call__(self, mod: IRModule) -> Dict[str, str]:
         """Allow using the class as a function"""

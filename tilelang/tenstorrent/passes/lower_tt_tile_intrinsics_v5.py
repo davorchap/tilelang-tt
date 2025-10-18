@@ -26,12 +26,11 @@ sys.path.append(os.path.dirname(__file__))
 from block_transformer import BlockTransformer
 
 
-@tvm.tir.transform.prim_func_pass(opt_level=0)
-def LowerTTTileIntrinsics_v5(func, mod, ctx):
+def _transform_tile_intrinsics(func, mod, ctx):
     """
-    Tensorize compute operations to protocol-less TT intrinsics.
+    Core transformation logic for tensorizing compute operations.
 
-    This pass:
+    This function:
     1. Detects compute patterns (GEMM, element-wise, etc.)
     2. Replaces them with protocol-less TT intrinsics
     3. Does NOT use naming heuristics
@@ -64,47 +63,13 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
 
         def visit_for(self, for_node):
             """Track loop context for pattern detection"""
-            # Push loop info onto stack
-            self.loop_stack.append({
-                "var": for_node.loop_var,
-                "min": for_node.min,
-                "extent": for_node.extent,
-                "kind": for_node.kind,
-                "is_reduction": self._is_reduction_loop(for_node)
-            })
-
-            # Visit body
-            new_body = self.visit(for_node.body)
-
-            # Check if this is a reduction loop pattern
-            if self._is_reduction_loop(for_node):
-                # Mark for K-loop accumulation pattern
-                new_body = self._annotate_k_loop(new_body)
-
-            # Pop loop info
-            self.loop_stack.pop()
-
-            if new_body != for_node.body:
-                return tir.For(for_node.loop_var, for_node.min, for_node.extent, for_node.kind,
-                               new_body, for_node.thread_binding, for_node.annotations,
-                               for_node.span)
+            # Note: This method is no longer used since we switched to ir_transform,
+            # but keeping it here in case we need to track loop context in the future
             return for_node
 
         def visit_evaluate(self, evaluate_node):
             """Transform high-level compute operations to TT intrinsics"""
-
-            # Check for T.gemm pattern
-            if self._is_gemm_intrinsic(evaluate_node):
-                return self._lower_gemm(evaluate_node)
-
-            # Check for element-wise operations
-            elif self._is_elementwise_op(evaluate_node):
-                return self._lower_elementwise(evaluate_node)
-
-            # Check for SFPU operations
-            elif self._is_sfpu_op(evaluate_node):
-                return self._lower_sfpu(evaluate_node)
-
+            # Note: This method is no longer used since we switched to ir_transform
             return evaluate_node
 
         def visit_buffer_store(self, buffer_store):
@@ -141,45 +106,77 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
 
             stmt_functor.post_order_visit(block.body, visitor)
 
-        def _is_gemm_intrinsic(self, evaluate_node):
-            """Check for T.gemm intrinsic call"""
+        def _is_fill_intrinsic(self, evaluate_node):
+            """Check for T.fill / tl.fill intrinsic call"""
             if isinstance(evaluate_node.value, tir.Call):
                 call = evaluate_node.value
-                # Check for call_extern with "T.gemm" as function name
-                if str(call.op) == "Op(tir.call_extern)":
-                    # For call_extern, args[0] is the function name
-                    if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
+                if hasattr(call, 'op') and hasattr(call.op, 'name'):
+                    op_name = call.op.name
+                    # Direct intrinsic name match
+                    if op_name in ["tl.fill", "T.fill", "tir.fill"]:
+                        return True
+                    # For call_extern, check args[0] for function name
+                    if op_name == "tir.call_extern" and len(call.args) >= 1 and isinstance(
+                            call.args[0], tir.StringImm):
                         func_name = call.args[0].value
                         return any(
-                            pattern in func_name for pattern in ["T.gemm", "tir.gemm", "tvm_gemm"])
-                # Also check op name directly
-                elif hasattr(call, 'op'):
-                    op_name = str(call.op)
-                    return any(pattern in op_name for pattern in ["T.gemm", "tir.gemm", "tvm_gemm"])
+                            pattern in func_name for pattern in ["T.fill", "tir.fill", "tl.fill"])
+            return False
+
+        def _is_copy_intrinsic(self, evaluate_node):
+            """Check for T.copy / tl.copy intrinsic call"""
+            if isinstance(evaluate_node.value, tir.Call):
+                call = evaluate_node.value
+                if hasattr(call, 'op') and hasattr(call.op, 'name'):
+                    op_name = call.op.name
+                    # Direct intrinsic name match
+                    if op_name in ["tl.copy", "T.copy", "tir.copy"]:
+                        return True
+                    # For call_extern, check args[0] for function name
+                    if op_name == "tir.call_extern" and len(call.args) >= 1 and isinstance(
+                            call.args[0], tir.StringImm):
+                        func_name = call.args[0].value
+                        return any(
+                            pattern in func_name for pattern in ["T.copy", "tir.copy", "tl.copy"])
+            return False
+
+        def _is_gemm_intrinsic(self, evaluate_node):
+            """Check for T.gemm / tl.gemm intrinsic call"""
+            if isinstance(evaluate_node.value, tir.Call):
+                call = evaluate_node.value
+                # Check op name directly (most common for TileLang intrinsics)
+                if hasattr(call, 'op') and hasattr(call.op, 'name'):
+                    op_name = call.op.name
+                    # Direct intrinsic name match
+                    if op_name in ["tl.gemm", "T.gemm", "tir.gemm", "tvm_gemm"]:
+                        return True
+                    # For call_extern, check args[0] for function name
+                    if op_name == "tir.call_extern" and len(call.args) >= 1 and isinstance(
+                            call.args[0], tir.StringImm):
+                        func_name = call.args[0].value
+                        return any(pattern in func_name
+                                   for pattern in ["T.gemm", "tir.gemm", "tvm_gemm", "tl.gemm"])
             return False
 
         def _is_elementwise_op(self, evaluate_node):
             """Check for element-wise operations"""
             if isinstance(evaluate_node.value, tir.Call):
                 call = evaluate_node.value
-                # Check for call_extern with elementwise op as function name
-                if str(call.op) == "Op(tir.call_extern)":
-                    # For call_extern, args[0] is the function name
-                    if len(call.args) >= 1 and isinstance(call.args[0], tir.StringImm):
-                        func_name = call.args[0].value
-                        elementwise_ops = [
-                            "T.add", "T.multiply", "T.subtract", "T.divide", "tir.add",
-                            "tir.multiply", "tir.subtract", "tir.divide"
-                        ]
-                        return any(op in func_name for op in elementwise_ops)
-                # Also check op name directly
-                elif hasattr(call, 'op'):
-                    op_name = str(call.op)
+                if hasattr(call, 'op') and hasattr(call.op, 'name'):
+                    op_name = call.op.name
+                    # Direct intrinsic name match
                     elementwise_ops = [
                         "T.add", "T.multiply", "T.subtract", "T.divide", "tir.add", "tir.multiply",
-                        "tir.subtract", "tir.divide"
+                        "tir.subtract", "tir.divide", "tl.add", "tl.multiply", "tl.subtract",
+                        "tl.divide"
                     ]
-                    return any(op in op_name for op in elementwise_ops)
+                    if any(op in op_name for op in elementwise_ops):
+                        return True
+                    # For call_extern, check args[0] for function name
+                    if op_name == "tir.call_extern" and len(call.args) >= 1 and isinstance(
+                            call.args[0], tir.StringImm):
+                        func_name = call.args[0].value
+                        return any(op in func_name for op in elementwise_ops)
             return False
 
         def _is_sfpu_op(self, evaluate_node):
@@ -240,8 +237,51 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
 
         # Lowering methods
 
+        def _lower_fill(self, evaluate_node):
+            """Lower T.fill / tl.fill to initialization (protocol-less)"""
+            # T.fill is typically used to zero-initialize output buffers
+            # At this protocol-less stage, we can just remove it
+            # The actual initialization will be handled by compute init pass
+            # For now, return a no-op or keep the call as-is for later passes
+            # to recognize
+            call = evaluate_node.value
+
+            # Create a protocol-less fill marker that later passes can use
+            # This just marks that a buffer needs initialization
+            arg0 = call.args[0] if len(call.args) > 0 else tir.IntImm("int32", 0)
+            arg1 = call.args[1] if len(call.args) > 1 else tir.IntImm("int32", 0)
+
+            return tir.Evaluate(
+                tir.call_extern(
+                    "void",
+                    "tt.fill.zero",  # Protocol-less fill marker
+                    arg0,
+                    arg1))
+
+        def _lower_copy(self, evaluate_node):
+            """Lower T.copy / tl.copy to protocol-less marker"""
+            # T.copy is used to transfer data between memory spaces
+            # At this protocol-less stage, we just mark the intent
+            # Actual NOC operations will be inserted by lower_cb_intrinsics (Pass D3)
+            call = evaluate_node.value
+            args = call.args
+
+            # args typically are: source_region, dest_region, mask, predicate, cache_hint
+            # For now, create a protocol-less copy marker
+            # Extract source and dest buffer info if possible
+            src = args[0] if len(args) > 0 else tir.IntImm("int32", 0)
+            dst = args[1] if len(args) > 1 else tir.IntImm("int32", 0)
+
+            # Create protocol-less copy marker
+            return tir.Evaluate(
+                tir.call_extern(
+                    "void",
+                    "tt.copy.protocol_less",  # Marker for later lowering
+                    src,
+                    dst))
+
         def _lower_gemm(self, evaluate_node):
-            """Lower T.gemm to protocol-less tt.mm.mma"""
+            """Lower T.gemm / tl.gemm to protocol-less tt.mm.mma"""
             call = evaluate_node.value
             args = call.args
 
@@ -469,18 +509,46 @@ def LowerTTTileIntrinsics_v5(func, mod, ctx):
     # Get CB metadata from previous pass
     cb_metadata = func.attrs.get("tt.conceptual_cbs", {})
 
-    # Apply transformation
-    lowerer = TileIntrinsicLowerer(cb_metadata)
-    new_body = lowerer.visit(func.body)
+    # Use ir_transform instead of BlockTransformer for proper node reconstruction
+    def post_visit(stmt):
+        """Post-visit function for ir_transform"""
+        if isinstance(stmt, tir.Evaluate):
+            # Create temporary lowerer just for detection
+            temp_lowerer = TileIntrinsicLowerer(cb_metadata)
 
-    # Update function
+            # Check if this is a TileLang intrinsic that needs lowering
+            if temp_lowerer._is_fill_intrinsic(stmt):
+                return temp_lowerer._lower_fill(stmt)
+            elif temp_lowerer._is_copy_intrinsic(stmt):
+                return temp_lowerer._lower_copy(stmt)
+            elif temp_lowerer._is_gemm_intrinsic(stmt):
+                return temp_lowerer._lower_gemm(stmt)
+            elif temp_lowerer._is_elementwise_op(stmt):
+                return temp_lowerer._lower_elementwise(stmt)
+        elif isinstance(stmt, tir.BufferStore):
+            # Handle BufferStore patterns (matmul, binary ops, etc.)
+            temp_lowerer = TileIntrinsicLowerer(cb_metadata)
+
+            if temp_lowerer._is_matmul_accumulation(stmt):
+                return temp_lowerer._lower_matmul_accumulation(stmt)
+            elif temp_lowerer._is_binary_operation(stmt):
+                return temp_lowerer._lower_binary_operation(stmt)
+
+        return stmt
+
+    new_body = stmt_functor.ir_transform(func.body, None, post_visit)
+
+    # Update function with transformed body
     func = func.with_body(new_body)
 
-    # Add metadata about compute patterns found
-    if lowerer.compute_patterns:
-        func = func.with_attr("tt.compute_patterns", lowerer.compute_patterns)
-
     return func
+
+
+# Decorated version for TVM pass infrastructure
+@tvm.tir.transform.prim_func_pass(opt_level=0)
+def LowerTTTileIntrinsics_v5(func, mod, ctx):
+    """TVM pass wrapper for tile intrinsic lowering."""
+    return _transform_tile_intrinsics(func, mod, ctx)
 
 
 def validate_no_heuristics(func):

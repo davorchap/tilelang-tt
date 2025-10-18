@@ -23,7 +23,25 @@ AVALIABLE_TARGETS = {
     TENSTORRENT_TARGET,
 }
 
-_HAS_TENSTORRENT_BACKEND = _is_tenstorrent_backend_enabled()
+# Don't check TT backend availability at module load time!
+# The registration happens when tilelang.engine.tenstorrent is imported,
+# which happens later in the import chain (after this module loads).
+# Instead, check lazily when needed.
+_HAS_TENSTORRENT_BACKEND = None  # Will be checked lazily
+
+
+def _check_tenstorrent_backend():
+    """Lazily check if Tenstorrent backend is available.
+
+    This defers the check until after tilelang.engine is imported,
+    which triggers the backend registration.
+    """
+    global _HAS_TENSTORRENT_BACKEND
+    if _HAS_TENSTORRENT_BACKEND is None:
+        # Ensure tilelang.engine is imported (triggers TT backend registration)
+        import tilelang.engine  # noqa: F401
+        _HAS_TENSTORRENT_BACKEND = _is_tenstorrent_backend_enabled()
+    return _HAS_TENSTORRENT_BACKEND
 
 
 def check_cuda_availability() -> bool:
@@ -92,7 +110,7 @@ def determine_target(target: Union[str, Target, Literal["auto"]] = "auto",
         target_kind = target.kind.name if isinstance(target, Target) else target
         assert isinstance(
             target, Target) or target_kind in AVALIABLE_TARGETS, f"Target {target} is not supported"
-        if target_kind == TENSTORRENT_TARGET and not _HAS_TENSTORRENT_BACKEND:
+        if target_kind == TENSTORRENT_TARGET and not _check_tenstorrent_backend():
             raise ValueError(
                 "Tenstorrent backend requires TileLang to be built with TL_TT_BACKEND enabled.")
         return_var = target

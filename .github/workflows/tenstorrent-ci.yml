@@ -122,10 +122,10 @@ jobs:
             build/tvm/
             build/libtilelang*.so
             build/3rdparty/
-          key: tvm-build-llvm-${{ steps.tvm-cache-key.outputs.tvm_commit }}-${{ runner.os }}
+          key: tvm-build-llvm-tt-${{ steps.tvm-cache-key.outputs.tvm_commit }}-${{ runner.os }}
           restore-keys: |
-            tvm-build-llvm-${{ steps.tvm-cache-key.outputs.tvm_commit }}-
-            tvm-build-llvm-
+            tvm-build-llvm-tt-${{ steps.tvm-cache-key.outputs.tvm_commit }}-
+            tvm-build-llvm-tt-
 
       - name: Build TileLang with LLVM (ccache-enabled)
         run: |
@@ -195,7 +195,7 @@ jobs:
             build/tvm/
             build/libtilelang*.so
             build/3rdparty/
-          key: tvm-build-llvm-${{ steps.tvm-cache-key.outputs.tvm_commit }}-${{ runner.os }}
+          key: tvm-build-llvm-tt-${{ steps.tvm-cache-key.outputs.tvm_commit }}-${{ runner.os }}
 
   static-analysis:
     runs-on: ubuntu-latest

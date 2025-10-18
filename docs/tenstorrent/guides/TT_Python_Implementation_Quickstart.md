@@ -558,9 +558,10 @@ By the end of your first day, you should:
 
 ### Essential Files to Study
 ```
-tilelang/tenstorrent/passes/_common.py  # Utility functions
-tilelang/tenstorrent/passes/infer_tt_layout.py  # Good example
-src/target/tenstorrent/codegen_tt.cc  # Understand output format
+tilelang/tenstorrent/passes/_common.py         # Utility functions
+tilelang/tenstorrent/passes/infer_tt_layout_v5.py  # Good v5 pass example
+tilelang/tenstorrent/codegen/kernel_generators.py  # Python codegen visitors
+tilelang/tenstorrent/codegen/intrinsics.py     # Intrinsic registry
 ```
 
 ### TVM Documentation

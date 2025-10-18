@@ -29,6 +29,31 @@ Guidelines for Claude Code when collaborating on this repository.
 
 **Note:** Use `requirements-tenstorrent.txt` for TT backend development. It includes CPU-only PyTorch and excludes CUDA dependencies, preventing disk space issues.
 
+## Running Examples
+To run TileLang examples with the TT backend:
+```bash
+# Always activate venv first
+source .venv/bin/activate
+
+# Run an example (e.g., GEMM)
+python examples/tenstorrent/example_gemm_tt_minimal.py
+
+# Enable IR dumping to debug compiler passes
+export TT_DUMP_IR=1
+export TT_IR_DUMP_DIR=ir_dumps  # Optional: default is "tt_pass_ir"
+python examples/tenstorrent/example_gemm_tt_minimal.py
+
+# IR dumps will be in the specified directory with format:
+# 00_initial.tir, 01_infer_tt_layout_v5.tir, 02_propagate_tt_layout_v5.tir, etc.
+```
+
+**Artifacts Location:**
+- Generated C++ files are cached in `~/.tilelang/cache/<hash>/` with files:
+  - `reader.cpp`, `compute.cpp`, `writer.cpp` - Device kernels
+  - `main.cpp` - Host program
+  - `tt.plan.json` - Runtime execution plan
+  - `CMakeLists.txt` - Build configuration
+
 ## Workflow Expectations
 - Branch from `main` and open PRs against `davorchap/tilelang-tt`; upstream `tile-ai/tilelang` stays read-only for TT backend development.
 - Keep commits focused, imperative, and documented—reference any touched docs or scripts when workflows change.

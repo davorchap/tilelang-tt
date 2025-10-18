@@ -215,7 +215,7 @@ For complete buffer and PrimFunc attribute schemas, see the detailed tables in [
 
 ### Phase 4: Code Generation (IR-Driven)
 
-**Entry Point:** `src/target/tenstorrent/codegen_tt.cc` → `CodegenTT::Build()`
+**Entry Point:** `tilelang/tenstorrent/codegen/kernel_generators.py` → Python codegen visitors
 
 **3-Kernel Architecture:**
 
@@ -642,56 +642,45 @@ for (uint32_t out_tile = 0; out_tile < num_out_tiles; ++out_tile) {
 ```
 tilelang-tt/
 ├── tilelang/
-│   ├── engine/tt/
-│   │   ├── __init__.py
-│   │   ├── adapter.py          # Engine adapter (entry point)
-│   │   └── lower.py            # TT lowering pipeline
+│   ├── engine/tenstorrent/
+│   │   └── lower.py                           # TT lowering pipeline (v5)
 │   └── tenstorrent/
 │       ├── __init__.py
-│       ├── annotations.py      # annotate_tt_layout / annotate_tt_schedule
-│       ├── target.py           # apply_tt_defaults()
+│       ├── annotations.py                     # annotate_tt_layout / annotate_tt_schedule
+│       ├── target.py                          # apply_tt_defaults()
+│       ├── codegen/
+│       │   ├── kernel_generators.py           # Reader/compute/writer codegen
+│       │   ├── host_generator.py              # Host program generation
+│       │   ├── runtime_plan.py                # tt.plan.json generation
+│       │   ├── intrinsics.py                  # Intrinsic registry
+│       │   └── visitors.py                    # C++ emission visitors
 │       └── passes/
 │           ├── __init__.py
 │           ├── _common.py
-│           ├── infer_default_tt_schedule.py
-│           ├── infer_default_tt_shard.py
-│           ├── infer_tt_layout.py
-│           ├── layout_aware_work_partition_tt.py
-│           ├── propagate_tt_layout.py
-│           ├── grid_to_persistent_tt.py
-│           ├── tt_tiles_to_core_map.py
-│           ├── memory_space_lower_tt.py
-│           ├── tile_pad_tt.py
-│           ├── lower_gemm_to_tt_intrinsics.py
-│           └── verify_tt_ir.py
+│           ├── pipeline.py                    # v5 14-pass pipeline
+│           ├── infer_tt_layout_v5.py          # Stage A1
+│           ├── propagate_tt_layout_v5.py      # Stage A2
+│           ├── attach_tensor_accessor_tt.py   # Stage A3
+│           ├── layout_aware_work_partition_tt_v5.py  # Stage B1
+│           ├── grid_to_core_grid_v5.py        # Stage B2
+│           ├── lower_shared_to_cb_v5.py       # Stage C1
+│           ├── lower_tt_tile_intrinsics_v5.py # Stage C2
+│           ├── build_tile_dfg_tt.py           # Stage C3
+│           ├── split_device_kernel.py         # Stage D1
+│           ├── configure_tensor_accessor_tt.py # Stage D2
+│           ├── lower_cb_intrinsics.py         # Stage D3
+│           ├── insert_compute_init_tt.py      # Stage D4
+│           ├── insert_dst_management_tt.py    # Stage D5
+│           └── finalize_persistent_signature_tt.py  # Stage E1
 ├── src/
-│   ├── transform/tt/
-│   │   ├── infer_tt_schedule.cc        # Compute tile assignments
-│   │   ├── infer_tt_shard.cc           # DRAM layout descriptors
-│   │   ├── grid_to_persistent_tt.cc    # Grid → persistent loop
-│   │   ├── tt_tiles_to_core_map.cc     # Tile assignments → NOC coords
-│   │   ├── memory_space_lower_tt.cc    # DRAM → L1 CB
-│   │   ├── tile_pad_tt.cc              # Pad to 32×32
-│   │   ├── lower_gemm_to_tt_intrinsics.cc # Pattern detection (INCOMPLETE)
-│   │   └── verify_tt_ir.cc             # TT constraint verification
-│   └── target/tt/
-│       ├── codegen_tt.cc                      # Main codegen entry
-│       ├── codegen_tt_visitor_base.cc         # Base visitor
-│       ├── codegen_tt_compute_visitor.cc      # Compute kernel
-│       ├── codegen_tt_reader_visitor.cc       # Reader kernel
-│       └── codegen_tt_writer_visitor.cc       # Writer kernel
+│   └── transform/tenstorrent/
+│       └── verify_tt_ir.cc                    # TT constraint verification (C++)
 └── testing/python/tenstorrent/
-    ├── test_target_registration.py      # Target registration
-    ├── test_metadata_inference.py       # Metadata inference tests
-    ├── test_layout_aware_metadata.py    # Layout-aware metadata (9 tests)
-    ├── test_persistent_lowering.py      # Persistent pipeline integration
-    ├── test_tt_tiles_to_core_map.py     # NOC mapping
-    ├── test_memory_space_lower_tt.py    # Circular-buffer lowering
-    ├── test_tile_pad_tt.py              # Tile padding
-    ├── test_lower_gemm_to_tt_intrinsics.py  # Tensorization
-    ├── test_verify_tt_ir.py             # Verification
-    ├── test_codegen_pipeline.py         # Codegen integration
-    └── test_ir_to_codegen_integration.py# IR ↔ codegen smoke tests
+    ├── test_target_registration.py            # Target registration
+    ├── test_v5_passes_integration.py          # v5 pipeline integration
+    ├── test_codegen_pipeline.py               # Codegen integration
+    ├── test_jit_decorator.py                  # JIT decorator
+    └── test_no_templates.py                   # IR-driven codegen validation
 ```
 
 ---

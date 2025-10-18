@@ -49,11 +49,14 @@ class BlockTransformer:
         # Handle sequence statements
         elif isinstance(stmt, tir.SeqStmt):
             new_seq = []
+            changed = False
             for s in stmt.seq:
                 new_s = self.visit(s)
                 if new_s is not None:
                     new_seq.append(new_s)
-            if new_seq != stmt.seq:
+                    if new_s is not s:  # Check object identity, not equality
+                        changed = True
+            if changed:
                 return tir.SeqStmt(new_seq)
             return stmt
 
@@ -80,8 +83,8 @@ class BlockTransformer:
         # Visit the contained block
         new_block = self.visit(block_realize.block)
 
-        # Reconstruct if changed
-        if new_block != block_realize.block:
+        # Reconstruct if changed (use object identity)
+        if new_block is not block_realize.block:
             return tir.BlockRealize(block_realize.iter_values, block_realize.predicate, new_block,
                                     block_realize.span)
         return block_realize
@@ -103,8 +106,8 @@ class BlockTransformer:
         if cb_metadata:
             new_body = self.insert_cb_allocations(new_body, cb_metadata)
 
-        # Reconstruct block if anything changed
-        if (new_body != original_body or new_alloc_buffers != block.alloc_buffers):
+        # Reconstruct block if anything changed (use object identity check)
+        if (new_body is not original_body or new_alloc_buffers is not block.alloc_buffers):
             # Use the replace method if available, otherwise reconstruct
             if hasattr(block, 'replace'):
                 return block.replace(body=new_body, alloc_buffers=new_alloc_buffers)
@@ -162,7 +165,7 @@ class BlockTransformer:
     def visit_for(self, for_node: tir.For) -> tir.For:
         """Visit For loop. Override in subclasses for specific behavior."""
         new_body = self.visit(for_node.body)
-        if new_body != for_node.body:
+        if new_body is not for_node.body:  # Use object identity
             return tir.For(for_node.loop_var, for_node.min, for_node.extent, for_node.kind,
                            new_body, for_node.thread_binding, for_node.annotations, for_node.span)
         return for_node
@@ -170,7 +173,7 @@ class BlockTransformer:
     def visit_allocate(self, allocate: tir.Allocate) -> tir.Allocate:
         """Visit Allocate node. Override in subclasses."""
         new_body = self.visit(allocate.body)
-        if new_body != allocate.body:
+        if new_body is not allocate.body:  # Use object identity
             return tir.Allocate(allocate.buffer_var, allocate.dtype, allocate.extents,
                                 allocate.condition, new_body, allocate.annotations, allocate.span)
         return allocate
