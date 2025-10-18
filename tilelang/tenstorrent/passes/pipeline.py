@@ -76,6 +76,7 @@ def build_v5_pipeline(
     from .lower_cb_intrinsics import lower_cb_intrinsics
     from .insert_compute_init_tt import insert_compute_init_tt
     from .insert_dst_management_tt import insert_dst_management_tt
+    from .validate_lowered_ir import validate_lowered_ir
     from .finalize_persistent_signature_tt import finalize_persistent_signature_tt
 
     # Build the v5 pipeline using function forms (not class instances)
@@ -98,13 +99,14 @@ def build_v5_pipeline(
         lower_tt_tile_intrinsics_v5,  # C2: Tile intrinsics
         build_tile_dfg_tt,  # C3: Tile dataflow graph
 
-        # Stage D: Late Split & Protocol Insertion (5 passes)
+        # Stage D: Late Split & Protocol Insertion (6 passes)
         split_device_kernel,  # D1: Kernel splitting
         # validate_split_kernels,  # D1.5: TEMPORARILY DISABLED - validates too early, before D3 generates NOC ops
         configure_tensor_accessor_tt,  # D2: Tensor accessor configuration
         lower_cb_intrinsics,  # D3: CB intrinsics
         insert_compute_init_tt,  # D4: Compute initialization
         insert_dst_management_tt,  # D5: DST management
+        validate_lowered_ir,  # D6: Validate IR is fully lowered before codegen
 
         # Stage E: Finalization (1 pass)
         finalize_persistent_signature_tt,  # E1: Signature finalization

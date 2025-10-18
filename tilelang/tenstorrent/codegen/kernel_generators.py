@@ -128,7 +128,13 @@ class EnhancedKernelGenerator:
                 self.code.writeln("constexpr auto cb_in1 = tt::CBIndex::c_1;")
                 self.code.writeln("constexpr auto cb_out0 = tt::CBIndex::c_16;")
                 self.code.writeln()
-            return
+                # Set default CB indices for visitor
+                cb_indices = {"cb_in0": 0, "cb_in1": 1, "cb_out0": 16}
+                # Pass CB indices to visitor and return early
+                self.visitor.cb_indices = cb_indices
+                return
+            else:
+                return
 
         self.code.writeln("// Circular buffer indices")
         for cb_name, cb_index in cb_indices.items():
