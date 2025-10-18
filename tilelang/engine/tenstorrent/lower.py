@@ -216,6 +216,26 @@ def SplitTTKernels(mod: tvm.IRModule) -> Tuple[tvm.IRModule, tvm.IRModule]:
     return mod, mod
 
 
+@tvm.register_func("target.build.tilelang_tt", override=True)
+def build_tt(mod: tvm.IRModule, target: Target) -> tvm.runtime.Module:
+    """TVM target.build function for Tenstorrent backend.
+
+    This function is called by TVM's build system when building for the
+    Tenstorrent target. It's registered with the TVM runtime so that
+    _is_tenstorrent_backend_enabled() returns True.
+
+    Args:
+        mod: The TVM IRModule to build
+        target: The Tenstorrent target
+
+    Returns:
+        A TVM runtime module (currently None as we generate artifacts directly)
+    """
+    # For now, just return None - the actual lowering happens in lower()
+    # This registration is primarily to make _is_tenstorrent_backend_enabled() work
+    return None
+
+
 def lower(
     mod: tvm.IRModule,
     params: Optional[List[KernelParam]],
