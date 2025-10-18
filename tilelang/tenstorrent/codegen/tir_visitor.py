@@ -637,12 +637,11 @@ class TIRToMetaliumVisitor:
             # Extract the actual function name from first StringImm arg
             func_name_idx = None
             for i, arg in enumerate(call.args):
-                if isinstance(arg, tir.StringImm):
-                    # Skip return types like "void", "uint32", "int32"
-                    if arg.value not in ["void"] and not arg.value.startswith("uint") and not arg.value.startswith("int"):
-                        actual_func_name = arg.value
-                        func_name_idx = i
-                        break
+                if (isinstance(arg, tir.StringImm) and arg.value not in ["void"] and
+                        not arg.value.startswith("uint") and not arg.value.startswith("int")):
+                    actual_func_name = arg.value
+                    func_name_idx = i
+                    break
 
             # Remaining args are the actual arguments (skip the function name)
             if func_name_idx is not None:

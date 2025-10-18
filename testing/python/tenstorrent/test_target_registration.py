@@ -60,14 +60,14 @@ def test_tenstorrent_engine_lower_returns_compiled_artifact(toggle_tt_backend):
     import tilelang.language as T
 
     @T.prim_func
-    def simple_kernel(A: T.Buffer((128, 128), "float16"),
-                      B: T.Buffer((128, 128), "float16"),
+    def simple_kernel(A: T.Buffer((128, 128), "float16"), B: T.Buffer((128, 128), "float16"),
                       C: T.Buffer((128, 128), "float16")):
         with T.Kernel(4, 4) as (bx, by):
             # Use a simple element-wise operation to test the pipeline
             # This avoids gemm constraints while still testing reader/compute/writer
             for i, j in T.Parallel(32, 32):
-                C[bx * 32 + i, by * 32 + j] = A[bx * 32 + i, by * 32 + j] + B[bx * 32 + i, by * 32 + j]
+                C[bx * 32 + i,
+                  by * 32 + j] = A[bx * 32 + i, by * 32 + j] + B[bx * 32 + i, by * 32 + j]
 
     # Create IRModule
     mod = tvm.IRModule({"main": simple_kernel})
