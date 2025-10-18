@@ -36,8 +36,11 @@ class ProtocolType(Enum):
 class CBProtocolInserter:
     """Helper class to transform abstract ops to protocol sequences"""
 
-    def __init__(self, kernel_role: str, tensor_accessors: Dict[str, Dict[str, Any]],
-                 cb_indices: Dict[str, int], loop_var: Optional[tir.Var] = None):
+    def __init__(self,
+                 kernel_role: str,
+                 tensor_accessors: Dict[str, Dict[str, Any]],
+                 cb_indices: Dict[str, int],
+                 loop_var: Optional[tir.Var] = None):
         self.kernel_role = kernel_role
         self.tensor_accessors = tensor_accessors
         self.cb_indices = cb_indices
@@ -58,11 +61,11 @@ class CBProtocolInserter:
                 # For call_extern, look through all args to find the function name StringImm
                 if op_name == "tir.call_extern" and hasattr(call, 'args'):
                     for arg in call.args:
-                        if isinstance(arg, tir.StringImm):
-                            # Found a string - skip return types, get actual function name
-                            if arg.value not in ["void"] and not arg.value.startswith("uint") and not arg.value.startswith("int"):
-                                op_name = arg.value
-                                break
+                        if (isinstance(arg, tir.StringImm) and arg.value not in ["void"] and
+                                not arg.value.startswith("uint") and
+                                not arg.value.startswith("int")):
+                            op_name = arg.value
+                            break
 
             if not op_name:
                 return tir.Evaluate(call)
@@ -306,10 +309,11 @@ class CBProtocolInserter:
         dst_scope = self._get_region_scope(dst_region)
 
         # Determine if this is a read (DRAM->L1) or write (L1->DRAM)
-        is_dram_read = (src_scope in ["global", "dram", ""] and
-                        dst_scope in ["shared", "shared.dyn", "local"])
-        is_dram_write = (src_scope in ["shared", "shared.dyn", "local", "local.fragment"] and
-                         dst_scope in ["global", "dram", ""])
+        is_dram_read = (
+            src_scope in ["global", "dram", ""] and dst_scope in ["shared", "shared.dyn", "local"])
+        is_dram_write = (
+            src_scope in ["shared", "shared.dyn", "local", "local.fragment"] and
+            dst_scope in ["global", "dram", ""])
 
         # Handle based on kernel role and operation type
         if self.kernel_role == "reader" and is_dram_read:
@@ -374,9 +378,8 @@ class CBProtocolInserter:
         5. cb_push_back(cb_index, 1);
         """
 
-        # Extract buffer names
+        # Extract source buffer name for CB mapping and tile_id calculation
         src_buffer_name = self._extract_buffer_name_from_region(src_region)
-        dst_buffer_name = self._extract_buffer_name_from_region(dst_region)
 
         # Map buffer to CB (A->cb_in0, B->cb_in1, etc.)
         cb_name = self._infer_cb_from_buffer(src_buffer_name)
@@ -387,9 +390,8 @@ class CBProtocolInserter:
 
         # Step 1: Reserve space in CB (happens first, outside LetStmt)
         cb_reserve = tir.Evaluate(
-            tir.call_extern("void", "cb_reserve_back",
-                           tir.IntImm("int32", cb_index),
-                           tir.IntImm("int32", 1)))
+            tir.call_extern("void", "cb_reserve_back", tir.IntImm("int32", cb_index),
+                            tir.IntImm("int32", 1)))
 
         # Step 2-5: Build the statements that use l1_write_addr
         # These will be the body of the LetStmt
@@ -402,28 +404,28 @@ class CBProtocolInserter:
         tile_id_expr = self._create_tile_id_expr(src_buffer_name)
 
         noc_read = tir.Evaluate(
-            tir.call_extern("void", "noc_async_read_tile",
-                           tile_id_expr,  # Computed tile_id
-                           tir.IntImm("int32", accessor.get("runtime_arg_idx", 0)),
-                           write_ptr_var))
+            tir.call_extern(
+                "void",
+                "noc_async_read_tile",
+                tile_id_expr,  # Computed tile_id
+                tir.IntImm("int32", accessor.get("runtime_arg_idx", 0)),
+                write_ptr_var))
 
         # Step 4: Wait for NOC transfer
         noc_barrier = tir.Evaluate(tir.call_extern("void", "noc_async_read_barrier"))
 
         # Step 5: Push to CB
         cb_push = tir.Evaluate(
-            tir.call_extern("void", "cb_push_back",
-                           tir.IntImm("int32", cb_index),
-                           tir.IntImm("int32", 1)))
+            tir.call_extern("void", "cb_push_back", tir.IntImm("int32", cb_index),
+                            tir.IntImm("int32", 1)))
 
         # Combine steps 3-5 into body of LetStmt
         let_body = tir.SeqStmt([noc_read, noc_barrier, cb_push])
 
         # Step 2: Create LetStmt that defines l1_write_addr and contains steps 3-5
         let_stmt = tir.LetStmt(
-            write_ptr_var,
-            tir.call_extern("uint32", "get_write_ptr", tir.IntImm("int32", cb_index)),
-            let_body)
+            write_ptr_var, tir.call_extern("uint32", "get_write_ptr",
+                                           tir.IntImm("int32", cb_index)), let_body)
 
         # Final sequence: cb_reserve, then LetStmt
         return tir.SeqStmt([cb_reserve, let_stmt])
@@ -439,8 +441,7 @@ class CBProtocolInserter:
         5. cb_pop_front(cb_index, 1);
         """
 
-        # Extract buffer names
-        src_buffer_name = self._extract_buffer_name_from_region(src_region)
+        # Extract destination buffer name for CB mapping and tile_id calculation
         dst_buffer_name = self._extract_buffer_name_from_region(dst_region)
 
         # Map buffer to CB (C_local->cb_out0, etc.)
@@ -452,9 +453,8 @@ class CBProtocolInserter:
 
         # Step 1: Wait for data in CB (happens first, outside LetStmt)
         cb_wait = tir.Evaluate(
-            tir.call_extern("void", "cb_wait_front",
-                           tir.IntImm("int32", cb_index),
-                           tir.IntImm("int32", 1)))
+            tir.call_extern("void", "cb_wait_front", tir.IntImm("int32", cb_index),
+                            tir.IntImm("int32", 1)))
 
         # Step 2-5: Build statements that use l1_read_addr
         # These will be the body of the LetStmt
@@ -467,27 +467,27 @@ class CBProtocolInserter:
         tile_id_expr = self._create_tile_id_expr(dst_buffer_name)
 
         noc_write = tir.Evaluate(
-            tir.call_extern("void", "noc_async_write_tile",
-                           tile_id_expr,  # Computed tile_id
-                           tir.IntImm("int32", accessor.get("runtime_arg_idx", 0)),
-                           read_ptr_var))
+            tir.call_extern(
+                "void",
+                "noc_async_write_tile",
+                tile_id_expr,  # Computed tile_id
+                tir.IntImm("int32", accessor.get("runtime_arg_idx", 0)),
+                read_ptr_var))
 
         # Step 4: Wait for NOC transfer
         noc_barrier = tir.Evaluate(tir.call_extern("void", "noc_async_write_barrier"))
 
         # Step 5: Pop from CB
         cb_pop = tir.Evaluate(
-            tir.call_extern("void", "cb_pop_front",
-                           tir.IntImm("int32", cb_index),
-                           tir.IntImm("int32", 1)))
+            tir.call_extern("void", "cb_pop_front", tir.IntImm("int32", cb_index),
+                            tir.IntImm("int32", 1)))
 
         # Combine steps 3-5 into body of LetStmt
         let_body = tir.SeqStmt([noc_write, noc_barrier, cb_pop])
 
         # Step 2: Create LetStmt that defines l1_read_addr and contains steps 3-5
         let_stmt = tir.LetStmt(
-            read_ptr_var,
-            tir.call_extern("uint32", "get_read_ptr", tir.IntImm("int32", cb_index)),
+            read_ptr_var, tir.call_extern("uint32", "get_read_ptr", tir.IntImm("int32", cb_index)),
             let_body)
 
         # Final sequence: cb_wait, then LetStmt
@@ -644,10 +644,9 @@ class LowerCBIntrinsics:
 
         def visitor(node):
             nonlocal found_var
-            if isinstance(node, tir.For):
-                if hasattr(node, 'loop_var') and hasattr(node.loop_var, 'name'):
-                    if node.loop_var.name == 'k':
-                        found_var = node.loop_var
+            if (isinstance(node, tir.For) and hasattr(node, 'loop_var') and
+                    hasattr(node.loop_var, 'name') and node.loop_var.name == 'k'):
+                found_var = node.loop_var
 
         tir.stmt_functor.post_order_visit(body, visitor)
         return found_var

@@ -154,18 +154,10 @@ class KernelSplitter:
                 if new_body is None:
                     return None
                 # Reconstruct block with filtered body
-                new_block = tir.Block(
-                    stmt.block.iter_vars,
-                    stmt.block.reads,
-                    stmt.block.writes,
-                    stmt.block.name_hint,
-                    new_body,
-                    stmt.block.init,
-                    stmt.block.alloc_buffers,
-                    stmt.block.match_buffers,
-                    stmt.block.annotations,
-                    stmt.block.span
-                )
+                new_block = tir.Block(stmt.block.iter_vars, stmt.block.reads, stmt.block.writes,
+                                      stmt.block.name_hint, new_body, stmt.block.init,
+                                      stmt.block.alloc_buffers, stmt.block.match_buffers,
+                                      stmt.block.annotations, stmt.block.span)
                 return tir.BlockRealize(stmt.iter_values, stmt.predicate, new_block, stmt.span)
             return stmt
 
@@ -218,8 +210,9 @@ class KernelSplitter:
             # - DRAM read operations (cb_reserve_back, noc_async_read*, cb_push_back)
             # - tt.copy.protocol_less from global -> shared/local
             # - Input CB allocations
-            reader_ops = ["read_to_cb", "cb_reserve_back", "cb_push_back",
-                         "noc_async_read", "get_write_ptr"]
+            reader_ops = [
+                "read_to_cb", "cb_reserve_back", "cb_push_back", "noc_async_read", "get_write_ptr"
+            ]
             if any(x in op_name for x in reader_ops):
                 return True
             if "tt.copy.protocol_less" in op_name:
@@ -232,8 +225,10 @@ class KernelSplitter:
             # - Compute operations (mm.mma, matmul, fpu, sfpu)
             # - tt.copy.protocol_less between L1 buffers (shared <-> local)
             # - DST management (acquire_dst, release_dst, pack_tile)
-            compute_ops = ["mm.mma", "fpu.", "sfpu.", "gemm", "matmul", "add", "mul",
-                          "acquire_dst", "release_dst", "pack_tile", "mm_init"]
+            compute_ops = [
+                "mm.mma", "fpu.", "sfpu.", "gemm", "matmul", "add", "mul", "acquire_dst",
+                "release_dst", "pack_tile", "mm_init"
+            ]
             if any(x in op_name for x in compute_ops):
                 return True
             if "tt.copy.protocol_less" in op_name:
@@ -246,8 +241,9 @@ class KernelSplitter:
             # - DRAM write operations (cb_wait_front, noc_async_write*, cb_pop_front)
             # - tt.copy.protocol_less from shared/local -> global
             # - Output CB allocations
-            writer_ops = ["write_from_cb", "cb_wait_front", "cb_pop_front",
-                         "noc_async_write", "get_read_ptr"]
+            writer_ops = [
+                "write_from_cb", "cb_wait_front", "cb_pop_front", "noc_async_write", "get_read_ptr"
+            ]
             if any(x in op_name for x in writer_ops):
                 return True
             if "tt.copy.protocol_less" in op_name:
